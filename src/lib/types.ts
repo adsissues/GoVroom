@@ -1,4 +1,7 @@
 
+
+export type ShipmentStatus = 'Pending' | 'Completed';
+
 export interface Shipment {
   id: string;
   carrier: string;
@@ -6,13 +9,13 @@ export interface Shipment {
   driverName: string;
   departureDate: Date;
   arrivalDate: Date;
-  status: 'Pending' | 'Completed';
+  status: ShipmentStatus;
   sealNumber?: string;
   truckRegistration?: string;
   trailerRegistration?: string;
-  senderAddress?: string; // Admin only
-  consigneeAddress?: string; // Admin only
-  totalWeight?: number; // Calculated
+  senderAddress?: string;
+  consigneeAddress?: string;
+  totalWeight?: number; // Calculated or entered
   lastUpdated: Date;
   details?: ShipmentDetail[]; // Optional: if details are part of main shipment doc
 }
@@ -52,3 +55,4 @@ export type AISuggestion = {
   customer: string;
   service: string;
 };
+

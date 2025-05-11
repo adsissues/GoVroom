@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -12,13 +13,17 @@ import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Form } from '@/components/ui/form'; // Import Form provider
+import { Form, FormField, FormItem, FormMessage, FormControl } from '@/components/ui/form';
 import { cn } from '@/lib/utils';
-import { CalendarIcon, AlertCircle, Lightbulb } from 'lucide-react';
+import { CalendarIcon, Lightbulb } from 'lucide-react';
 import { format } from 'date-fns';
 import { CARRIERS, SUBCARRIERS, DEFAULT_SENDER_ADDRESS, DEFAULT_CONSIGNEE_ADDRESS } from '@/lib/constants';
 import AISuggestionSection from './ai-suggestion-section';
-import type { SuggestShipmentDetailsInput } from '@/ai/flows/suggest-shipment-details'; // Import type
+import type { SuggestShipmentDetailsInput } from '@/ai/flows/suggest-shipment-details';
+import { addShipmentToFirestore } from '@/lib/firebase/shipments';
+import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
+
 
 const shipmentFormSchema = z.object({
   carrier: z.string().min(1, "Carrier is required"),
@@ -32,6 +37,7 @@ const shipmentFormSchema = z.object({
   trailerRegistration: z.string().optional(),
   senderAddress: z.string().optional().default(DEFAULT_SENDER_ADDRESS),
   consigneeAddress: z.string().optional().default(DEFAULT_CONSIGNEE_ADDRESS),
+  totalWeight: z.number().optional(), // Added optional totalWeight
 });
 
 type ShipmentFormData = z.infer<typeof shipmentFormSchema>;
@@ -40,11 +46,10 @@ export default function ShipmentForm() {
   const [showAISuggestions, setShowAISuggestions] = useState(false);
   const [aiInput, setAiInput] = useState<SuggestShipmentDetailsInput | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+  const router = useRouter();
   
-  // Mock admin status
-  const isAdmin = true; 
-
-  const formHook = useForm<ShipmentFormData>({ // Renamed to formHook to avoid conflict if Form component itself was named 'form' by mistake
+  const formHook = useForm<ShipmentFormData>({
     resolver: zodResolver(shipmentFormSchema),
     defaultValues: {
       departureDate: new Date(),
@@ -55,11 +60,36 @@ export default function ShipmentForm() {
     },
   });
 
-  const onSubmit = (data: ShipmentFormData) => {
+  const onSubmit = async (data: ShipmentFormData) => {
     setIsSubmitting(true);
-    console.log("Shipment Data:", data);
-    // In a real app, save to Firestore here.
+    try {
+      // Ensure dates are valid Date objects before passing
+      const shipmentDataForFirestore = {
+        ...data,
+        departureDate: new Date(data.departureDate),
+        arrivalDate: new Date(data.arrivalDate),
+      };
+      await addShipmentToFirestore(shipmentDataForFirestore);
+      toast({
+        title: "Shipment Created",
+        description: "The new shipment has been saved successfully.",
+        variant: "default",
+      });
+      formHook.reset();
+      setShowAISuggestions(false); // Hide AI suggestions after successful submission
+      router.push('/shipments'); // Redirect to shipments list
+    } catch (error) {
+      console.error("Error saving shipment:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save the shipment. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
 
+    // Prepare AI input (can still be done even if submission fails, or conditionally)
     const preparedAiInput: SuggestShipmentDetailsInput = {
       carrier: data.carrier,
       subcarrier: data.subcarrier,
@@ -68,185 +98,235 @@ export default function ShipmentForm() {
       arrivalDate: format(data.arrivalDate, 'yyyy-MM-dd'),
       senderAddress: data.senderAddress || '',
       consigneeAddress: data.consigneeAddress || '',
-      // previousShipmentDetails: "Optional: any historical data as a string" 
     };
     setAiInput(preparedAiInput);
     setShowAISuggestions(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-        setIsSubmitting(false);
-        formHook.reset(); // Reset form after submission
-         // Potentially show a success toast here
-    }, 1000);
   };
 
   return (
-    <Form {...formHook}> {/* Wrap with FormProvider */}
+    <Form {...formHook}>
       <form onSubmit={formHook.handleSubmit(onSubmit)} className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Carrier */}
-          <div>
-            <Label htmlFor="carrier">Carrier</Label>
-            <Controller
-              name="carrier"
-              control={formHook.control}
-              render={({ field }) => (
+          <FormField
+            control={formHook.control}
+            name="carrier"
+            render={({ field }) => (
+              <FormItem>
+                <Label htmlFor="carrier">Carrier</Label>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <SelectTrigger id="carrier" className="mt-1">
-                    <SelectValue placeholder="Select carrier" />
-                  </SelectTrigger>
+                  <FormControl>
+                    <SelectTrigger id="carrier" className="mt-1">
+                      <SelectValue placeholder="Select carrier" />
+                    </SelectTrigger>
+                  </FormControl>
                   <SelectContent>
                     {CARRIERS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
-              )}
-            />
-            {formHook.formState.errors.carrier && <p className="text-sm text-destructive mt-1">{formHook.formState.errors.carrier.message}</p>}
-          </div>
-
-          {/* Subcarrier */}
-          <div>
-            <Label htmlFor="subcarrier">Subcarrier</Label>
-            <Controller
-              name="subcarrier"
-              control={formHook.control}
-              render={({ field }) => (
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={formHook.control}
+            name="subcarrier"
+            render={({ field }) => (
+              <FormItem>
+                <Label htmlFor="subcarrier">Subcarrier</Label>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <SelectTrigger id="subcarrier" className="mt-1">
-                    <SelectValue placeholder="Select subcarrier" />
-                  </SelectTrigger>
+                  <FormControl>
+                    <SelectTrigger id="subcarrier" className="mt-1">
+                      <SelectValue placeholder="Select subcarrier" />
+                    </SelectTrigger>
+                  </FormControl>
                   <SelectContent>
                     {SUBCARRIERS.map(sc => <SelectItem key={sc.value} value={sc.value}>{sc.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
-              )}
-            />
-            {formHook.formState.errors.subcarrier && <p className="text-sm text-destructive mt-1">{formHook.formState.errors.subcarrier.message}</p>}
-          </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
-        {/* Driver Name */}
-        <div>
-          <Label htmlFor="driverName">Driver Name</Label>
-          <Input id="driverName" {...formHook.register("driverName")} className="mt-1" />
-          {formHook.formState.errors.driverName && <p className="text-sm text-destructive mt-1">{formHook.formState.errors.driverName.message}</p>}
-        </div>
+        <FormField
+          control={formHook.control}
+          name="driverName"
+          render={({ field }) => (
+            <FormItem>
+              <Label htmlFor="driverName">Driver Name</Label>
+              <FormControl>
+                <Input id="driverName" {...field} className="mt-1" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Departure Date */}
-          <div>
-            <Label htmlFor="departureDate">Departure Date</Label>
-            <Controller
-              name="departureDate"
-              control={formHook.control}
-              render={({ field }) => (
+          <FormField
+            control={formHook.control}
+            name="departureDate"
+            render={({ field }) => (
+              <FormItem className="flex flex-col">
+                <Label htmlFor="departureDate">Departure Date</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button
-                      variant={"outline"}
-                      className={cn("w-full justify-start text-left font-normal mt-1", !field.value && "text-muted-foreground")}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                    </Button>
+                    <FormControl>
+                      <Button
+                        variant={"outline"}
+                        className={cn("w-full justify-start text-left font-normal mt-1", !field.value && "text-muted-foreground")}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </FormControl>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
                     <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
                   </PopoverContent>
                 </Popover>
-              )}
-            />
-            {formHook.formState.errors.departureDate && <p className="text-sm text-destructive mt-1">{formHook.formState.errors.departureDate.message}</p>}
-          </div>
-
-          {/* Arrival Date */}
-          <div>
-            <Label htmlFor="arrivalDate">Arrival Date</Label>
-            <Controller
-              name="arrivalDate"
-              control={formHook.control}
-              render={({ field }) => (
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={formHook.control}
+            name="arrivalDate"
+            render={({ field }) => (
+              <FormItem className="flex flex-col">
+                <Label htmlFor="arrivalDate">Arrival Date</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button
-                      variant={"outline"}
-                      className={cn("w-full justify-start text-left font-normal mt-1", !field.value && "text-muted-foreground")}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                    </Button>
+                    <FormControl>
+                      <Button
+                        variant={"outline"}
+                        className={cn("w-full justify-start text-left font-normal mt-1", !field.value && "text-muted-foreground")}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </FormControl>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
                     <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
                   </PopoverContent>
                 </Popover>
-              )}
-            />
-            {formHook.formState.errors.arrivalDate && <p className="text-sm text-destructive mt-1">{formHook.formState.errors.arrivalDate.message}</p>}
-          </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Seal Number */}
-          <div>
-            <Label htmlFor="sealNumber">Seal Number</Label>
-            <Input id="sealNumber" {...formHook.register("sealNumber")} className="mt-1" />
-          </div>
-          {/* Truck Registration */}
-          <div>
-            <Label htmlFor="truckRegistration">Truck Registration #</Label>
-            <Input id="truckRegistration" {...formHook.register("truckRegistration")} className="mt-1" />
-          </div>
-          {/* Trailer Registration */}
-          <div>
-            <Label htmlFor="trailerRegistration">Trailer Registration #</Label>
-            <Input id="trailerRegistration" {...formHook.register("trailerRegistration")} className="mt-1" />
-          </div>
-        </div>
-        
-        {/* Admin-only fields */}
-        {isAdmin && (
-          <div className="space-y-6 border-t border-border pt-6 mt-6">
-              <h3 className="text-lg font-medium text-foreground flex items-center">
-                  <AlertCircle className="w-5 h-5 mr-2 text-primary" />
-                  Admin Section: Addresses
-              </h3>
-              <div>
-                  <Label htmlFor="senderAddress">Sender Address</Label>
-                  <Textarea id="senderAddress" {...formHook.register("senderAddress")} className="mt-1 min-h-[80px]" />
-                  <p className="text-xs text-muted-foreground mt-1">Editable by Admins only.</p>
-              </div>
-              <div>
-                  <Label htmlFor="consigneeAddress">Consignee Address</Label>
-                  <Textarea id="consigneeAddress" {...formHook.register("consigneeAddress")} className="mt-1 min-h-[80px]" />
-                  <p className="text-xs text-muted-foreground mt-1">Editable by Admins only.</p>
-              </div>
-          </div>
-        )}
-
-
-        {/* Status Toggle */}
-        <div className="flex items-center space-x-2 pt-4">
-          <Controller
-            name="status"
+          <FormField
             control={formHook.control}
+            name="sealNumber"
             render={({ field }) => (
-              <Switch
-                id="status"
-                checked={field.value}
-                onCheckedChange={field.onChange}
-                // aria-readonly removed as it's not a standard prop for Switch and likely not the cause of parsing error
-              />
+              <FormItem>
+                <Label htmlFor="sealNumber">Seal Number</Label>
+                <FormControl>
+                  <Input id="sealNumber" {...field} className="mt-1" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
             )}
           />
-          <Label htmlFor="status" className="text-base">
-            Mark as Completed (Status: {formHook.watch("status") ? "Completed" : "Pending"})
-          </Label>
+          <FormField
+            control={formHook.control}
+            name="truckRegistration"
+            render={({ field }) => (
+              <FormItem>
+                <Label htmlFor="truckRegistration">Truck Registration #</Label>
+                <FormControl>
+                  <Input id="truckRegistration" {...field} className="mt-1" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={formHook.control}
+            name="trailerRegistration"
+            render={({ field }) => (
+              <FormItem>
+                <Label htmlFor="trailerRegistration">Trailer Registration #</Label>
+                <FormControl>
+                  <Input id="trailerRegistration" {...field} className="mt-1" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
+        <div className="space-y-6 border-t border-border pt-6 mt-6">
+            <h3 className="text-lg font-medium text-foreground">
+                Address Information
+            </h3>
+            <FormField
+              control={formHook.control}
+              name="senderAddress"
+              render={({ field }) => (
+                <FormItem>
+                  <Label htmlFor="senderAddress">Sender Address</Label>
+                  <FormControl>
+                    <Textarea id="senderAddress" {...field} className="mt-1 min-h-[80px]" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={formHook.control}
+              name="consigneeAddress"
+              render={({ field }) => (
+                <FormItem>
+                  <Label htmlFor="consigneeAddress">Consignee Address</Label>
+                  <FormControl>
+                    <Textarea id="consigneeAddress" {...field} className="mt-1 min-h-[80px]" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
         </div>
 
+        <FormField
+            control={formHook.control}
+            name="totalWeight"
+            render={({ field }) => (
+              <FormItem>
+                <Label htmlFor="totalWeight">Total Weight (kg)</Label>
+                <FormControl>
+                  <Input id="totalWeight" type="number" {...field} onChange={event => field.onChange(+event.target.value)} className="mt-1" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+        <FormField
+          control={formHook.control}
+          name="status"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center space-x-3 space-y-0 pt-4">
+              <FormControl>
+                <Switch
+                  id="status"
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+              <Label htmlFor="status" className="text-base">
+                Mark as Completed (Status: {formHook.watch("status") ? "Completed" : "Pending"})
+              </Label>
+            </FormItem>
+          )}
+        />
+
         <div className="flex justify-end space-x-3 pt-6">
-          <Button type="button" variant="outline" onClick={() => formHook.reset()}>
+          <Button type="button" variant="outline" onClick={() => {formHook.reset(); setShowAISuggestions(false);}}>
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>

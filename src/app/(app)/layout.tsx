@@ -2,6 +2,12 @@
 import type { ReactNode } from 'react';
 import AppSidebar from '@/components/layout/app-sidebar';
 import AppHeader from '@/components/layout/app-header';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'GoVroom App', // More specific title for authenticated section
+  description: 'Manage your GoVroom shipments and dashboard.',
+};
 
 export default function AuthenticatedAppLayout({ children }: { children: ReactNode }) {
   return (
