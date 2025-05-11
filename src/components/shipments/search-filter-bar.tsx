@@ -1,9 +1,7 @@
-
 "use client";
 
 import { useState } from 'react';
-import { useForm, Controller }
-from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -13,7 +11,10 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { CalendarIcon, Search, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
-import { CARRIERS, CUSTOMERS } from '@/lib/constants'; // Assuming customers list for filter
+import { useQuery } from '@tanstack/react-query';
+import { getDropdownOptions } from '@/lib/firebase/dropdowns';
+import type { SelectOption } from '@/lib/types';
+// CARRIERS and CUSTOMERS constants are removed, now fetched from Firestore
 
 interface SearchFilterBarProps {
   onSearch: (filters: Record<string, any>) => void;
@@ -24,7 +25,7 @@ const ALL_ITEMS_VALUE = "all_items_selection_sentinel";
 type FilterFormData = {
   carrier?: string;
   driverName?: string;
-  status?: string; // Changed to string to accommodate ALL_ITEMS_VALUE
+  status?: string;
   dateFrom?: Date;
   dateTo?: Date;
   customer?: string;
@@ -41,6 +42,17 @@ export default function SearchFilterBar({ onSearch }: SearchFilterBarProps) {
       dateTo: undefined,
     }
   });
+
+  const { data: carriers, isLoading: isLoadingCarriers, error: carriersError } = useQuery<SelectOption[]>({
+    queryKey: ['carriersFilterList'],
+    queryFn: () => getDropdownOptions('carriers'),
+  });
+
+  const { data: customers, isLoading: isLoadingCustomers, error: customersError } = useQuery<SelectOption[]>({
+    queryKey: ['customersFilterList'],
+    queryFn: () => getDropdownOptions('customers'),
+  });
+
 
   const handleSubmit = (data: FilterFormData) => {
     const filters: Record<string, any> = {};
@@ -75,13 +87,23 @@ export default function SearchFilterBar({ onSearch }: SearchFilterBarProps) {
             name="carrier"
             control={form.control}
             render={({ field }) => (
-              <Select onValueChange={field.onChange} value={field.value}>
+              <Select 
+                onValueChange={field.onChange} 
+                value={field.value}
+                disabled={isLoadingCarriers || !!carriersError}
+              >
                 <SelectTrigger id="filter-carrier" className="mt-1">
                   <SelectValue placeholder="All Carriers" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={ALL_ITEMS_VALUE}>All Carriers</SelectItem>
-                  {CARRIERS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                  {isLoadingCarriers && <SelectItem value="loading" disabled>Loading carriers...</SelectItem>}
+                  {carriersError && <SelectItem value="error" disabled>Error: {(carriersError as Error).message}</SelectItem>}
+                  {!isLoadingCarriers && !carriersError && (
+                    <>
+                      <SelectItem value={ALL_ITEMS_VALUE}>All Carriers</SelectItem>
+                      {carriers?.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             )}
@@ -162,13 +184,23 @@ export default function SearchFilterBar({ onSearch }: SearchFilterBarProps) {
             name="customer"
             control={form.control}
             render={({ field }) => (
-              <Select onValueChange={field.onChange} value={field.value}>
+              <Select 
+                onValueChange={field.onChange} 
+                value={field.value}
+                disabled={isLoadingCustomers || !!customersError}
+              >
                 <SelectTrigger id="filter-customer" className="mt-1">
                   <SelectValue placeholder="All Customers" />
                 </SelectTrigger>
                 <SelectContent>
-                   <SelectItem value={ALL_ITEMS_VALUE}>All Customers</SelectItem>
-                  {CUSTOMERS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                  {isLoadingCustomers && <SelectItem value="loading" disabled>Loading customers...</SelectItem>}
+                  {customersError && <SelectItem value="error" disabled>Error: {(customersError as Error).message}</SelectItem>}
+                  {!isLoadingCustomers && !customersError && (
+                    <>
+                      <SelectItem value={ALL_ITEMS_VALUE}>All Customers</SelectItem>
+                      {customers?.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             )}
@@ -186,4 +218,3 @@ export default function SearchFilterBar({ onSearch }: SearchFilterBarProps) {
     </form>
   );
 }
-

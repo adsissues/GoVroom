@@ -1,27 +1,10 @@
-
 import type { SelectOption } from './types';
-import { Package, Truck, User, CalendarDays, AlertTriangle, CheckCircle2, Weight, Gauge, PackagePlus } from 'lucide-react';
+import { Truck, Gauge, PackagePlus, AlertTriangle, CheckCircle2, Weight } from 'lucide-react';
 
 export const APP_NAME = "GoVroom";
 
-export const CARRIERS: SelectOption[] = [
-  { value: 'dhl', label: 'DHL' },
-  { value: 'fedex', label: 'FedEx' },
-  { value: 'ups', label: 'UPS' },
-  { value: 'speedylogistics', label: 'Speedy Logistics' },
-];
-
-export const SUBCARRIERS: SelectOption[] = [
-  { value: 'local_a', label: 'Local Route A' },
-  { value: 'regional_b', label: 'Regional Route B' },
-  { value: 'express_air', label: 'Express Air' },
-];
-
-export const CUSTOMERS: SelectOption[] = [
-  { value: 'techcorp', label: 'TechCorp' },
-  { value: 'retailgiant', label: 'RetailGiant' },
-  { value: 'pharmainc', label: 'PharmaInc' },
-];
+// CARRIERS, SUBCARRIERS, and CUSTOMERS are now fetched from Firestore.
+// See src/lib/firebase/dropdowns.ts and components using them.
 
 export const SERVICES: SelectOption[] = [
   { value: 'standard', label: 'Standard' },

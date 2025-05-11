@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from 'react';
@@ -17,13 +16,17 @@ import { Form, FormField, FormItem, FormMessage, FormControl } from '@/component
 import { cn } from '@/lib/utils';
 import { CalendarIcon, Lightbulb } from 'lucide-react';
 import { format } from 'date-fns';
-import { CARRIERS, SUBCARRIERS, DEFAULT_SENDER_ADDRESS, DEFAULT_CONSIGNEE_ADDRESS } from '@/lib/constants';
+import { DEFAULT_SENDER_ADDRESS, DEFAULT_CONSIGNEE_ADDRESS } from '@/lib/constants';
 import AISuggestionSection from './ai-suggestion-section';
 import type { SuggestShipmentDetailsInput } from '@/ai/flows/suggest-shipment-details';
 import { addShipmentToFirestore } from '@/lib/firebase/shipments';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { getDropdownOptions } from '@/lib/firebase/dropdowns';
+import type { SelectOption } from '@/lib/types';
+import { Skeleton } from '@/components/ui/skeleton';
 
 
 const shipmentFormSchema = z.object({
@@ -49,19 +52,31 @@ export default function ShipmentForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
-  const { currentUser } = useAuth(); // Get current user for role check
+  const { currentUser } = useAuth();
 
   const isAdmin = currentUser?.role === 'admin';
   
   const formHook = useForm<ShipmentFormData>({
     resolver: zodResolver(shipmentFormSchema),
     defaultValues: {
+      carrier: '', // Set to empty string, user must select
+      subcarrier: '', // Set to empty string, user must select
       departureDate: new Date(),
       arrivalDate: new Date(new Date().setDate(new Date().getDate() + 1)),
       status: false,
       senderAddress: DEFAULT_SENDER_ADDRESS,
       consigneeAddress: DEFAULT_CONSIGNEE_ADDRESS,
     },
+  });
+
+  const { data: carriers, isLoading: isLoadingCarriers, error: carriersError } = useQuery<SelectOption[]>({
+    queryKey: ['carriersDropdown'],
+    queryFn: () => getDropdownOptions('carriers'),
+  });
+
+  const { data: subcarriers, isLoading: isLoadingSubcarriers, error: subcarriersError } = useQuery<SelectOption[]>({
+    queryKey: ['subcarriersDropdown'],
+    queryFn: () => getDropdownOptions('subcarriers'),
   });
 
   const onSubmit = async (data: ShipmentFormData) => {
@@ -85,24 +100,29 @@ export default function ShipmentForm() {
       console.error("Error saving shipment:", error);
       toast({
         title: "Error",
-        description: "Failed to save the shipment. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to save the shipment. Please try again.",
         variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
     }
 
-    const preparedAiInput: SuggestShipmentDetailsInput = {
-      carrier: data.carrier,
-      subcarrier: data.subcarrier,
-      driverName: data.driverName,
-      departureDate: format(data.departureDate, 'yyyy-MM-dd'),
-      arrivalDate: format(data.arrivalDate, 'yyyy-MM-dd'),
-      senderAddress: data.senderAddress || '',
-      consigneeAddress: data.consigneeAddress || '',
-    };
-    setAiInput(preparedAiInput);
-    setShowAISuggestions(true);
+    // AI Suggestion logic (remains mostly the same, but ensure data.carrier and data.subcarrier are valid)
+     if (data.carrier && data.subcarrier && data.driverName) {
+        const preparedAiInput: SuggestShipmentDetailsInput = {
+        carrier: data.carrier,
+        subcarrier: data.subcarrier,
+        driverName: data.driverName,
+        departureDate: format(data.departureDate, 'yyyy-MM-dd'),
+        arrivalDate: format(data.arrivalDate, 'yyyy-MM-dd'),
+        senderAddress: data.senderAddress || '',
+        consigneeAddress: data.consigneeAddress || '',
+        };
+        setAiInput(preparedAiInput);
+        setShowAISuggestions(true);
+    } else {
+        setShowAISuggestions(false);
+    }
   };
 
   return (
@@ -115,14 +135,20 @@ export default function ShipmentForm() {
             render={({ field }) => (
               <FormItem>
                 <Label htmlFor="carrier">Carrier</Label>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select 
+                  onValueChange={field.onChange} 
+                  value={field.value}
+                  disabled={isLoadingCarriers || !!carriersError}
+                >
                   <FormControl>
                     <SelectTrigger id="carrier" className="mt-1">
                       <SelectValue placeholder="Select carrier" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {CARRIERS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                    {isLoadingCarriers && <SelectItem value="loading" disabled>Loading carriers...</SelectItem>}
+                    {carriersError && <SelectItem value="error" disabled>Error: {(carriersError as Error).message}</SelectItem>}
+                    {!isLoadingCarriers && !carriersError && carriers?.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -135,14 +161,20 @@ export default function ShipmentForm() {
             render={({ field }) => (
               <FormItem>
                 <Label htmlFor="subcarrier">Subcarrier</Label>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select 
+                  onValueChange={field.onChange} 
+                  value={field.value}
+                  disabled={isLoadingSubcarriers || !!subcarriersError}
+                >
                   <FormControl>
                     <SelectTrigger id="subcarrier" className="mt-1">
                       <SelectValue placeholder="Select subcarrier" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {SUBCARRIERS.map(sc => <SelectItem key={sc.value} value={sc.value}>{sc.label}</SelectItem>)}
+                    {isLoadingSubcarriers && <SelectItem value="loading" disabled>Loading subcarriers...</SelectItem>}
+                    {subcarriersError && <SelectItem value="error" disabled>Error: {(subcarriersError as Error).message}</SelectItem>}
+                    {!isLoadingSubcarriers && !subcarriersError && subcarriers?.map(sc => <SelectItem key={sc.value} value={sc.value}>{sc.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <FormMessage />
