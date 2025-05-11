@@ -12,11 +12,12 @@ import ClientFormattedDate from '@/components/shared/client-formatted-date';
 import { useQuery } from '@tanstack/react-query';
 import { getShipmentsFromFirestore, getShipmentStats } from '@/lib/firebase/shipments';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription, AlertTitle as UiAlertTitle } from '@/components/ui/alert'; // Renamed AlertTitle to avoid conflict
+import { Alert, AlertDescription, AlertTitle as UiAlertTitle } from '@/components/ui/alert'; 
+import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
   const { data: shipments = [], isLoading: isLoadingShipments, error: shipmentsError } = useQuery<Shipment[]>({
-    queryKey: ['shipmentsDashboard'], // Use a different key for dashboard specific fetch if needed, or could share with shipments page
+    queryKey: ['shipmentsDashboard'], 
     queryFn: () => getShipmentsFromFirestore(), 
   });
 
@@ -29,7 +30,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (stats?.lastUpdated) {
-      setClientLastUpdatedString(new Date(stats.lastUpdated).toLocaleDateString());
+      // Format date on client to avoid hydration mismatch
+      setClientLastUpdatedString(new Date(stats.lastUpdated).toLocaleDateString(undefined, { year: 'numeric', month: 'numeric', day: 'numeric' }));
     } else if (!isLoadingStats && !stats?.lastUpdated) {
       setClientLastUpdatedString('N/A');
     }
@@ -45,14 +47,22 @@ export default function DashboardPage() {
   ];
 
   if (shipmentsError || statsError) {
+    const errorMessage = (shipmentsError instanceof Error ? shipmentsError.message : '') || 
+                         (statsError instanceof Error ? statsError.message : '') || 
+                         "Could not fetch dashboard data.";
+    
+    // More specific error message for Firestore database not found
+    const isDbNotFoundError = errorMessage.includes("The database (default) does not exist");
+    const finalErrorMessage = isDbNotFoundError 
+      ? `${errorMessage} Please ensure Firestore is enabled for your Firebase project and the environment variables (NEXT_PUBLIC_FIREBASE_PROJECT_ID, etc.) in .env.local are correctly configured.`
+      : errorMessage;
+
     return (
       <Alert variant="destructive">
         <AlertTriangle className="h-4 w-4" />
         <UiAlertTitle>Error Loading Dashboard</UiAlertTitle>
         <AlertDescription>
-          { (shipmentsError instanceof Error && shipmentsError.message) || 
-            (statsError instanceof Error && statsError.message) || 
-            "Could not fetch dashboard data."}
+          {finalErrorMessage}
         </AlertDescription>
       </Alert>
     );
@@ -116,7 +126,7 @@ export default function DashboardPage() {
                 {recentShipments.length > 0 ? recentShipments.map(shipment => (
                   <div key={shipment.id} className="mb-2 pb-2 border-b last:border-b-0">
                     <p><strong>{shipment.carrier} - {shipment.driverName}</strong></p>
-                    <p>Status: <span className={cn(shipment.status === 'Completed' ? 'text-accent' : 'text-orange-500')}>{shipment.status}</span></p>
+                    <p>Status: <span className={cn(shipment.status === 'Completed' ? 'text-accent' : 'text-orange-500 font-medium')}>{shipment.status}</span></p>
                     <p>Last Update: <ClientFormattedDate date={shipment.lastUpdated} /></p>
                   </div>
                 )) : <p>No recent activity.</p>}
@@ -141,3 +151,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
