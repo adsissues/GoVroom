@@ -23,6 +23,7 @@ import type { SuggestShipmentDetailsInput } from '@/ai/flows/suggest-shipment-de
 import { addShipmentToFirestore } from '@/lib/firebase/shipments';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 
 const shipmentFormSchema = z.object({
@@ -37,7 +38,7 @@ const shipmentFormSchema = z.object({
   trailerRegistration: z.string().optional(),
   senderAddress: z.string().optional().default(DEFAULT_SENDER_ADDRESS),
   consigneeAddress: z.string().optional().default(DEFAULT_CONSIGNEE_ADDRESS),
-  totalWeight: z.number().optional(), // Added optional totalWeight
+  totalWeight: z.number().optional(),
 });
 
 type ShipmentFormData = z.infer<typeof shipmentFormSchema>;
@@ -48,6 +49,9 @@ export default function ShipmentForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  const { currentUser } = useAuth(); // Get current user for role check
+
+  const isAdmin = currentUser?.role === 'admin';
   
   const formHook = useForm<ShipmentFormData>({
     resolver: zodResolver(shipmentFormSchema),
@@ -63,7 +67,6 @@ export default function ShipmentForm() {
   const onSubmit = async (data: ShipmentFormData) => {
     setIsSubmitting(true);
     try {
-      // Ensure dates are valid Date objects before passing
       const shipmentDataForFirestore = {
         ...data,
         departureDate: new Date(data.departureDate),
@@ -76,8 +79,8 @@ export default function ShipmentForm() {
         variant: "default",
       });
       formHook.reset();
-      setShowAISuggestions(false); // Hide AI suggestions after successful submission
-      router.push('/shipments'); // Redirect to shipments list
+      setShowAISuggestions(false); 
+      router.push('/shipments'); 
     } catch (error) {
       console.error("Error saving shipment:", error);
       toast({
@@ -89,7 +92,6 @@ export default function ShipmentForm() {
       setIsSubmitting(false);
     }
 
-    // Prepare AI input (can still be done even if submission fails, or conditionally)
     const preparedAiInput: SuggestShipmentDetailsInput = {
       carrier: data.carrier,
       subcarrier: data.subcarrier,
@@ -260,37 +262,39 @@ export default function ShipmentForm() {
           />
         </div>
         
-        <div className="space-y-6 border-t border-border pt-6 mt-6">
-            <h3 className="text-lg font-medium text-foreground">
-                Address Information
-            </h3>
-            <FormField
-              control={formHook.control}
-              name="senderAddress"
-              render={({ field }) => (
-                <FormItem>
-                  <Label htmlFor="senderAddress">Sender Address</Label>
-                  <FormControl>
-                    <Textarea id="senderAddress" {...field} className="mt-1 min-h-[80px]" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={formHook.control}
-              name="consigneeAddress"
-              render={({ field }) => (
-                <FormItem>
-                  <Label htmlFor="consigneeAddress">Consignee Address</Label>
-                  <FormControl>
-                    <Textarea id="consigneeAddress" {...field} className="mt-1 min-h-[80px]" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-        </div>
+        {isAdmin && (
+          <div className="space-y-6 border-t border-border pt-6 mt-6">
+              <h3 className="text-lg font-medium text-foreground">
+                  Address Information (Admin)
+              </h3>
+              <FormField
+                control={formHook.control}
+                name="senderAddress"
+                render={({ field }) => (
+                  <FormItem>
+                    <Label htmlFor="senderAddress">Sender Address</Label>
+                    <FormControl>
+                      <Textarea id="senderAddress" {...field} className="mt-1 min-h-[80px]" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={formHook.control}
+                name="consigneeAddress"
+                render={({ field }) => (
+                  <FormItem>
+                    <Label htmlFor="consigneeAddress">Consignee Address</Label>
+                    <FormControl>
+                      <Textarea id="consigneeAddress" {...field} className="mt-1 min-h-[80px]" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+          </div>
+        )}
 
         <FormField
             control={formHook.control}

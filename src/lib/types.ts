@@ -1,5 +1,4 @@
 
-
 export type ShipmentStatus = 'Pending' | 'Completed';
 
 export interface Shipment {
@@ -56,3 +55,11 @@ export type AISuggestion = {
   service: string;
 };
 
+// User type for authentication
+export type UserRole = 'admin' | 'user';
+
+export interface User {
+  uid: string;
+  email: string | null;
+  role: UserRole | null; // Role can be null if not set or during loading
+}

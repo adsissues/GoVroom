@@ -4,13 +4,12 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getAuth, type Auth } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+  apiKey: "AIzaSyDVZt1LykxJWZCbkAuxI9fuK1GQ6vjbnUw",
+  authDomain: "stockwatch-naaa0.firebaseapp.com",
+  projectId: "stockwatch-naaa0",
+  storageBucket: "stockwatch-naaa0.firebasestorage.app",
+  messagingSenderId: "167547366333",
+  appId: "1:167547366333:web:6c9ccbc6b1d52ff21380d4"
 };
 
 let app: FirebaseApp;
