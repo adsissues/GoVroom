@@ -19,10 +19,12 @@ interface SearchFilterBarProps {
   onSearch: (filters: Record<string, any>) => void;
 }
 
+const ALL_ITEMS_VALUE = "all_items_selection_sentinel";
+
 type FilterFormData = {
   carrier?: string;
   driverName?: string;
-  status?: 'Pending' | 'Completed' | '';
+  status?: string; // Changed to string to accommodate ALL_ITEMS_VALUE
   dateFrom?: Date;
   dateTo?: Date;
   customer?: string;
@@ -31,19 +33,21 @@ type FilterFormData = {
 export default function SearchFilterBar({ onSearch }: SearchFilterBarProps) {
   const form = useForm<FilterFormData>({
     defaultValues: {
-      carrier: '',
+      carrier: ALL_ITEMS_VALUE,
       driverName: '',
-      status: '',
-      customer: '',
+      status: ALL_ITEMS_VALUE,
+      customer: ALL_ITEMS_VALUE,
+      dateFrom: undefined,
+      dateTo: undefined,
     }
   });
 
   const handleSubmit = (data: FilterFormData) => {
     const filters: Record<string, any> = {};
-    if (data.carrier) filters.carrier = data.carrier;
+    if (data.carrier && data.carrier !== ALL_ITEMS_VALUE) filters.carrier = data.carrier;
     if (data.driverName) filters.driverName = data.driverName;
-    if (data.status) filters.status = data.status;
-    if (data.customer) filters.customer = data.customer;
+    if (data.status && data.status !== ALL_ITEMS_VALUE) filters.status = data.status;
+    if (data.customer && data.customer !== ALL_ITEMS_VALUE) filters.customer = data.customer;
     if (data.dateFrom || data.dateTo) {
         filters.dateRange = { from: data.dateFrom, to: data.dateTo };
     }
@@ -51,7 +55,14 @@ export default function SearchFilterBar({ onSearch }: SearchFilterBarProps) {
   };
 
   const handleReset = () => {
-    form.reset();
+    form.reset({
+      carrier: ALL_ITEMS_VALUE,
+      driverName: '',
+      status: ALL_ITEMS_VALUE,
+      dateFrom: undefined,
+      dateTo: undefined,
+      customer: ALL_ITEMS_VALUE,
+    });
     onSearch({});
   }
 
@@ -69,8 +80,8 @@ export default function SearchFilterBar({ onSearch }: SearchFilterBarProps) {
                   <SelectValue placeholder="All Carriers" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Carriers</SelectItem>
-                  {CARRIERS.map(c => <SelectItem key={c.value} value={c.label}>{c.label}</SelectItem>)}
+                  <SelectItem value={ALL_ITEMS_VALUE}>All Carriers</SelectItem>
+                  {CARRIERS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             )}
@@ -91,7 +102,7 @@ export default function SearchFilterBar({ onSearch }: SearchFilterBarProps) {
                   <SelectValue placeholder="Any Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Any Status</SelectItem>
+                  <SelectItem value={ALL_ITEMS_VALUE}>Any Status</SelectItem>
                   <SelectItem value="Pending">Pending</SelectItem>
                   <SelectItem value="Completed">Completed</SelectItem>
                 </SelectContent>
@@ -156,8 +167,8 @@ export default function SearchFilterBar({ onSearch }: SearchFilterBarProps) {
                   <SelectValue placeholder="All Customers" />
                 </SelectTrigger>
                 <SelectContent>
-                   <SelectItem value="">All Customers</SelectItem>
-                  {CUSTOMERS.map(c => <SelectItem key={c.value} value={c.label}>{c.label}</SelectItem>)}
+                   <SelectItem value={ALL_ITEMS_VALUE}>All Customers</SelectItem>
+                  {CUSTOMERS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             )}
@@ -175,3 +186,4 @@ export default function SearchFilterBar({ onSearch }: SearchFilterBarProps) {
     </form>
   );
 }
+
