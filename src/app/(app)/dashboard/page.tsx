@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import SummaryCard from '@/components/dashboard/summary-card';
 import ShipmentsStatusChart from '@/components/dashboard/shipments-status-chart';
 import { ShipmentsTable } from '@/components/shipments/shipments-table';
@@ -9,50 +9,98 @@ import type { Shipment } from '@/lib/types';
 import { AlertTriangle, CheckCircle2, Weight, Truck, CalendarClock, PackageSearch } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import ClientFormattedDate from '@/components/shared/client-formatted-date';
-import { useQuery } from '@tanstack/react-query';
-import { getShipmentsFromFirestore, getShipmentStats } from '@/lib/firebase/shipments';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle as UiAlertTitle } from '@/components/ui/alert'; 
 import { cn } from '@/lib/utils';
+import { db } from '@/lib/firebase/config';
+import { collection, query, orderBy, onSnapshot, Timestamp, type DocumentData, type QueryDocumentSnapshot } from 'firebase/firestore';
+
+// Helper to convert Firestore document snapshot to Shipment type (moved here or ensure importable if kept in shipments.ts)
+const fromFirestore = (docSnap: QueryDocumentSnapshot<DocumentData>): Shipment => {
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    carrier: data.carrier,
+    subcarrier: data.subcarrier,
+    driverName: data.driverName,
+    departureDate: (data.departureDate as Timestamp)?.toDate(),
+    arrivalDate: (data.arrivalDate as Timestamp)?.toDate(),
+    status: data.status, // Assuming status is 'Pending' or 'Completed'
+    sealNumber: data.sealNumber,
+    truckRegistration: data.truckRegistration,
+    trailerRegistration: data.trailerRegistration,
+    senderAddress: data.senderAddress,
+    consigneeAddress: data.consigneeAddress,
+    totalWeight: data.totalWeight,
+    lastUpdated: (data.lastUpdated as Timestamp)?.toDate(),
+  };
+};
+
 
 export default function DashboardPage() {
-  const { data: shipments = [], isLoading: isLoadingShipments, error: shipmentsError } = useQuery<Shipment[]>({
-    queryKey: ['shipmentsDashboard'], 
-    queryFn: () => getShipmentsFromFirestore(), 
-  });
-
-  const { data: stats, isLoading: isLoadingStats, error: statsError } = useQuery({
-    queryKey: ['dashboardStats'],
-    queryFn: getShipmentStats,
-  });
-
-  const [clientLastUpdatedString, setClientLastUpdatedString] = useState<string | null>(null);
+  const [allShipments, setAllShipments] = useState<Shipment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [clientLastUpdatedStatString, setClientLastUpdatedStatString] = useState<string | null>(null);
 
   useEffect(() => {
-    if (stats?.lastUpdated) {
-      // Format date on client to avoid hydration mismatch
-      setClientLastUpdatedString(new Date(stats.lastUpdated).toLocaleDateString(undefined, { year: 'numeric', month: 'numeric', day: 'numeric' }));
-    } else if (!isLoadingStats && !stats?.lastUpdated) {
-      setClientLastUpdatedString('N/A');
-    }
-  }, [stats?.lastUpdated, isLoadingStats]);
+    const shipmentsQuery = query(collection(db, 'shipments'), orderBy('lastUpdated', 'desc'));
 
-  const recentShipments = shipments.slice(0, 3);
+    const unsubscribe = onSnapshot(shipmentsQuery, 
+      (snapshot) => {
+        const fetchedShipments = snapshot.docs.map(doc => fromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
+        setAllShipments(fetchedShipments);
+        setIsLoading(false);
+        setError(null);
+      },
+      (err) => {
+        console.error("Error fetching real-time shipments:", err);
+        let specificError = err;
+        if (err.message.includes("Missing or insufficient permissions") || err.message.includes("The caller does not have permission")) {
+            specificError = new Error("Missing or insufficient permissions to fetch shipment data. Please check your Firestore security rules.");
+        } else if (err.message.includes("The database (default) does not exist")) {
+            specificError = new Error("Firestore database not found. Please ensure Firestore is enabled for your Firebase project and environment variables are correct.");
+        }
+        setError(specificError);
+        setIsLoading(false);
+      }
+    );
+
+    return () => unsubscribe(); // Cleanup listener on unmount
+  }, []);
+
+  const pendingCount = useMemo(() => allShipments.filter(s => s.status === 'Pending').length, [allShipments]);
+  const completedCount = useMemo(() => allShipments.filter(s => s.status === 'Completed').length, [allShipments]);
+  const totalWeight = useMemo(() => allShipments.reduce((acc, s) => acc + (s.totalWeight || 0), 0), [allShipments]);
+  const lastUpdatedForStats = useMemo(() => {
+    if (allShipments.length > 0 && allShipments[0].lastUpdated) {
+      return allShipments[0].lastUpdated; 
+    }
+    return null;
+  }, [allShipments]);
+
+  useEffect(() => {
+    if (lastUpdatedForStats) {
+      setClientLastUpdatedStatString(new Date(lastUpdatedForStats).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }));
+    } else if (!isLoading && !lastUpdatedForStats) {
+      setClientLastUpdatedStatString('N/A');
+    }
+  }, [lastUpdatedForStats, isLoading]);
+
+
+  const recentShipmentsForActivity = allShipments.slice(0, 3);
+  const recentShipmentsForTable = allShipments.slice(0, 5);
 
   const summaryStatsData = [
-    { title: "Pending Shipments", value: stats?.pendingCount ?? 0, icon: AlertTriangle, color: "text-orange-500", isLoading: isLoadingStats },
-    { title: "Completed Shipments", value: stats?.completedCount ?? 0, icon: CheckCircle2, color: "text-green-500", isLoading: isLoadingStats },
-    { title: "Total Weight (kg)", value: (stats?.totalWeight ?? 0).toLocaleString(), icon: Weight, color: "text-blue-500", isLoading: isLoadingStats },
-    { title: "Last Updated", value: clientLastUpdatedString || (isLoadingStats ? 'Loading...' : 'N/A'), icon: CalendarClock, color: "text-purple-500", isLoading: isLoadingStats },
+    { title: "Pending Shipments", value: pendingCount, icon: AlertTriangle, color: "text-orange-500", isLoading: isLoading },
+    { title: "Completed Shipments", value: completedCount, icon: CheckCircle2, color: "text-green-500", isLoading: isLoading },
+    { title: "Total Weight (kg)", value: totalWeight.toLocaleString(), icon: Weight, color: "text-blue-500", isLoading: isLoading },
+    { title: "Last Updated", value: clientLastUpdatedStatString || (isLoading ? 'Loading...' : 'N/A'), icon: CalendarClock, color: "text-purple-500", isLoading: isLoading },
   ];
 
-  if (shipmentsError || statsError) {
-    const errorMessage = (shipmentsError instanceof Error ? shipmentsError.message : '') || 
-                         (statsError instanceof Error ? statsError.message : '') || 
-                         "Could not fetch dashboard data.";
-    
-    // More specific error message for Firestore database not found
-    const isDbNotFoundError = errorMessage.includes("The database (default) does not exist");
+  if (error) {
+    const errorMessage = error.message || "Could not fetch dashboard data.";
+    const isDbNotFoundError = errorMessage.includes("Firestore database not found");
     const finalErrorMessage = isDbNotFoundError 
       ? `${errorMessage} Please ensure Firestore is enabled for your Firebase project and the environment variables (NEXT_PUBLIC_FIREBASE_PROJECT_ID, etc.) in .env.local are correctly configured.`
       : errorMessage;
@@ -100,12 +148,12 @@ export default function DashboardPage() {
             <CardTitle>Shipment Status Overview</CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoadingStats ? (
+            {isLoading ? (
               <Skeleton className="h-[250px] w-full" />
             ) : (
               <ShipmentsStatusChart 
-                pending={stats?.pendingCount ?? 0} 
-                completed={stats?.completedCount ?? 0} 
+                pending={pendingCount} 
+                completed={completedCount} 
               />
             )}
           </CardContent>
@@ -115,7 +163,7 @@ export default function DashboardPage() {
             <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoadingShipments ? (
+            {isLoading ? (
               <div className="space-y-3">
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
@@ -123,11 +171,11 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="text-sm text-muted-foreground">
-                {recentShipments.length > 0 ? recentShipments.map(shipment => (
+                {recentShipmentsForActivity.length > 0 ? recentShipmentsForActivity.map(shipment => (
                   <div key={shipment.id} className="mb-2 pb-2 border-b last:border-b-0">
                     <p><strong>{shipment.carrier} - {shipment.driverName}</strong></p>
                     <p>Status: <span className={cn(shipment.status === 'Completed' ? 'text-accent' : 'text-orange-500 font-medium')}>{shipment.status}</span></p>
-                    <p>Last Update: <ClientFormattedDate date={shipment.lastUpdated} /></p>
+                    {shipment.lastUpdated && <p>Last Update: <ClientFormattedDate date={shipment.lastUpdated} /></p>}
                   </div>
                 )) : <p>No recent activity.</p>}
               </div>
@@ -141,14 +189,13 @@ export default function DashboardPage() {
           <CardTitle>Recent Shipments</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoadingShipments ? (
+          {isLoading ? (
             <Skeleton className="h-40 w-full" />
           ) : (
-            <ShipmentsTable shipments={shipments.slice(0, 5)} />
+            <ShipmentsTable shipments={recentShipmentsForTable} />
           )}
         </CardContent>
       </Card>
     </div>
   );
 }
-

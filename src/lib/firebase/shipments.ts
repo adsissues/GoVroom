@@ -18,7 +18,10 @@ import {
 import type { Shipment, ShipmentStatus } from '@/lib/types';
 
 // Helper to convert Firestore document snapshot to Shipment type
-const fromFirestore = (docSnap: QueryDocumentSnapshot<DocumentData>): Shipment => {
+// This helper might be used by other parts of the application, so it's kept here.
+// If only DashboardPage uses it and it's defined there, this can be removed.
+// For now, assuming it might be used elsewhere.
+const fromFirestoreToShipment = (docSnap: QueryDocumentSnapshot<DocumentData>): Shipment => {
   const data = docSnap.data();
   return {
     id: docSnap.id,
@@ -43,37 +46,24 @@ export async function getShipmentsFromFirestore(filters?: Record<string, any>): 
   const shipmentsCol = collection(db, 'shipments');
   let q = query(shipmentsCol, orderBy('lastUpdated', 'desc'));
 
+  // Server-side filtering logic (can be expanded)
   if (filters) {
     if (filters.carrier && filters.carrier !== 'all_items_selection_sentinel') {
       q = query(q, where('carrier', '==', filters.carrier));
     }
-    if (filters.driverName) {
-      // Firestore does not support case-insensitive partial string matches directly.
-      // For a production app, consider using a search service like Algolia/Typesense
-      // or structuring data for easier querying (e.g., an array of keywords).
-      // This basic filter will look for exact matches or use client-side filtering.
-      // For now, this server-side part of driverName filter will be an exact match if used.
-      // The current app structure primarily filters client-side.
-    }
     if (filters.status && filters.status !== 'all_items_selection_sentinel') {
       q = query(q, where('status', '==', filters.status));
     }
-    // Date range filtering requires compound queries or careful structuring.
-    // This is a simplified version.
     if (filters.dateRange?.from) {
       q = query(q, where('departureDate', '>=', Timestamp.fromDate(new Date(filters.dateRange.from))));
     }
     if (filters.dateRange?.to) {
       q = query(q, where('arrivalDate', '<=', Timestamp.fromDate(new Date(filters.dateRange.to))));
     }
-    // Customer filter - assuming customer is a top-level field on shipment for this to work server-side
-    // if (filters.customer && filters.customer !== 'all_items_selection_sentinel') {
-    //   q = query(q, where('customer', '==', filters.customer)); // Requires 'customer' field in DB
-    // }
   }
 
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(fromFirestore);
+  return querySnapshot.docs.map(fromFirestoreToShipment);
 }
 
 export async function addShipmentToFirestore(
@@ -84,8 +74,8 @@ export async function addShipmentToFirestore(
     ...restOfData,
     departureDate: Timestamp.fromDate(shipmentData.departureDate),
     arrivalDate: Timestamp.fromDate(shipmentData.arrivalDate),
-    lastUpdated: serverTimestamp(), // Use server timestamp for reliability
-    status: status ? 'Completed' : 'Pending', // Convert boolean from form to string
+    lastUpdated: serverTimestamp(), 
+    status: status ? 'Completed' : 'Pending', 
   });
   return docRef.id;
 }
@@ -94,34 +84,49 @@ export async function deleteShipmentFromFirestore(shipmentId: string): Promise<v
   await deleteDoc(doc(db, 'shipments', shipmentId));
 }
 
+// getShipmentStats is kept as it might be useful for other non-realtime summaries or reports.
+// The dashboard page now calculates its stats client-side from real-time data.
 export async function getShipmentStats() {
     const shipmentsCol = collection(db, 'shipments');
     
     const pendingQuery = query(shipmentsCol, where('status', '==', 'Pending'));
     const completedQuery = query(shipmentsCol, where('status', '==', 'Completed'));
 
-    const pendingSnapshot = await getCountFromServer(pendingQuery);
-    const completedSnapshot = await getCountFromServer(completedQuery);
-
-    // For total weight, we'd need to fetch all documents and sum, or maintain a counter.
-    // This can be inefficient for large datasets. Fetching all for now:
-    const allShipmentsSnapshot = await getDocs(query(shipmentsCol));
-    const totalWeight = allShipmentsSnapshot.docs.reduce((acc, currDoc) => acc + (currDoc.data().totalWeight || 0), 0);
-    
+    let pendingCount = 0;
+    let completedCount = 0;
+    let totalWeight = 0;
     let lastUpdated: Date | null = null;
-    if (allShipmentsSnapshot.docs.length > 0) {
-        const sortedByLastUpdated = allShipmentsSnapshot.docs
-            .map(d => (d.data().lastUpdated as Timestamp)?.toDate())
-            .filter(d => d instanceof Date)
-            .sort((a, b) => b.getTime() - a.getTime());
-        if (sortedByLastUpdated.length > 0) {
-            lastUpdated = sortedByLastUpdated[0];
+
+    try {
+        const pendingSnapshot = await getCountFromServer(pendingQuery);
+        pendingCount = pendingSnapshot.data().count;
+
+        const completedSnapshot = await getCountFromServer(completedQuery);
+        completedCount = completedSnapshot.data().count;
+    
+        const allShipmentsSnapshot = await getDocs(query(shipmentsCol, orderBy('lastUpdated', 'desc')));
+        totalWeight = allShipmentsSnapshot.docs.reduce((acc, currDoc) => acc + (currDoc.data().totalWeight || 0), 0);
+        
+        if (allShipmentsSnapshot.docs.length > 0) {
+            const mostRecentShipmentData = allShipmentsSnapshot.docs[0].data();
+            if (mostRecentShipmentData.lastUpdated) {
+                 lastUpdated = (mostRecentShipmentData.lastUpdated as Timestamp).toDate();
+            }
         }
+    } catch (e) {
+        console.error("Error fetching shipment stats: ", e);
+        if (e instanceof Error && (e.message.includes("Missing or insufficient permissions") || e.message.includes("The caller does not have permission"))) {
+            throw new Error("Missing or insufficient permissions to fetch shipment stats. Please check your Firestore security rules.");
+        } else if (e instanceof Error && e.message.includes("The database (default) does not exist")) {
+            throw new Error("Firestore database not found. Please ensure Firestore is enabled for your Firebase project and environment variables are correct.");
+        }
+        throw e; // Re-throw other errors
     }
 
+
     return {
-        pendingCount: pendingSnapshot.data().count,
-        completedCount: completedSnapshot.data().count,
+        pendingCount,
+        completedCount,
         totalWeight,
         lastUpdated,
     };
