@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -59,13 +59,18 @@ export default function ShipmentForm() {
   const formHook = useForm<ShipmentFormData>({
     resolver: zodResolver(shipmentFormSchema),
     defaultValues: {
-      carrier: '', // Set to empty string, user must select
-      subcarrier: '', // Set to empty string, user must select
+      carrier: '', 
+      subcarrier: '', 
+      driverName: '',
       departureDate: new Date(),
       arrivalDate: new Date(new Date().setDate(new Date().getDate() + 1)),
       status: false,
       senderAddress: DEFAULT_SENDER_ADDRESS,
       consigneeAddress: DEFAULT_CONSIGNEE_ADDRESS,
+      sealNumber: '',
+      truckRegistration: '',
+      trailerRegistration: '',
+      totalWeight: 0,
     },
   });
 
@@ -79,6 +84,35 @@ export default function ShipmentForm() {
     queryFn: () => getDropdownOptions('subcarriers'),
   });
 
+  // Watch form fields for dynamic AI suggestions
+  const watchedCarrier = formHook.watch('carrier');
+  const watchedSubcarrier = formHook.watch('subcarrier');
+  const watchedDriverName = formHook.watch('driverName');
+  const watchedDepartureDate = formHook.watch('departureDate');
+  const watchedArrivalDate = formHook.watch('arrivalDate');
+  const watchedSenderAddress = formHook.watch('senderAddress');
+  const watchedConsigneeAddress = formHook.watch('consigneeAddress');
+
+  useEffect(() => {
+    if (watchedCarrier && watchedSubcarrier && watchedDriverName && watchedDepartureDate && watchedArrivalDate && watchedSenderAddress && watchedConsigneeAddress) {
+      const preparedAiInput: SuggestShipmentDetailsInput = {
+        carrier: watchedCarrier,
+        subcarrier: watchedSubcarrier,
+        driverName: watchedDriverName,
+        departureDate: format(watchedDepartureDate, 'yyyy-MM-dd'),
+        arrivalDate: format(watchedArrivalDate, 'yyyy-MM-dd'),
+        senderAddress: watchedSenderAddress,
+        consigneeAddress: watchedConsigneeAddress,
+      };
+      setAiInput(preparedAiInput);
+      setShowAISuggestions(true);
+    } else {
+      setShowAISuggestions(false);
+      setAiInput(null);
+    }
+  }, [watchedCarrier, watchedSubcarrier, watchedDriverName, watchedDepartureDate, watchedArrivalDate, watchedSenderAddress, watchedConsigneeAddress]);
+
+
   const onSubmit = async (data: ShipmentFormData) => {
     setIsSubmitting(true);
     try {
@@ -86,16 +120,21 @@ export default function ShipmentForm() {
         ...data,
         departureDate: new Date(data.departureDate),
         arrivalDate: new Date(data.arrivalDate),
+        // status is boolean from form, addShipmentToFirestore converts it
       };
-      await addShipmentToFirestore(shipmentDataForFirestore);
+      // The addShipmentToFirestore function should return the ID of the new document
+      const newShipmentId = await addShipmentToFirestore(shipmentDataForFirestore);
       toast({
         title: "Shipment Created",
         description: "The new shipment has been saved successfully.",
-        variant: "default",
+        variant: "default", // Keep as default (greenish accent)
       });
       formHook.reset();
       setShowAISuggestions(false); 
-      router.push('/shipments'); 
+      setAiInput(null);
+      // Redirect to a page for the newly created shipment.
+      // This page would be responsible for the "Add Details" button/functionality.
+      router.push(`/shipments/${newShipmentId}`); 
     } catch (error) {
       console.error("Error saving shipment:", error);
       toast({
@@ -105,23 +144,6 @@ export default function ShipmentForm() {
       });
     } finally {
       setIsSubmitting(false);
-    }
-
-    // AI Suggestion logic (remains mostly the same, but ensure data.carrier and data.subcarrier are valid)
-     if (data.carrier && data.subcarrier && data.driverName) {
-        const preparedAiInput: SuggestShipmentDetailsInput = {
-        carrier: data.carrier,
-        subcarrier: data.subcarrier,
-        driverName: data.driverName,
-        departureDate: format(data.departureDate, 'yyyy-MM-dd'),
-        arrivalDate: format(data.arrivalDate, 'yyyy-MM-dd'),
-        senderAddress: data.senderAddress || '',
-        consigneeAddress: data.consigneeAddress || '',
-        };
-        setAiInput(preparedAiInput);
-        setShowAISuggestions(true);
-    } else {
-        setShowAISuggestions(false);
     }
   };
 
@@ -146,8 +168,8 @@ export default function ShipmentForm() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {isLoadingCarriers && <SelectItem value="loading" disabled>Loading carriers...</SelectItem>}
-                    {carriersError && <SelectItem value="error" disabled>Error: {(carriersError as Error).message}</SelectItem>}
+                    {isLoadingCarriers && <SelectItem value="loading_carriers_sentinel" disabled>Loading carriers...</SelectItem>}
+                    {carriersError && <SelectItem value="error_carriers_sentinel" disabled>Error: {(carriersError as Error).message}</SelectItem>}
                     {!isLoadingCarriers && !carriersError && carriers?.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -172,8 +194,8 @@ export default function ShipmentForm() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {isLoadingSubcarriers && <SelectItem value="loading" disabled>Loading subcarriers...</SelectItem>}
-                    {subcarriersError && <SelectItem value="error" disabled>Error: {(subcarriersError as Error).message}</SelectItem>}
+                    {isLoadingSubcarriers && <SelectItem value="loading_subcarriers_sentinel" disabled>Loading subcarriers...</SelectItem>}
+                    {subcarriersError && <SelectItem value="error_subcarriers_sentinel" disabled>Error: {(subcarriersError as Error).message}</SelectItem>}
                     {!isLoadingSubcarriers && !subcarriersError && subcarriers?.map(sc => <SelectItem key={sc.value} value={sc.value}>{sc.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -190,7 +212,7 @@ export default function ShipmentForm() {
             <FormItem>
               <Label htmlFor="driverName">Driver Name</Label>
               <FormControl>
-                <Input id="driverName" {...field} className="mt-1" />
+                <Input id="driverName" {...field} className="mt-1" placeholder="Enter driver's full name" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -260,7 +282,7 @@ export default function ShipmentForm() {
               <FormItem>
                 <Label htmlFor="sealNumber">Seal Number</Label>
                 <FormControl>
-                  <Input id="sealNumber" {...field} className="mt-1" />
+                  <Input id="sealNumber" {...field} className="mt-1" placeholder="Optional" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -273,7 +295,7 @@ export default function ShipmentForm() {
               <FormItem>
                 <Label htmlFor="truckRegistration">Truck Registration #</Label>
                 <FormControl>
-                  <Input id="truckRegistration" {...field} className="mt-1" />
+                  <Input id="truckRegistration" {...field} className="mt-1" placeholder="Optional" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -286,7 +308,7 @@ export default function ShipmentForm() {
               <FormItem>
                 <Label htmlFor="trailerRegistration">Trailer Registration #</Label>
                 <FormControl>
-                  <Input id="trailerRegistration" {...field} className="mt-1" />
+                  <Input id="trailerRegistration" {...field} className="mt-1" placeholder="Optional" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -335,7 +357,7 @@ export default function ShipmentForm() {
               <FormItem>
                 <Label htmlFor="totalWeight">Total Weight (kg)</Label>
                 <FormControl>
-                  <Input id="totalWeight" type="number" {...field} onChange={event => field.onChange(+event.target.value)} className="mt-1" />
+                  <Input id="totalWeight" type="number" {...field} onChange={event => field.onChange(event.target.value === '' ? undefined : +event.target.value)} className="mt-1" placeholder="Optional, e.g., 1250.5" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -361,15 +383,6 @@ export default function ShipmentForm() {
           )}
         />
 
-        <div className="flex justify-end space-x-3 pt-6">
-          <Button type="button" variant="outline" onClick={() => {formHook.reset(); setShowAISuggestions(false);}}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : "Save Shipment"}
-          </Button>
-        </div>
-
         {showAISuggestions && aiInput && (
           <div className="mt-8 border-t border-border pt-8">
              <h3 className="text-xl font-semibold text-foreground mb-4 flex items-center">
@@ -379,7 +392,18 @@ export default function ShipmentForm() {
             <AISuggestionSection input={aiInput} />
           </div>
         )}
+
+        <div className="flex justify-end space-x-3 pt-6">
+          <Button type="button" variant="outline" onClick={() => {formHook.reset(); setShowAISuggestions(false); setAiInput(null); router.back(); }}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Saving..." : "Save Shipment"}
+          </Button>
+        </div>
       </form>
     </Form>
   );
 }
+
+    
