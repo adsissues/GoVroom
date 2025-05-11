@@ -3,7 +3,7 @@
 
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { ChartConfig, ChartContainer, ChartTooltip as ShadCNChartTooltip, ChartTooltipContent } from "@/components/ui/chart" // Renamed to avoid conflict
 
 interface ShipmentsStatusChartProps {
   pending: number;
@@ -43,7 +43,8 @@ export default function ShipmentsStatusChart({ pending, completed }: ShipmentsSt
             tickFormatter={(value) => value.slice(0, 3)}
           />
           <YAxis />
-          <ChartTooltip content={<ChartTooltipContent />} />
+          {/* Use the ShadCNChartTooltip which wraps Recharts Tooltip */}
+          <ShadCNChartTooltip content={<ChartTooltipContent />} />
           <Legend />
           <Bar dataKey="pending" fill="var(--color-pending)" radius={4} />
           <Bar dataKey="completed" fill="var(--color-completed)" radius={4} />

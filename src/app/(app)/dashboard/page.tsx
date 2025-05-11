@@ -17,6 +17,8 @@ export default function DashboardPage() {
   const [totalWeight, setTotalWeight] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [recentShipments, setRecentShipments] = useState<Shipment[]>([]);
+  const [clientLastUpdatedString, setClientLastUpdatedString] = useState<string | null>(null);
+
 
   useEffect(() => {
     // Simulate fetching data
@@ -33,8 +35,14 @@ export default function DashboardPage() {
         .map(s => s.lastUpdated instanceof Date ? s.lastUpdated.getTime() : new Date(s.lastUpdated).getTime())
         .filter(time => !isNaN(time));
       if (validDates.length > 0) {
-        setLastUpdated(new Date(Math.max(...validDates)));
+        const maxDate = new Date(Math.max(...validDates));
+        setLastUpdated(maxDate);
+        setClientLastUpdatedString(maxDate.toLocaleDateString());
+      } else {
+        setClientLastUpdatedString('N/A');
       }
+    } else {
+      setClientLastUpdatedString('N/A');
     }
     setRecentShipments(MOCK_SHIPMENTS.slice(0,3));
 
@@ -44,7 +52,7 @@ export default function DashboardPage() {
     { title: "Pending Shipments", value: pendingCount, icon: AlertTriangle, color: "text-orange-500" },
     { title: "Completed Shipments", value: completedCount, icon: CheckCircle2, color: "text-green-500" },
     { title: "Total Weight (kg)", value: totalWeight.toLocaleString(), icon: Weight, color: "text-blue-500" },
-    { title: "Last Updated", value: lastUpdated ? lastUpdated.toLocaleDateString() : 'N/A', icon: CalendarClock, color: "text-purple-500" },
+    { title: "Last Updated", value: clientLastUpdatedString || 'N/A', icon: CalendarClock, color: "text-purple-500" },
   ];
 
   return (
