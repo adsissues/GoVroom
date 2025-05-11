@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Eye, Edit3, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import ClientFormattedDate from '@/components/shared/client-formatted-date';
 
 interface ShipmentsTableProps {
   shipments: Shipment[];
@@ -45,8 +46,8 @@ export function ShipmentsTable({ shipments, onViewDetails, onEdit, onDelete }: S
             <TableRow key={shipment.id} className="hover:bg-muted/50">
               <TableCell className="font-medium">{shipment.carrier}</TableCell>
               <TableCell>{shipment.driverName}</TableCell>
-              <TableCell>{new Date(shipment.departureDate).toLocaleDateString()}</TableCell>
-              <TableCell>{new Date(shipment.arrivalDate).toLocaleDateString()}</TableCell>
+              <TableCell><ClientFormattedDate date={shipment.departureDate} /></TableCell>
+              <TableCell><ClientFormattedDate date={shipment.arrivalDate} /></TableCell>
               <TableCell>
                 <Badge
                   variant={shipment.status === 'Completed' ? 'default' : 'secondary'}

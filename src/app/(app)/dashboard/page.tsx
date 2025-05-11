@@ -9,12 +9,14 @@ import { MOCK_SHIPMENTS, DASHBOARD_STATS_MAP } from '@/lib/constants';
 import type { Shipment } from '@/lib/types';
 import { AlertTriangle, CheckCircle2, Weight, Truck, CalendarClock } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import ClientFormattedDate from '@/components/shared/client-formatted-date';
 
 export default function DashboardPage() {
   const [pendingCount, setPendingCount] = useState(0);
   const [completedCount, setCompletedCount] = useState(0);
   const [totalWeight, setTotalWeight] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [recentShipments, setRecentShipments] = useState<Shipment[]>([]);
 
   useEffect(() => {
     // Simulate fetching data
@@ -26,8 +28,15 @@ export default function DashboardPage() {
     setCompletedCount(completed);
     setTotalWeight(weight);
     if (MOCK_SHIPMENTS.length > 0) {
-      setLastUpdated(new Date(Math.max(...MOCK_SHIPMENTS.map(s => new Date(s.lastUpdated).getTime()))));
+      // Ensure lastUpdated is derived from valid Date objects
+      const validDates = MOCK_SHIPMENTS
+        .map(s => s.lastUpdated instanceof Date ? s.lastUpdated.getTime() : new Date(s.lastUpdated).getTime())
+        .filter(time => !isNaN(time));
+      if (validDates.length > 0) {
+        setLastUpdated(new Date(Math.max(...validDates)));
+      }
     }
+    setRecentShipments(MOCK_SHIPMENTS.slice(0,3));
 
   }, []);
 
@@ -70,14 +79,14 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-sm text-muted-foreground">
-              {MOCK_SHIPMENTS.slice(0,3).map(shipment => (
+              {recentShipments.map(shipment => (
                 <div key={shipment.id} className="mb-2 pb-2 border-b last:border-b-0">
                   <p><strong>{shipment.carrier} - {shipment.driverName}</strong></p>
                   <p>Status: <span className={shipment.status === 'Completed' ? 'text-green-500' : 'text-orange-500'}>{shipment.status}</span></p>
-                  <p>Last Update: {new Date(shipment.lastUpdated).toLocaleDateString()}</p>
+                  <p>Last Update: <ClientFormattedDate date={shipment.lastUpdated} /></p>
                 </div>
               ))}
-               {MOCK_SHIPMENTS.length === 0 && <p>No recent activity.</p>}
+               {recentShipments.length === 0 && <p>No recent activity.</p>}
             </div>
           </CardContent>
         </Card>
