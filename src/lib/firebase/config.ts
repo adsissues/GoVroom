@@ -10,15 +10,30 @@ import {
 import { getAuth, type Auth } from 'firebase/auth';
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 
+// Helper function to get environment variables or throw if missing/placeholder
+const getRequiredEnv = (key: string, placeholderValue: string): string => {
+  const value = process.env[key];
+  if (!value || value === placeholderValue) {
+    // More descriptive error message
+    throw new Error(
+      `Firebase configuration error: Environment variable ${key} is missing or is still set to the placeholder value "${placeholderValue}". ` +
+      `Please ensure your .env.local file is correctly populated with your Firebase project credentials. ` +
+      `Refer to the README.md for instructions on setting up environment variables.`
+    );
+  }
+  return value;
+};
 
-// IMPORTANT: Replace with your actual Firebase project configuration
+// IMPORTANT: These fallbacks are default placeholder values.
+// The getRequiredEnv function will throw an error if these are used,
+// prompting the user to set up their .env.local file.
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "YOUR_API_KEY",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "YOUR_AUTH_DOMAIN",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "YOUR_STORAGE_BUCKET",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "YOUR_APP_ID"
+  apiKey: getRequiredEnv('NEXT_PUBLIC_FIREBASE_API_KEY', "YOUR_API_KEY"),
+  authDomain: getRequiredEnv('NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN', "YOUR_AUTH_DOMAIN"),
+  projectId: getRequiredEnv('NEXT_PUBLIC_FIREBASE_PROJECT_ID', "YOUR_PROJECT_ID"),
+  storageBucket: getRequiredEnv('NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET', "YOUR_STORAGE_BUCKET"),
+  messagingSenderId: getRequiredEnv('NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID', "YOUR_MESSAGING_SENDER_ID"),
+  appId: getRequiredEnv('NEXT_PUBLIC_FIREBASE_APP_ID', "YOUR_APP_ID")
 };
 
 let app: FirebaseApp;
@@ -65,3 +80,4 @@ storage = getStorage(app);
 
 
 export { app, auth, db, storage };
+
