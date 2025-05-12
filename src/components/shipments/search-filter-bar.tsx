@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -14,12 +15,12 @@ import { format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { getDropdownOptions } from '@/lib/firebase/dropdowns';
 import type { SelectOption } from '@/lib/types';
-// CARRIERS and CUSTOMERS constants are removed, now fetched from Firestore
 
 interface SearchFilterBarProps {
   onSearch: (filters: Record<string, any>) => void;
 }
 
+// Using a sentinel value to represent "All Items" selection clearly
 const ALL_ITEMS_VALUE = "all_items_selection_sentinel";
 
 type FilterFormData = {
@@ -56,6 +57,7 @@ export default function SearchFilterBar({ onSearch }: SearchFilterBarProps) {
 
   const handleSubmit = (data: FilterFormData) => {
     const filters: Record<string, any> = {};
+    // Only add filter if a specific value (not the sentinel) is selected
     if (data.carrier && data.carrier !== ALL_ITEMS_VALUE) filters.carrier = data.carrier;
     if (data.driverName) filters.driverName = data.driverName;
     if (data.status && data.status !== ALL_ITEMS_VALUE) filters.status = data.status;
@@ -87,8 +89,8 @@ export default function SearchFilterBar({ onSearch }: SearchFilterBarProps) {
             name="carrier"
             control={form.control}
             render={({ field }) => (
-              <Select 
-                onValueChange={field.onChange} 
+              <Select
+                onValueChange={field.onChange}
                 value={field.value}
                 disabled={isLoadingCarriers || !!carriersError}
               >
@@ -96,8 +98,8 @@ export default function SearchFilterBar({ onSearch }: SearchFilterBarProps) {
                   <SelectValue placeholder="All Carriers" />
                 </SelectTrigger>
                 <SelectContent>
-                  {isLoadingCarriers && <SelectItem value="loading" disabled>Loading carriers...</SelectItem>}
-                  {carriersError && <SelectItem value="error" disabled>Error: {(carriersError as Error).message}</SelectItem>}
+                  {isLoadingCarriers && <SelectItem value="loading_carriers_sentinel" disabled>Loading carriers...</SelectItem>}
+                  {carriersError && <SelectItem value="error_carriers_sentinel" disabled>Error: {(carriersError as Error).message}</SelectItem>}
                   {!isLoadingCarriers && !carriersError && (
                     <>
                       <SelectItem value={ALL_ITEMS_VALUE}>All Carriers</SelectItem>
@@ -184,8 +186,8 @@ export default function SearchFilterBar({ onSearch }: SearchFilterBarProps) {
             name="customer"
             control={form.control}
             render={({ field }) => (
-              <Select 
-                onValueChange={field.onChange} 
+              <Select
+                onValueChange={field.onChange}
                 value={field.value}
                 disabled={isLoadingCustomers || !!customersError}
               >
@@ -193,8 +195,8 @@ export default function SearchFilterBar({ onSearch }: SearchFilterBarProps) {
                   <SelectValue placeholder="All Customers" />
                 </SelectTrigger>
                 <SelectContent>
-                  {isLoadingCustomers && <SelectItem value="loading" disabled>Loading customers...</SelectItem>}
-                  {customersError && <SelectItem value="error" disabled>Error: {(customersError as Error).message}</SelectItem>}
+                  {isLoadingCustomers && <SelectItem value="loading_customers_sentinel" disabled>Loading customers...</SelectItem>}
+                  {customersError && <SelectItem value="error_customers_sentinel" disabled>Error: {(customersError as Error).message}</SelectItem>}
                   {!isLoadingCustomers && !customersError && (
                     <>
                       <SelectItem value={ALL_ITEMS_VALUE}>All Customers</SelectItem>

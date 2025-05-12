@@ -10,14 +10,12 @@ import {
   CalendarClock,
   Weight, // Explicitly import used icons
   FileText, // For App Settings
-  AlertTriangle, // No longer used here, but keep import if needed elsewhere
-  CheckCircle2, // No longer used here
 } from 'lucide-react';
 
 
 export const APP_NAME = "GoVroom";
 // Make sure this value matches the 'value' field in your Firestore /customers collection for Asendia
-export const ASENDIA_CUSTOMER_VALUE = "asendia"; 
+export const ASENDIA_CUSTOMER_VALUE = "asendia";
 
 // For sidebar navigation
 export interface NavItem {
@@ -45,14 +43,6 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
 ];
 
 
-// For dashboard summary cards - This map is illustrative, dashboard page uses direct icons.
-// export const DASHBOARD_STATS_MAP = {
-//   pendingShipments: { title: "Pending Shipments", icon: AlertTriangle, bgColorClass: "bg-amber-100", textColorClass: "text-amber-600" },
-//   completedShipments: { title: "Completed Shipments", icon: CheckCircle2, bgColorClass: "bg-green-100", textColorClass: "text-green-600" },
-//   totalWeight: { title: "Total Weight Handled", icon: Weight, unit: "kg", bgColorClass: "bg-blue-100", textColorClass: "text-blue-600" },
-//   totalCarriers: { title: "Active Carriers", icon: Truck, bgColorClass: "bg-indigo-100", textColorClass: "text-indigo-600" },
-// };
-
 // Default addresses (can be overridden in Admin Settings)
 export const DEFAULT_SENDER_ADDRESS = "Asendia UK, Unit 5, The Hub, Solent Business Park, Fareham, PO15 7FH";
 export const DEFAULT_CONSIGNEE_ADDRESS = "La Poste, Avenue de la Poste, 75000 Paris, France";
@@ -61,22 +51,23 @@ export const DEFAULT_CONSIGNEE_ADDRESS = "La Poste, Avenue de la Poste, 75000 Pa
 export const TARE_WEIGHT_DEFAULT = 25.7; // Default tare weight if no bags
 export const BAG_WEIGHT_MULTIPLIER = 0.125; // Weight per bag for auto tare calculation
 
-// Static service options (can be moved to Firestore if needed)
-export const SERVICES_OPTIONS: SelectOption[] = [
-  { value: 'prior', label: 'Priority Service' },
-  { value: 'eco', label: 'Economy Service' },
-  { value: 's3c', label: 'Special Service 3C' },
-  { value: 'standard', label: 'Standard' },
-  { value: 'express', label: 'Express' },
-  { value: 'overnight', label: 'Overnight' },
-];
+// Static service options removed - fetch from Firestore collection 'services' now
+// export const SERVICES_OPTIONS: SelectOption[] = [
+//   { value: 'prior', label: 'Priority Service' },
+//   { value: 'eco', label: 'Economy Service' },
+//   { value: 's3c', label: 'Special Service 3C' },
+//   { value: 'standard', label: 'Standard' },
+//   { value: 'express', label: 'Express' },
+//   { value: 'overnight', label: 'Overnight' },
+// ];
 
 // Mapping from service value to the Firestore collection name for formats
+// Make sure the keys here match the 'value' field in your Firestore /services collection
 export const SERVICE_FORMAT_MAPPING: { [serviceValue: string]: string } = {
-  'prior': 'formats_prior',
-  'eco': 'formats_eco',
-  's3c': 'formats_s3c',
-  // 'standard': 'formats_standard', // example - add mappings for other services if they have specific formats
+  'priority': 'formats_prior', // Example: if 'priority' is the value in Firestore /services
+  'economy': 'formats_eco',   // Example: if 'economy' is the value
+  's3c': 'formats_s3c',     // Example: if 's3c' is the value
+  // Add mappings for other services as needed, matching their Firestore 'value'
 };
 
 // Configuration for dropdown management in Admin UI
@@ -104,7 +95,7 @@ export const DROPDOWN_COLLECTION_ICONS: { [key: string]: React.ElementType } = {
   carriers: Truck,
   subcarriers: Truck,
   customers: Users,
-  services: Settings,
+  services: Settings, // Added Services icon
   doe: CalendarClock,
   formats: ListChecksIcon,
   formats_prior: ListChecksIcon,
@@ -112,4 +103,3 @@ export const DROPDOWN_COLLECTION_ICONS: { [key: string]: React.ElementType } = {
   formats_s3c: ListChecksIcon,
   default: ListChecksIcon, // Fallback icon
 };
-

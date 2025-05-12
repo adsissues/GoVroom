@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormField, FormItem, FormMessage, FormControl } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import type { ShipmentDetail, SelectOption } from '@/lib/types';
-import { TARE_WEIGHT_DEFAULT, BAG_WEIGHT_MULTIPLIER, SERVICES_OPTIONS, SERVICE_FORMAT_MAPPING } from '@/lib/constants';
+import { TARE_WEIGHT_DEFAULT, BAG_WEIGHT_MULTIPLIER, SERVICE_FORMAT_MAPPING } from '@/lib/constants';
 import { getDropdownOptions } from '@/lib/firebase/dropdowns';
 import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -67,13 +67,17 @@ export default function ShipmentDetailForm({ shipmentId, initialData, onSubmitSu
     queryFn: () => getDropdownOptions('doe'),
   });
 
-  const services = SERVICES_OPTIONS; // Using static for now, can be fetched if dynamic
+  const { data: services, isLoading: isLoadingServices } = useQuery<SelectOption[]>({
+    queryKey: ['servicesDropdown'],
+    queryFn: () => getDropdownOptions('services'),
+  });
 
   const watchedService = form.watch('service');
   const watchedNumberOfPallets = form.watch('numberOfPallets');
   const watchedNumberOfBags = form.watch('numberOfBags');
 
   const formatCollectionName = useMemo(() => {
+    // Ensure SERVICE_FORMAT_MAPPING uses the correct 'value' from the fetched services
     return SERVICE_FORMAT_MAPPING[watchedService] || null;
   }, [watchedService]);
 
@@ -207,14 +211,16 @@ export default function ShipmentDetailForm({ shipmentId, initialData, onSubmitSu
             render={({ field }) => (
               <FormItem>
                 <Label htmlFor="service">Service</Label>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger id="service" className="mt-1"><SelectValue placeholder="Select service" /></SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {services.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                {isLoadingServices ? <Skeleton className="h-10 w-full mt-1" /> : (
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingServices}>
+                    <FormControl>
+                      <SelectTrigger id="service" className="mt-1"><SelectValue placeholder="Select service" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {services?.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -322,5 +328,3 @@ export default function ShipmentDetailForm({ shipmentId, initialData, onSubmitSu
     </Form>
   );
 }
-
-    

@@ -6,11 +6,11 @@ import SummaryCard from '@/components/dashboard/summary-card';
 import ShipmentsStatusChart from '@/components/dashboard/shipments-status-chart';
 import { ShipmentsTable } from '@/components/shipments/shipments-table';
 import type { Shipment } from '@/lib/types';
-import { AlertTriangle, CheckCircle2, Weight, Truck, CalendarClock, PackageSearch } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Weight, CalendarClock, PackageSearch } from 'lucide-react'; // Removed unused Truck
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import ClientFormattedDate from '@/components/shared/client-formatted-date';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription, AlertTitle as UiAlertTitle } from '@/components/ui/alert'; 
+import { Alert, AlertDescription, AlertTitle as UiAlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase/config';
 import { collection, query, orderBy, onSnapshot, Timestamp, type DocumentData, type QueryDocumentSnapshot } from 'firebase/firestore';
@@ -25,7 +25,7 @@ const fromFirestore = (docSnap: QueryDocumentSnapshot<DocumentData>): Shipment =
     driverName: data.driverName,
     departureDate: (data.departureDate as Timestamp)?.toDate(),
     arrivalDate: (data.arrivalDate as Timestamp)?.toDate(),
-    status: data.status, 
+    status: data.status,
     sealNumber: data.sealNumber,
     truckRegistration: data.truckRegistration,
     trailerRegistration: data.trailerRegistration,
@@ -46,7 +46,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const shipmentsQuery = query(collection(db, 'shipments'), orderBy('lastUpdated', 'desc'));
 
-    const unsubscribe = onSnapshot(shipmentsQuery, 
+    const unsubscribe = onSnapshot(shipmentsQuery,
       (snapshot) => {
         const fetchedShipments = snapshot.docs.map(doc => fromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
         // console.log("Dashboard onSnapshot: Fetched shipments", fetchedShipments.length, "docs");
@@ -67,16 +67,16 @@ export default function DashboardPage() {
       }
     );
 
-    return () => unsubscribe(); 
+    return () => unsubscribe();
   }, []);
 
   const pendingCount = useMemo(() => allShipments.filter(s => s.status === 'Pending').length, [allShipments]);
   const completedCount = useMemo(() => allShipments.filter(s => s.status === 'Completed').length, [allShipments]);
   const totalWeight = useMemo(() => allShipments.reduce((acc, s) => acc + (s.totalWeight || 0), 0), [allShipments]);
-  
+
   const lastUpdatedForStats = useMemo(() => {
     if (allShipments.length > 0 && allShipments[0].lastUpdated) {
-      return allShipments[0].lastUpdated; 
+      return allShipments[0].lastUpdated;
     }
     return null;
   }, [allShipments]);
@@ -103,7 +103,7 @@ export default function DashboardPage() {
   if (error) {
     const errorMessage = error.message || "Could not fetch dashboard data.";
     const isDbNotFoundError = errorMessage.includes("Firestore database not found");
-    const finalErrorMessage = isDbNotFoundError 
+    const finalErrorMessage = isDbNotFoundError
       ? `${errorMessage} Please ensure Firestore is enabled for your Firebase project and the environment variables (NEXT_PUBLIC_FIREBASE_PROJECT_ID, etc.) in .env.local are correctly configured.`
       : errorMessage;
 
@@ -133,12 +133,12 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           ) : (
-            <SummaryCard 
-              key={stat.title} 
-              title={stat.title} 
-              value={stat.value.toString()} 
-              icon={stat.icon} 
-              iconColorClass={stat.color} 
+            <SummaryCard
+              key={stat.title}
+              title={stat.title}
+              value={stat.value.toString()}
+              icon={stat.icon}
+              iconColorClass={stat.color}
             />
           )
         ))}
@@ -153,9 +153,9 @@ export default function DashboardPage() {
             {isLoading ? (
               <Skeleton className="h-[250px] w-full" />
             ) : (
-              <ShipmentsStatusChart 
-                pending={pendingCount} 
-                completed={completedCount} 
+              <ShipmentsStatusChart
+                pending={pendingCount}
+                completed={completedCount}
               />
             )}
           </CardContent>
@@ -185,7 +185,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-      
+
       <Card className="shadow-lg rounded-xl">
         <CardHeader>
           <CardTitle>Recent Shipments</CardTitle>
