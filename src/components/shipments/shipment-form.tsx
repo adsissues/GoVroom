@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -23,7 +24,7 @@ import { addShipmentToFirestore } from '@/lib/firebase/shipments';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query'; // Import useQueryClient
 import { getDropdownOptions } from '@/lib/firebase/dropdowns';
 import type { SelectOption } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -53,6 +54,7 @@ export default function ShipmentForm() {
   const { toast } = useToast();
   const router = useRouter();
   const { currentUser } = useAuth();
+  const queryClient = useQueryClient(); // Get query client instance
 
   const isAdmin = currentUser?.role === 'admin';
   
@@ -122,18 +124,25 @@ export default function ShipmentForm() {
         arrivalDate: new Date(data.arrivalDate),
         // status is boolean from form, addShipmentToFirestore converts it
       };
-      // The addShipmentToFirestore function should return the ID of the new document
+      
       const newShipmentId = await addShipmentToFirestore(shipmentDataForFirestore);
+      
       toast({
         title: "Shipment Created",
         description: "The new shipment has been saved successfully.",
-        variant: "default", // Keep as default (greenish accent)
+        variant: "default", 
       });
+
+      // Invalidate queries to ensure data freshness on other pages
+      await queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      // Example: if dashboard had a specific query key like ['dashboardSummary'], invalidate it too
+      // await queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+
+
       formHook.reset();
       setShowAISuggestions(false); 
       setAiInput(null);
-      // Redirect to a page for the newly created shipment.
-      // This page would be responsible for the "Add Details" button/functionality.
+      
       router.push(`/shipments/${newShipmentId}`); 
     } catch (error) {
       console.error("Error saving shipment:", error);

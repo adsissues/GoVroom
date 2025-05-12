@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase/config';
 import { collection, query, orderBy, onSnapshot, Timestamp, type DocumentData, type QueryDocumentSnapshot } from 'firebase/firestore';
 
-// Helper to convert Firestore document snapshot to Shipment type (moved here or ensure importable if kept in shipments.ts)
+// Helper to convert Firestore document snapshot to Shipment type
 const fromFirestore = (docSnap: QueryDocumentSnapshot<DocumentData>): Shipment => {
   const data = docSnap.data();
   return {
@@ -25,7 +25,7 @@ const fromFirestore = (docSnap: QueryDocumentSnapshot<DocumentData>): Shipment =
     driverName: data.driverName,
     departureDate: (data.departureDate as Timestamp)?.toDate(),
     arrivalDate: (data.arrivalDate as Timestamp)?.toDate(),
-    status: data.status, // Assuming status is 'Pending' or 'Completed'
+    status: data.status, 
     sealNumber: data.sealNumber,
     truckRegistration: data.truckRegistration,
     trailerRegistration: data.trailerRegistration,
@@ -49,12 +49,13 @@ export default function DashboardPage() {
     const unsubscribe = onSnapshot(shipmentsQuery, 
       (snapshot) => {
         const fetchedShipments = snapshot.docs.map(doc => fromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
+        // console.log("Dashboard onSnapshot: Fetched shipments", fetchedShipments.length, "docs");
         setAllShipments(fetchedShipments);
         setIsLoading(false);
         setError(null);
       },
       (err) => {
-        console.error("Error fetching real-time shipments:", err);
+        console.error("Error fetching real-time shipments for dashboard:", err);
         let specificError = err;
         if (err.message.includes("Missing or insufficient permissions") || err.message.includes("The caller does not have permission")) {
             specificError = new Error("Missing or insufficient permissions to fetch shipment data. Please check your Firestore security rules.");
@@ -66,12 +67,13 @@ export default function DashboardPage() {
       }
     );
 
-    return () => unsubscribe(); // Cleanup listener on unmount
+    return () => unsubscribe(); 
   }, []);
 
   const pendingCount = useMemo(() => allShipments.filter(s => s.status === 'Pending').length, [allShipments]);
   const completedCount = useMemo(() => allShipments.filter(s => s.status === 'Completed').length, [allShipments]);
   const totalWeight = useMemo(() => allShipments.reduce((acc, s) => acc + (s.totalWeight || 0), 0), [allShipments]);
+  
   const lastUpdatedForStats = useMemo(() => {
     if (allShipments.length > 0 && allShipments[0].lastUpdated) {
       return allShipments[0].lastUpdated; 
@@ -93,8 +95,8 @@ export default function DashboardPage() {
 
   const summaryStatsData = [
     { title: "Pending Shipments", value: pendingCount, icon: AlertTriangle, color: "text-orange-500", isLoading: isLoading },
-    { title: "Completed Shipments", value: completedCount, icon: CheckCircle2, color: "text-green-500", isLoading: isLoading },
-    { title: "Total Weight (kg)", value: totalWeight.toLocaleString(), icon: Weight, color: "text-blue-500", isLoading: isLoading },
+    { title: "Completed Shipments", value: completedCount, icon: CheckCircle2, color: "text-accent", isLoading: isLoading }, // Use accent for completed
+    { title: "Total Weight (kg)", value: totalWeight.toLocaleString(), icon: Weight, color: "text-primary", isLoading: isLoading }, // Use primary for blue
     { title: "Last Updated", value: clientLastUpdatedStatString || (isLoading ? 'Loading...' : 'N/A'), icon: CalendarClock, color: "text-purple-500", isLoading: isLoading },
   ];
 
@@ -174,7 +176,7 @@ export default function DashboardPage() {
                 {recentShipmentsForActivity.length > 0 ? recentShipmentsForActivity.map(shipment => (
                   <div key={shipment.id} className="mb-2 pb-2 border-b last:border-b-0">
                     <p><strong>{shipment.carrier} - {shipment.driverName}</strong></p>
-                    <p>Status: <span className={cn(shipment.status === 'Completed' ? 'text-accent' : 'text-orange-500 font-medium')}>{shipment.status}</span></p>
+                    <p>Status: <span className={cn(shipment.status === 'Completed' ? 'text-accent font-semibold' : 'text-orange-500 font-medium')}>{shipment.status}</span></p>
                     {shipment.lastUpdated && <p>Last Update: <ClientFormattedDate date={shipment.lastUpdated} /></p>}
                   </div>
                 )) : <p>No recent activity.</p>}

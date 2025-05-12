@@ -17,9 +17,9 @@ export default function ShipmentsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: shipments = [], isLoading, error } = useQuery<Shipment[]>({
+  const { data: shipments = [], isLoading, error, refetch } = useQuery<Shipment[]>({
     queryKey: ['shipments'],
-    queryFn: () => getShipmentsFromFirestore(), // Pass filters here if server-side filtering is more deeply integrated
+    queryFn: () => getShipmentsFromFirestore(), 
   });
 
   const filteredShipments = useMemo(() => {
@@ -30,30 +30,36 @@ export default function ShipmentsPage() {
       if (filters.driverName && shipment.driverName && !shipment.driverName.toLowerCase().includes(filters.driverName.toLowerCase())) matches = false;
       if (filters.status && filters.status !== 'all_items_selection_sentinel' && shipment.status !== filters.status) matches = false;
       
-      // Date objects could be Firestore Timestamps converted to Dates, or strings. Ensure comparison works.
       const departureDate = shipment.departureDate instanceof Date ? shipment.departureDate : new Date(shipment.departureDate);
       const arrivalDate = shipment.arrivalDate instanceof Date ? shipment.arrivalDate : new Date(shipment.arrivalDate);
 
       if (filters.dateRange?.from && departureDate < new Date(filters.dateRange.from)) matches = false;
       if (filters.dateRange?.to && arrivalDate > new Date(filters.dateRange.to)) matches = false;
       
-      // Customer filter (requires customer field on shipment or more complex logic)
-      // if (filters.customer && filters.customer !== 'all_items_selection_sentinel' && shipment.customer !== filters.customer) matches = false;
       return matches;
     });
   }, [shipments, filters, isLoading]);
 
   const handleSearch = (searchCriteria: Record<string, any>) => {
     setFilters(searchCriteria);
-    // Optionally, could refetch with server-side filters:
-    // queryClient.invalidateQueries(['shipments']); // if getShipmentsFromFirestore uses filters state
+    // Client-side filtering is primary. If server-side filtering was implemented with query keys:
+    // queryClient.invalidateQueries({ queryKey: ['shipments', searchCriteria] });
+    // refetch(); // or let invalidation trigger refetch
   };
 
   const deleteMutation = useMutation({
     mutationFn: deleteShipmentFromFirestore,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['shipments'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] }); // Invalidate dashboard stats as well
+    onSuccess: async () => {
+      // Invalidate and refetch the shipments query to update the list
+      await queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      // Optionally, refetch directly if preferred, though invalidate is usually enough
+      // await refetch(); 
+      
+      // Invalidate any other queries that might be affected, e.g., dashboard summaries
+      // The dashboard page uses onSnapshot, so direct invalidation might not be strictly needed for it,
+      // but it's good practice if there were other dashboard-related queries.
+      // await queryClient.invalidateQueries({ queryKey: ['dashboardStats'] }); // Example if such a query existed
+
       toast({
         title: 'Shipment Deleted',
         description: 'The shipment has been successfully deleted.',
@@ -69,13 +75,16 @@ export default function ShipmentsPage() {
   });
 
   const handleDeleteShipment = (shipmentId: string) => {
-    if (window.confirm('Are you sure you want to delete this shipment?')) {
+    if (window.confirm('Are you sure you want to delete this shipment? This action cannot be undone if the shipment has associated details.')) {
       deleteMutation.mutate(shipmentId);
     }
   };
 
-  const handleViewDetails = (shipmentId: string) => console.log("View details for:", shipmentId); // Placeholder
-  const handleEditShipment = (shipmentId: string) => console.log("Edit shipment:", shipmentId); // Placeholder
+  // Placeholder for future edit functionality
+  const handleEditShipment = (shipmentId: string) => {
+    console.log("Edit shipment:", shipmentId); 
+    // Example: router.push(`/shipments/edit/${shipmentId}`);
+  };
 
   return (
     <div className="space-y-6">
@@ -112,8 +121,7 @@ export default function ShipmentsPage() {
             {!isLoading && !error && (
               <ShipmentsTable 
                 shipments={filteredShipments} 
-                onViewDetails={handleViewDetails}
-                onEdit={handleEditShipment}
+                onEdit={handleEditShipment} // Pass edit handler
                 onDelete={handleDeleteShipment}
               />
             )}
