@@ -1,10 +1,9 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter, notFound } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getShipmentById, updateShipment, shipmentFromFirestore } from '@/lib/firebase/shipmentsService';
+import { getShipmentById, updateShipment } from '@/lib/firebase/shipmentsService';
 import type { Shipment } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,150 +20,149 @@ export default function ShipmentDetailPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { currentUser } = useAuth();
-  // Ensure shipmentId is consistently typed as string | undefined
-  const shipmentId = typeof params?.shipmentId === 'string' ? params.shipmentId : undefined;
+
+  // Robustly get shipmentId, ensuring it's a non-empty string or undefined
+  const pathShipmentId = params?.shipmentId; // Raw value from params
+  const shipmentId = typeof pathShipmentId === 'string' && pathShipmentId.trim() !== '' ? pathShipmentId.trim() : undefined;
 
   const [shipment, setShipment] = useState<Shipment | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Start true: loading until ID validated and data fetched or error
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isInitialCheckDone, setIsInitialCheckDone] = useState(false); // Track if initial ID check is done
 
   useEffect(() => {
-    // Only proceed if shipmentId is a non-empty string
+    console.log(`ShipmentDetailPage Effect: Raw pathShipmentId from params = "${pathShipmentId}"`);
+    console.log(`ShipmentDetailPage Effect: Processed shipmentId for fetch = "${shipmentId}"`);
+
     if (shipmentId) {
-      console.log(`ShipmentDetailPage Effect: Valid shipmentId found: ${shipmentId}. Starting fetch.`);
-      setIsInitialCheckDone(true); // Mark check as done
+      setIsLoading(true); // Set loading true when a valid ID is present and we're about to fetch
+      setError(null);
+      setShipment(null); // Reset previous shipment state
 
       const fetchShipment = async () => {
-        console.log(`ShipmentDetailPage: Fetching shipment with ID: ${shipmentId}`);
-        setIsLoading(true);
-        setError(null);
-        setShipment(null); // Reset shipment state before fetch
+        console.log(`ShipmentDetailPage: Attempting to fetch shipment with valid ID: "${shipmentId}"`);
         try {
           const fetchedShipment = await getShipmentById(shipmentId);
           if (fetchedShipment) {
-            console.log(`ShipmentDetailPage: Shipment found:`, fetchedShipment);
+            console.log(`ShipmentDetailPage: Shipment found for ID "${shipmentId}":`, fetchedShipment);
             setShipment(fetchedShipment);
           } else {
-            console.warn(`ShipmentDetailPage: Shipment with ID ${shipmentId} not found in Firestore.`);
-            // Trigger Next.js 404 page *only* if the fetch confirms non-existence
-            notFound();
+            console.warn(`ShipmentDetailPage: Shipment with ID "${shipmentId}" NOT FOUND in Firestore. Calling notFound().`);
+            notFound(); // Trigger Next.js 404 page
           }
         } catch (err) {
-          console.error("ShipmentDetailPage: Error fetching shipment:", err);
-          setError(err instanceof Error ? err.message : "Failed to load shipment data.");
-          // Don't call notFound() on general fetch errors, show an error message instead.
+          console.error(`ShipmentDetailPage: Error fetching shipment ID "${shipmentId}":`, err);
+          setError(err instanceof Error ? err.message : "Failed to load shipment data due to an unexpected error.");
         } finally {
-          setIsLoading(false);
+          setIsLoading(false); // Stop loading after fetch attempt (success, not found, or error)
         }
       };
 
       fetchShipment();
     } else {
-      // Handle the case where shipmentId is not yet available or invalid
-      console.warn("ShipmentDetailPage Effect: shipmentId is not valid or not yet available:", shipmentId);
-      // Don't set loading to false immediately, wait for params to potentially update.
-      // We'll show a loading state until the ID is valid or confirmed missing.
-      // If params never provide a valid ID, the loading state might persist,
-      // or we can add a timeout later if needed.
-      // Set initial check done even if ID is missing, so we can show the error message.
-      setIsInitialCheckDone(true);
-      setIsLoading(false); // Explicitly stop loading if ID is confirmed invalid/missing
+      // This block runs if shipmentId is undefined (e.g., invalid URL param like /shipments/ or /shipments/  )
+      console.warn(`ShipmentDetailPage Effect: Invalid or missing shipmentId. Raw param: "${pathShipmentId}". Processed: "${shipmentId}". Setting error state.`);
       setError("Invalid or missing Shipment ID in URL.");
+      setIsLoading(false); // Stop loading as there's no valid ID to fetch
+      setShipment(null); // Ensure no stale shipment data is shown
     }
-
-  }, [shipmentId]); // Only re-run if shipmentId changes
+  }, [shipmentId, pathShipmentId]); // Re-run if the raw param or the processed id changes
 
   const handleUpdateShipment = async (data: Partial<Shipment>) => {
-     if (!shipment || !shipmentId) return; // Guard against missing data
-    setIsLoading(true); // Indicate loading during update
+     if (!shipment || !shipmentId) {
+        console.error("handleUpdateShipment: called without shipment or shipmentId.");
+        toast({ variant: "destructive", title: "Update Failed", description: "Cannot update, shipment data is missing." });
+        return;
+     }
+    setIsLoading(true); 
     try {
       const updatedData = {
         ...shipment,
         ...data,
-        // Ensure Timestamps are handled correctly if dates are updated
         departureDate: data.departureDate instanceof Date ? Timestamp.fromDate(data.departureDate) : shipment.departureDate,
         arrivalDate: data.arrivalDate instanceof Date ? Timestamp.fromDate(data.arrivalDate) : shipment.arrivalDate,
         lastUpdated: Timestamp.now(),
       };
       await updateShipment(shipmentId, updatedData);
 
-       // Refetch or update local state carefully to avoid type issues
-      const freshlyFetched = await getShipmentById(shipmentId); // Re-fetch for consistency
+      const freshlyFetched = await getShipmentById(shipmentId); 
       if (freshlyFetched) {
           setShipment(freshlyFetched);
       } else {
-         // Should not happen if update succeeded, but handle defensively
-         console.error("Shipment disappeared after update?");
-         setError("Failed to reload shipment after update.");
-         setShipment(null); // Clear inconsistent state
+         console.error("Shipment disappeared after update? ID:", shipmentId);
+         setError("Failed to reload shipment after update. It might have been deleted.");
+         setShipment(null); 
       }
 
-      setIsEditing(false); // Exit edit mode
+      setIsEditing(false); 
       toast({ title: "Shipment Updated", description: "Main shipment details saved successfully." });
     } catch (err) {
       console.error("Error updating shipment:", err);
       toast({ variant: "destructive", title: "Update Failed", description: err instanceof Error ? err.message : "Could not save shipment changes." });
-       setError(err instanceof Error ? err.message : "Could not save shipment changes."); // Show error on page too
+       setError(err instanceof Error ? err.message : "Could not save shipment changes.");
     } finally {
-        setIsLoading(false); // Reset loading state
+        setIsLoading(false); 
     }
   };
 
 
-  // --- Render Logic ---
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] space-y-4 p-4 md:p-6 lg:p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-muted-foreground">Loading shipment details...</p>
+        <Skeleton className="h-8 w-32 mt-4" />
+        <Skeleton className="h-96 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+    );
+  }
 
-  // 1. Initial Check / Loading State (Before ID is confirmed)
-  if (!isInitialCheckDone || (isLoading && !error)) {
-      return (
-        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] space-y-4 p-4 md:p-6 lg:p-8">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Loading shipment details...</p>
-          <Skeleton className="h-8 w-32 mt-4" />
-          <Skeleton className="h-96 w-full rounded-xl" />
-          <Skeleton className="h-64 w-full rounded-xl" />
-        </div>
-      );
-   }
+  if (error) {
+    // This state is reached if shipmentId was invalid OR if fetching a valid ID failed.
+    return (
+      <div className="space-y-6 p-4 md:p-6 lg:p-8">
+        <Button variant="outline" onClick={() => router.back()} className="mb-4">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back
+        </Button>
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Error Loading Shipment</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
-   // 2. Error State (Fetch failed OR Invalid ID)
-   if (error) {
-     return (
-       <div className="space-y-6 p-4 md:p-6 lg:p-8">
-         <Button variant="outline" onClick={() => router.back()} className="mb-4">
-           <ArrowLeft className="mr-2 h-4 w-4" /> Back
-         </Button>
-         <Alert variant="destructive">
-           <AlertTriangle className="h-4 w-4" />
-           <AlertTitle>Error Loading Shipment</AlertTitle>
-           <AlertDescription>{error}</AlertDescription>
-         </Alert>
-       </div>
-     );
-   }
+  // If notFound() was called in useEffect, Next.js should prevent rendering further.
+  // This block is a safeguard or for states not leading to a full 404 page (e.g. if we decided not to use notFound() for some errors).
+  if (!shipment) {
+    // This case means: not loading, no specific error message set from a fetch *failure*,
+    // and no shipment data. This path should primarily be hit if notFound() was called.
+    // If `notFound()` is working as expected, the user won't see this UI, they'll see the Next.js 404 page.
+    // If they *do* see this, it means `notFound()` might not be halting execution as expected,
+    // or there's another logic path.
+    console.warn("ShipmentDetailPage: Render - shipment is null, isLoading is false, and no explicit 'error' state was set for fetch failure. This implies notFound() should have handled it or ID was initially invalid (which should have an error message).");
+    // Display a generic "not found" like message if no specific error was set.
+    // This might be redundant if the `error` state for "Invalid ID" already covers it.
+    return (
+      <div className="space-y-6 p-4 md:p-6 lg:p-8">
+        <Button variant="outline" onClick={() => router.back()} className="mb-4">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back
+        </Button>
+        <Alert variant="default" className="border-yellow-500 bg-yellow-50">
+          <AlertTriangle className="h-4 w-4 text-yellow-700" />
+          <AlertTitle className="text-yellow-800">Shipment Data Not Available</AlertTitle>
+          <AlertDescription className="text-yellow-700">
+            The requested shipment could not be displayed. Please check the URL or try again later.
+            If the problem persists, the shipment may no longer exist.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
-   // 3. Shipment Not Found (but fetch succeeded and returned null)
-   // This state should now be handled by the notFound() call within useEffect.
-   // If somehow we reach here with shipment === null and no error/loading, it's an unexpected state.
-   if (!shipment) {
-      console.error("ShipmentDetailPage: Reached state where shipment is null, but no loading or error state. This should ideally not happen.");
-      // Fallback, though notFound() should have been triggered.
-       return (
-         <div className="space-y-6 p-4 md:p-6 lg:p-8">
-            <Button variant="outline" onClick={() => router.back()} className="mb-4">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back
-            </Button>
-           <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-             <AlertTitle>Shipment Not Found</AlertTitle>
-             <AlertDescription>The requested shipment could not be found. It might have been deleted or the ID is incorrect.</AlertDescription>
-           </Alert>
-         </div>
-       );
-    }
-
-  // 4. Success State: Render Shipment Details
+  // If we reach here, shipment is loaded, not loading, and no error.
   return (
     <div className="space-y-6 p-4 md:p-6 lg:p-8">
        <Button variant="outline" onClick={() => router.back()} className="mb-4">
@@ -173,12 +171,10 @@ export default function ShipmentDetailPage() {
 
       <Card className="shadow-lg rounded-xl">
         <CardHeader className="flex flex-row items-center justify-between">
-          {/* Use shipment.id which is confirmed to exist here */}
           <CardTitle>Shipment Details (ID: {shipment.id})</CardTitle>
           {!isEditing && shipment.status === 'Pending' && (
              <Button onClick={() => setIsEditing(true)} variant="outline" disabled={isLoading}>Edit Main Info</Button>
           )}
-           {/* Allow Admin to edit completed shipments */}
           {!isEditing && shipment.status === 'Completed' && currentUser?.role === 'admin' && (
              <Button onClick={() => setIsEditing(true)} variant="outline" disabled={isLoading}>Edit Main Info (Admin)</Button>
           )}
@@ -187,24 +183,20 @@ export default function ShipmentDetailPage() {
           )}
         </CardHeader>
         <CardContent>
-           {/* Pass shipment.id confirmed to exist */}
            <ShipmentForm
-              isAdmin={currentUser?.role === 'admin'}
+              isAdmin={!!(currentUser?.role === 'admin')}
               initialData={shipment}
               onSubmit={handleUpdateShipment}
               isEditing={isEditing}
               shipmentId={shipment.id}
               onSaveSuccess={() => {
                 setIsEditing(false);
-                // Optionally re-fetch or rely on state update in handleUpdateShipment
               }}
            />
         </CardContent>
       </Card>
 
-       {/* Pass shipment.id confirmed to exist */}
        <ShipmentDetailsList shipmentId={shipment.id} parentStatus={shipment.status} />
-
     </div>
   );
 }
