@@ -7,10 +7,11 @@ import {
   Settings, 
   ListPlus, 
   Users, 
-  CalendarClock 
+  CalendarClock,
+  AlertTriangle, // Added import
+  CheckCircle2,  // Added import
+  Weight         // Added import
 } from 'lucide-react';
-// Note: AlertTriangle, CheckCircle2, Weight are used in DASHBOARD_STATS_MAP but passed as components
-// to SummaryCard from DashboardPage, so they are imported in DashboardPage.
 
 export const APP_NAME = "GoVroom";
 
@@ -34,6 +35,8 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
 
 
 // For dashboard summary cards
+// Note: These icons are now directly imported and used here.
+// DashboardPage also imports them for its summaryStatsData array, which is slightly redundant but fine.
 export const DASHBOARD_STATS_MAP = {
   pendingShipments: { title: "Pending Shipments", icon: AlertTriangle, bgColorClass: "bg-amber-100", textColorClass: "text-amber-600" },
   completedShipments: { title: "Completed Shipments", icon: CheckCircle2, bgColorClass: "bg-green-100", textColorClass: "text-green-600" },
@@ -105,3 +108,4 @@ export const DROPDOWN_COLLECTION_ICONS: { [key: string]: React.ElementType } = {
 // Icons like AlertTriangle, CheckCircle2, Weight used in DASHBOARD_STATS_MAP
 // are imported in the DashboardPage component where SummaryCard is instantiated.
 // Users, CalendarClock, Gauge etc. if used in THIS file must be imported at the top.
+
