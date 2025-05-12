@@ -1,4 +1,3 @@
-
 # GoVroom - Shipment Management Application
 
 This is a Next.js application built with Firebase for managing shipments, designed for both web and potentially mobile platforms.
@@ -38,17 +37,20 @@ GoVroom aims to provide an efficient way to track and manage shipment logistics,
     *   Set up Firebase Security Rules (essential for production).
     *   Obtain your Firebase project configuration credentials.
 
-3.  **Environment Variables:**
-    *   Create a `.env.local` file in the project root (copy from `.env` if it exists).
-    *   Add your Firebase project configuration details to `.env.local`, prefixing each key with `NEXT_PUBLIC_`:
+3.  **CRITICAL: Environment Variables Setup**
+    *   Create a file named `.env.local` in the project root (you can copy `.env` if it exists and rename it, but ensure it has your actual values).
+    *   **This step is crucial for the application to connect to your Firebase project.**
+    *   Add your Firebase project configuration details to `.env.local`. You can find these in your Firebase project settings (Project settings > General > Your apps > Web app > SDK setup and configuration > Config).
+    *   **IMPORTANT:** Prefix each key with `NEXT_PUBLIC_`:
+        ```env
+        NEXT_PUBLIC_FIREBASE_API_KEY="YOUR_ACTUAL_API_KEY"
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="your-actual-project-id.firebaseapp.com"
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID="your-actual-project-id"
+        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="your-actual-project-id.appspot.com"
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="YOUR_ACTUAL_SENDER_ID"
+        NEXT_PUBLIC_FIREBASE_APP_ID="YOUR_ACTUAL_APP_ID"
         ```
-        NEXT_PUBLIC_FIREBASE_API_KEY="YOUR_API_KEY"
-        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="your-project-id.firebaseapp.com"
-        NEXT_PUBLIC_FIREBASE_PROJECT_ID="your-project-id"
-        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="your-project-id.appspot.com"
-        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="YOUR_SENDER_ID"
-        NEXT_PUBLIC_FIREBASE_APP_ID="YOUR_APP_ID"
-        ```
+    *   **Replace the placeholder values** (e.g., `"YOUR_ACTUAL_API_KEY"`) with your real credentials. If you see an error about "YOUR_API_KEY" or similar, it means this step was missed or done incorrectly.
 
 4.  **Install Dependencies:**
     ```bash
@@ -99,4 +101,3 @@ GoVroom aims to provide an efficient way to track and manage shipment logistics,
 *   Zod (Validation)
 *   React Hook Form
 *   Lucide Icons
-
