@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -60,6 +59,7 @@ export default function ShipmentDetailPage() {
      if (!shipment) return;
     try {
       // Merge existing data with new data, add lastUpdated timestamp
+      // Ensure status is updated correctly based on the form's toggle
       const updatedData = {
         ...shipment,
         ...data,
@@ -124,6 +124,7 @@ export default function ShipmentDetailPage() {
       <Card className="shadow-lg rounded-xl">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Shipment Details (ID: {shipmentId})</CardTitle>
+          {/* Show edit button only if not already editing AND shipment is pending */}
           {!isEditing && shipment.status === 'Pending' && (
              <Button onClick={() => setIsEditing(true)} variant="outline">Edit Main Info</Button>
           )}
@@ -135,7 +136,7 @@ export default function ShipmentDetailPage() {
            <ShipmentForm
               isAdmin={currentUser?.role === 'admin'}
               initialData={shipment}
-              onSubmit={handleUpdateShipment}
+              onSubmit={handleUpdateShipment} // Pass the update handler
               isEditing={isEditing} // Pass editing state to the form
               shipmentId={shipmentId} // Pass shipmentId if needed for child components
               onSaveSuccess={() => setIsEditing(false)} // Callback to exit edit mode
