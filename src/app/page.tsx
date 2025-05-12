@@ -1,159 +1,44 @@
+
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getShipmentById, updateShipment } from '@/lib/firebase/shipmentsService';
-import type { Shipment } from '@/lib/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
-import ShipmentForm from '@/components/shipments/shipment-form';
-import ShipmentDetailsList from '@/components/shipments/shipment-details-list';
-import { Timestamp } from 'firebase/firestore';
-import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
+import { Skeleton } from '@/components/ui/skeleton'; // For loading state
 
-export default function ShipmentDetailPage() {
-  const params = useParams();
+export default function HomePage() {
+  const { currentUser, loading } = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
-  const { currentUser } = useAuth();
-  const shipmentId = params.shipmentId as string;
-
-  const [shipment, setShipment] = useState<Shipment | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!shipmentId) {
-      setError("Shipment ID is missing.");
-      setIsLoading(false);
-      return;
-    }
-
-    const fetchShipment = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const fetchedShipment = await getShipmentById(shipmentId);
-        if (fetchedShipment) {
-          setShipment(fetchedShipment);
-        } else {
-          setError("Shipment not found.");
-        }
-      } catch (err) {
-        console.error("Error fetching shipment:", err);
-        setError(err instanceof Error ? err.message : "Failed to load shipment data.");
-      } finally {
-        setIsLoading(false);
+    if (!loading) {
+      if (currentUser) {
+        router.replace('/dashboard');
+      } else {
+        router.replace('/login');
       }
-    };
-
-    fetchShipment();
-  }, [shipmentId]);
-
-  const handleUpdateShipment = async (data: Partial<Shipment>) => {
-    if (!shipment) return;
-    setIsLoading(true);
-    try {
-      const updatedData = {
-        ...shipment,
-        ...data,
-        lastUpdated: Timestamp.now(),
-      };
-      await updateShipment(shipmentId, updatedData);
-      setShipment(updatedData);
-      setIsEditing(false);
-      toast({
-        title: "Shipment Updated",
-        description: "Main shipment details saved successfully.",
-      });
-    } catch (err) {
-      console.error("Error updating shipment:", err);
-      toast({
-        variant: "destructive",
-        title: "Update Failed",
-        description: err instanceof Error ? err.message : "Could not save shipment changes.",
-      });
-    } finally {
-      setIsLoading(false);
     }
-  };
+  }, [currentUser, loading, router]);
 
-  if (isLoading && !shipment) {
+  // Display a loading state while checking authentication
+  if (loading) {
     return (
-      <div className="space-y-6 p-4 md:p-6 lg:p-8">
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-96 w-full rounded-xl" />
-        <Skeleton className="h-64 w-full rounded-xl" />
+      <div className="flex h-screen w-screen items-center justify-center bg-background">
+        <div className="space-y-4">
+          <Skeleton className="h-12 w-12 rounded-full" />
+          <Skeleton className="h-4 w-[250px]" />
+          <Skeleton className="h-4 w-[200px]" />
+          <p className="text-muted-foreground">Loading application...</p>
+        </div>
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="p-4 md:p-6 lg:p-8">
-        <Button variant="outline" onClick={() => router.back()} className="mb-4">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back
-        </Button>
-        <Alert variant="destructive">
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
-  if (!shipment) {
-    return (
-      <div className="p-4 md:p-6 lg:p-8">
-        <Button variant="outline" onClick={() => router.back()} className="mb-4">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back
-        </Button>
-        <Alert>
-          <AlertTitle>Not Found</AlertTitle>
-          <AlertDescription>The requested shipment could not be found.</AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
+  // This content will be briefly visible if redirection is slow or JS is disabled initially.
+  // Or, it can be a fallback if redirection fails for some unexpected reason.
   return (
-    <div className="space-y-6 p-4 md:p-6 lg:p-8">
-      <Button variant="outline" onClick={() => router.back()} className="mb-4">
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Shipments
-      </Button>
-
-      <Card className="shadow-lg rounded-xl">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Shipment Details (ID: {shipmentId})</CardTitle>
-          {!isEditing && shipment.status === 'Pending' && (
-            <Button onClick={() => setIsEditing(true)} variant="outline">
-              Edit Main Info
-            </Button>
-          )}
-          {isEditing && (
-            <Button onClick={() => setIsEditing(false)} variant="ghost">
-              Cancel Edit
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          <ShipmentForm
-            isAdmin={currentUser?.role === 'admin'}
-            initialData={shipment}
-            onSubmit={handleUpdateShipment}
-            isEditing={isEditing}
-            shipmentId={shipmentId}
-            onSaveSuccess={() => setIsEditing(false)}
-          />
-        </CardContent>
-      </Card>
-
-      <ShipmentDetailsList shipmentId={shipmentId} parentStatus={shipment.status} />
+    <div className="flex h-screen w-screen items-center justify-center bg-background p-4">
+      <p className="text-muted-foreground">Redirecting...</p>
     </div>
   );
 }
