@@ -23,6 +23,8 @@ import {
   getCountFromServer,
 } from 'firebase/firestore';
 import type { Shipment, ShipmentStatus, ShipmentDetail } from '@/lib/types';
+import { getDropdownOptionsMap } from './dropdownService'; // Import the map helper
+import { ASENDIA_CUSTOMER_VALUE } from '@/lib/constants'; // Import constant
 
 const shipmentsCollection = collection(db, 'shipments');
 
@@ -44,14 +46,14 @@ export const fromFirestore = (doc: QueryDocumentSnapshot<DocumentData>): Shipmen
       consigneeAddress: data.consigneeAddress,
       lastUpdated: data.lastUpdated, // Assume it's already a Timestamp
       createdAt: data.createdAt,     // Assume it's already a Timestamp
-      totalPallets: data.totalPallets,
-      totalBags: data.totalBags,
-      totalGrossWeight: data.totalGrossWeight,
-      totalTareWeight: data.totalTareWeight,
-      totalNetWeight: data.totalNetWeight,
-      asendiaGrossWeight: data.asendiaGrossWeight,
-      asendiaTareWeight: data.asendiaTareWeight,
-      asendiaNetWeight: data.asendiaNetWeight,
+      totalPallets: data.totalPallets ?? 0,
+      totalBags: data.totalBags ?? 0,
+      totalGrossWeight: data.totalGrossWeight ?? 0,
+      totalTareWeight: data.totalTareWeight ?? 0,
+      totalNetWeight: data.totalNetWeight ?? 0,
+      asendiaGrossWeight: data.asendiaGrossWeight ?? 0,
+      asendiaTareWeight: data.asendiaTareWeight ?? 0,
+      asendiaNetWeight: data.asendiaNetWeight ?? 0,
     } as Shipment;
 };
 
@@ -61,26 +63,35 @@ export const detailFromFirestore = (doc: QueryDocumentSnapshot<DocumentData>): S
     return {
         id: doc.id,
         shipmentId: data.shipmentId, // Should match parent doc ID ideally, but might be stored for context
-        numPallets: data.numPallets,
-        numBags: data.numBags,
+        numPallets: data.numPallets ?? 0,
+        numBags: data.numBags ?? 0,
         customerId: data.customerId,
         serviceId: data.serviceId,
         formatId: data.formatId,
-        tareWeight: data.tareWeight,
-        grossWeight: data.grossWeight,
+        tareWeight: data.tareWeight ?? 0,
+        grossWeight: data.grossWeight ?? 0,
         dispatchNumber: data.dispatchNumber,
         doeId: data.doeId,
         createdAt: data.createdAt,
         lastUpdated: data.lastUpdated,
-        netWeight: data.netWeight,
+        netWeight: data.netWeight ?? 0, // Gross - Tare calculation is done separately
     } as ShipmentDetail;
 };
 
 
 // Add a new shipment
-export const addShipment = async (shipmentData: Omit<Shipment, 'id' | 'lastUpdated' | 'createdAt'>): Promise<string> => {
+export const addShipment = async (shipmentData: Omit<Shipment, 'id' | 'lastUpdated' | 'createdAt' | 'totalPallets' | 'totalBags' | 'totalGrossWeight' | 'totalTareWeight' | 'totalNetWeight' | 'asendiaGrossWeight' | 'asendiaTareWeight' | 'asendiaNetWeight'>): Promise<string> => {
   const docRef = await addDoc(shipmentsCollection, {
     ...shipmentData,
+    // Initialize totals to 0
+    totalPallets: 0,
+    totalBags: 0,
+    totalGrossWeight: 0,
+    totalTareWeight: 0,
+    totalNetWeight: 0,
+    asendiaGrossWeight: 0,
+    asendiaTareWeight: 0,
+    asendiaNetWeight: 0,
     createdAt: serverTimestamp(),
     lastUpdated: serverTimestamp(),
   });
@@ -106,32 +117,33 @@ export const getShipmentsByStatus = async (status: ShipmentStatus, countLimit: n
   return querySnapshot.docs.map(fromFirestore);
 };
 
-// Get dashboard summary stats (example: count pending/completed)
+// Get dashboard summary stats (using client-side aggregation for now)
 export const getDashboardStats = async () => {
     const pendingQuery = query(shipmentsCollection, where('status', '==', 'Pending'));
     const completedQuery = query(shipmentsCollection, where('status', '==', 'Completed'));
+    const allShipmentsQuery = query(shipmentsCollection, orderBy('lastUpdated', 'desc')); // Get all for weight calc
 
-    const pendingSnapshot = await getCountFromServer(pendingQuery);
-    const completedSnapshot = await getCountFromServer(completedQuery);
+    const [pendingSnapshot, completedSnapshot, allShipmentsSnapshot] = await Promise.all([
+        getCountFromServer(pendingQuery),
+        getCountFromServer(completedQuery),
+        getDocs(allShipmentsQuery)
+    ]);
 
-    // Note: Calculating total weight requires fetching documents or using aggregation (more complex/costly).
-    // This might be better done via a Cloud Function triggered on updates.
-    // For now, we'll just return counts.
-
-    // Fetch the most recently updated shipment to show 'Last Updated'
     let lastUpdated: Timestamp | null = null;
-    const lastUpdatedQuery = query(shipmentsCollection, orderBy('lastUpdated', 'desc'), limit(1));
-    const lastUpdatedSnapshot = await getDocs(lastUpdatedQuery);
-    if (!lastUpdatedSnapshot.empty) {
-        lastUpdated = lastUpdatedSnapshot.docs[0].data().lastUpdated as Timestamp;
-    }
+    let totalWeight = 0;
 
+    if (!allShipmentsSnapshot.empty) {
+        lastUpdated = allShipmentsSnapshot.docs[0].data().lastUpdated as Timestamp;
+        allShipmentsSnapshot.docs.forEach(doc => {
+            totalWeight += doc.data().totalGrossWeight ?? 0; // Sum up totalGrossWeight
+        });
+    }
 
     return {
         pendingCount: pendingSnapshot.data().count,
         completedCount: completedSnapshot.data().count,
         lastUpdateTimestamp: lastUpdated,
-        // totalWeight: 0, // Placeholder - implement aggregation separately
+        totalWeight: totalWeight, // Return calculated total weight
     };
 };
 
@@ -146,25 +158,37 @@ export const getShipmentById = async (id: string): Promise<Shipment | null> => {
 // Update a shipment
 export const updateShipment = async (id: string, updates: Partial<Shipment>): Promise<void> => {
   const docRef = doc(db, 'shipments', id);
-  await updateDoc(docRef, {
+  // Ensure lastUpdated is included in the updates
+  const dataToUpdate = {
       ...updates,
       lastUpdated: serverTimestamp(), // Always update the timestamp
-  });
+  };
+  await updateDoc(docRef, dataToUpdate);
 };
 
-// Delete a shipment (Use with caution! Consider soft delete or archiving)
+
+// Delete a shipment
 export const deleteShipment = async (id: string): Promise<void> => {
     const shipmentRef = doc(db, 'shipments', id);
     const detailsCollectionRef = collection(db, 'shipments', id, 'details');
 
-    // Check if details exist before deleting the parent
-    const detailsSnapshot = await getDocs(query(detailsCollectionRef, limit(1)));
+    // Delete all detail documents first using batch writes
+    const detailsQuery = query(detailsCollectionRef);
+    const detailsSnapshot = await getDocs(detailsQuery);
     if (!detailsSnapshot.empty) {
-        throw new Error("Cannot delete shipment with existing detail items. Please delete items first.");
-        // OR: Implement cascading delete using batch writes or Cloud Function
+        const batch = writeBatch(db);
+        detailsSnapshot.docs.forEach(detailDoc => {
+            batch.delete(detailDoc.ref);
+        });
+        await batch.commit();
+        console.log(`Deleted ${detailsSnapshot.size} detail items for shipment ${id}.`);
+    } else {
+         console.log(`No detail items found for shipment ${id}.`)
     }
 
+    // Now delete the parent shipment document
     await deleteDoc(shipmentRef);
+    console.log(`Shipment ${id} deleted successfully.`)
 };
 
 
@@ -175,15 +199,17 @@ const getDetailsCollectionRef = (shipmentId: string) => collection(db, 'shipment
 // Add a new shipment detail
 export const addShipmentDetail = async (shipmentId: string, detailData: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated'>): Promise<string> => {
   const detailsCollectionRef = getDetailsCollectionRef(shipmentId);
+  const netWeight = (detailData.grossWeight ?? 0) - (detailData.tareWeight ?? 0); // Calculate net weight before saving
   const docRef = await addDoc(detailsCollectionRef, {
     ...detailData,
+    netWeight: parseFloat(netWeight.toFixed(3)), // Store calculated net weight
     shipmentId: shipmentId, // Ensure parent ID is stored
     createdAt: serverTimestamp(),
     lastUpdated: serverTimestamp(),
   });
 
-  // TODO: Trigger recalculation of parent shipment totals (Cloud Function recommended)
-  // await recalculateShipmentTotals(shipmentId);
+  // Trigger recalculation after adding
+  await recalculateShipmentTotals(shipmentId);
 
   return docRef.id;
 };
@@ -191,13 +217,27 @@ export const addShipmentDetail = async (shipmentId: string, detailData: Omit<Shi
 // Update a shipment detail
 export const updateShipmentDetail = async (shipmentId: string, detailId: string, updates: Partial<Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt'>>): Promise<void> => {
   const detailDocRef = doc(db, 'shipments', shipmentId, 'details', detailId);
+  let dataToUpdate = { ...updates };
+
+  // Recalculate net weight if gross or tare weight is updated
+  if (updates.grossWeight !== undefined || updates.tareWeight !== undefined) {
+     const currentDetailSnap = await getDoc(detailDocRef);
+     if (currentDetailSnap.exists()) {
+         const currentData = currentDetailSnap.data() as ShipmentDetail;
+         const grossWeight = updates.grossWeight ?? currentData.grossWeight;
+         const tareWeight = updates.tareWeight ?? currentData.tareWeight;
+         const netWeight = grossWeight - tareWeight;
+         dataToUpdate.netWeight = parseFloat(netWeight.toFixed(3));
+     }
+  }
+
   await updateDoc(detailDocRef, {
-    ...updates,
+    ...dataToUpdate,
     lastUpdated: serverTimestamp(),
   });
 
-   // TODO: Trigger recalculation of parent shipment totals (Cloud Function recommended)
-   // await recalculateShipmentTotals(shipmentId);
+   // Trigger recalculation after updating
+   await recalculateShipmentTotals(shipmentId);
 };
 
 // Delete a shipment detail
@@ -205,13 +245,11 @@ export const deleteShipmentDetail = async (shipmentId: string, detailId: string)
   const detailDocRef = doc(db, 'shipments', shipmentId, 'details', detailId);
   await deleteDoc(detailDocRef);
 
-  // TODO: Trigger recalculation of parent shipment totals (Cloud Function recommended)
-  // await recalculateShipmentTotals(shipmentId);
+  // Trigger recalculation after deleting
+  await recalculateShipmentTotals(shipmentId);
 };
 
-// Get all details for a specific shipment (used in ShipmentDetailsList)
-// Note: Real-time listening is handled directly in the component for this subcollection.
-// This function could be used for one-time fetches if needed.
+// Get all details for a specific shipment
 export const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]> => {
     const detailsCollectionRef = getDetailsCollectionRef(shipmentId);
     const q = query(detailsCollectionRef, orderBy('createdAt', 'asc'));
@@ -219,51 +257,54 @@ export const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDe
     return querySnapshot.docs.map(doc => detailFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
 };
 
-// --- Recalculation Logic (Placeholder - Best as Cloud Function) ---
-// This is a basic client-side example. A Cloud Function triggered by detail writes is more robust.
+// --- Recalculation Logic (Client-Side Implementation) ---
 export const recalculateShipmentTotals = async (shipmentId: string): Promise<void> => {
-     console.log(`Placeholder: Recalculating totals for shipment ${shipmentId}`);
-    // const shipmentRef = doc(db, 'shipments', shipmentId);
-    // const details = await getShipmentDetails(shipmentId);
+    console.log(`Recalculating totals for shipment ${shipmentId}`);
+    const shipmentRef = doc(db, 'shipments', shipmentId);
+    const details = await getShipmentDetails(shipmentId);
 
-    // let totalPallets = 0;
-    // let totalBags = 0;
-    // let totalGrossWeight = 0;
-    // let totalTareWeight = 0;
-    // let asendiaGrossWeight = 0;
-    // let asendiaTareWeight = 0;
+    let totalPallets = 0;
+    let totalBags = 0;
+    let totalGrossWeight = 0;
+    let totalTareWeight = 0;
+    let asendiaGrossWeight = 0;
+    let asendiaTareWeight = 0;
 
-    // const customerMap = await getDropdownOptionsMap(['customers']); // Fetch customer labels if needed
+    // Fetching map is not strictly needed here if we use the constant value
+    // const customerMap = await getDropdownOptionsMap(['customers']);
 
-    // for (const detail of details) {
-    //     totalPallets += detail.numPallets;
-    //     totalBags += detail.numBags;
-    //     totalGrossWeight += detail.grossWeight;
-    //     totalTareWeight += detail.tareWeight;
+    for (const detail of details) {
+        totalPallets += detail.numPallets;
+        totalBags += detail.numBags;
+        totalGrossWeight += detail.grossWeight;
+        totalTareWeight += detail.tareWeight;
 
-    //     // Check if customer is Asendia (using ASENDIA_CUSTOMER_VALUE constant)
-    //     if (detail.customerId === ASENDIA_CUSTOMER_VALUE) {
-    //         asendiaGrossWeight += detail.grossWeight;
-    //         asendiaTareWeight += detail.tareWeight;
-    //     }
-    // }
+        // Check if customer is Asendia using ASENDIA_CUSTOMER_VALUE constant
+        if (detail.customerId === ASENDIA_CUSTOMER_VALUE) {
+            asendiaGrossWeight += detail.grossWeight;
+            asendiaTareWeight += detail.tareWeight;
+        }
+    }
 
-    // const totalNetWeight = totalGrossWeight - totalTareWeight;
-    // const asendiaNetWeight = asendiaGrossWeight - asendiaTareWeight;
+    const totalNetWeight = totalGrossWeight - totalTareWeight;
+    const asendiaNetWeight = asendiaGrossWeight - asendiaTareWeight;
 
-    // const updates: Partial<Shipment> = {
-    //     totalPallets,
-    //     totalBags,
-    //     totalGrossWeight: parseFloat(totalGrossWeight.toFixed(3)),
-    //     totalTareWeight: parseFloat(totalTareWeight.toFixed(3)),
-    //     totalNetWeight: parseFloat(totalNetWeight.toFixed(3)),
-    //     asendiaGrossWeight: parseFloat(asendiaGrossWeight.toFixed(3)),
-    //     asendiaTareWeight: parseFloat(asendiaTareWeight.toFixed(3)),
-    //     asendiaNetWeight: parseFloat(asendiaNetWeight.toFixed(3)),
-    //     lastUpdated: serverTimestamp(), // Update parent timestamp as well
-    // };
+    const updates: Partial<Shipment> = {
+        totalPallets,
+        totalBags,
+        totalGrossWeight: parseFloat(totalGrossWeight.toFixed(3)),
+        totalTareWeight: parseFloat(totalTareWeight.toFixed(3)),
+        totalNetWeight: parseFloat(totalNetWeight.toFixed(3)),
+        asendiaGrossWeight: parseFloat(asendiaGrossWeight.toFixed(3)),
+        asendiaTareWeight: parseFloat(asendiaTareWeight.toFixed(3)),
+        asendiaNetWeight: parseFloat(asendiaNetWeight.toFixed(3)),
+        lastUpdated: serverTimestamp(), // Update parent timestamp as well
+    };
 
-    // await updateDoc(shipmentRef, updates);
-    // console.log(`Shipment ${shipmentId} totals updated.`);
+    try {
+        await updateDoc(shipmentRef, updates);
+        console.log(`Shipment ${shipmentId} totals updated successfully.`);
+    } catch (error) {
+        console.error(`Error updating shipment ${shipmentId} totals:`, error);
+    }
 };
-```

@@ -11,8 +11,10 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { DASHBOARD_STATS_MAP } from '@/lib/constants';
 import { AlertTriangle, CheckCircle2, Package, User, Weight, Truck, List } from 'lucide-react'; // Added List
 import Link from 'next/link';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { formatDistanceToNow } from 'date-fns';
+import { db } from '@/lib/firebase/config'; // Import db for listeners
+import { fromFirestore } from '@/lib/firebase/shipmentsService'; // Import helper
 
 
 // Helper function to format date strings robustly
@@ -35,7 +37,12 @@ const formatDateString = (dateInput: Date | Timestamp | string | null | undefine
 const formatLastUpdated = (timestamp: Timestamp | null | undefined): string => {
     if (!timestamp) return 'never';
     try {
-        return formatDistanceToNow(timestamp.toDate(), { addSuffix: true });
+        // Ensure timestamp is valid before formatting
+        const date = timestamp instanceof Timestamp ? timestamp.toDate() : new Date(timestamp);
+        if (isNaN(date.getTime())) {
+            return 'Invalid Date';
+        }
+        return formatDistanceToNow(date, { addSuffix: true });
     } catch (e) {
         console.error("Error formatting relative time:", e);
         return 'Error';
@@ -47,43 +54,89 @@ export default function DashboardPage() {
   const { currentUser } = useAuth();
   const [pendingShipments, setPendingShipments] = useState<Shipment[]>([]);
   const [completedShipments, setCompletedShipments] = useState<Shipment[]>([]);
-  const [stats, setStats] = useState<{ pendingCount: number; completedCount: number; lastUpdateTimestamp: Timestamp | null }>({ pendingCount: 0, completedCount: 0, lastUpdateTimestamp: null });
-  const [isLoading, setIsLoading] = useState(true);
+  const [stats, setStats] = useState<{ pendingCount: number; completedCount: number; totalWeight: number; lastUpdateTimestamp: Timestamp | null }>({ pendingCount: 0, completedCount: 0, totalWeight: 0, lastUpdateTimestamp: null });
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [isLoadingPending, setIsLoadingPending] = useState(true);
+  const [isLoadingCompleted, setIsLoadingCompleted] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Memoize last updated string to prevent hydration issues if calculation is complex
-  const clientLastUpdatedStatString = useMemo(() => {
-    if (isLoading || !stats.lastUpdateTimestamp) return null; // Ensure calculation happens only when data is ready
-    return formatLastUpdated(stats.lastUpdateTimestamp);
-  }, [stats.lastUpdateTimestamp, isLoading]); // Recalculate only when timestamp or loading state changes
+  // Use state for client-side rendering of last updated time
+  const [clientLastUpdatedStatString, setClientLastUpdatedStatString] = useState<string | null>(null);
 
-
+  // Fetch initial stats and set up listeners for stats
   useEffect(() => {
-    setIsLoading(true);
+    setIsLoadingStats(true);
     setError(null);
 
-    const fetchData = async () => {
+    const fetchInitialStats = async () => {
       try {
-        const [pendingData, completedData, dashboardStats] = await Promise.all([
-          getShipmentsByStatus('Pending', 5), // Limit to 5 recent
-          getShipmentsByStatus('Completed', 5), // Limit to 5 recent
-          getDashboardStats(),
-        ]);
-        setPendingShipments(pendingData);
-        setCompletedShipments(completedData);
-        setStats(dashboardStats);
+        const initialStats = await getDashboardStats();
+        setStats(initialStats);
+        // Set initial client-side string after stats are loaded
+        setClientLastUpdatedStatString(formatLastUpdated(initialStats.lastUpdateTimestamp));
       } catch (err) {
-        console.error("Error fetching dashboard data:", err);
-        setError(err instanceof Error ? err.message : "Failed to load dashboard data.");
+        console.error("Error fetching initial dashboard stats:", err);
+        setError(err instanceof Error ? err.message : "Failed to load dashboard stats.");
       } finally {
-        setIsLoading(false);
+        setIsLoadingStats(false);
       }
     };
 
-    fetchData();
-    // Note: No real-time listeners here for simplicity/performance.
-    // Could add listeners if real-time updates are crucial for dashboard lists.
+    fetchInitialStats();
+
+    // Listener for real-time stats updates (e.g., counts, last updated)
+    // This requires a mechanism to update stats, ideally via Cloud Functions writing to a 'dashboard_summary' doc.
+    // For simplicity, we'll re-fetch stats periodically or on specific actions if functions aren't used.
+    // Example placeholder: re-fetch every minute (adjust as needed)
+    const intervalId = setInterval(async () => {
+        try {
+            const updatedStats = await getDashboardStats();
+            setStats(updatedStats);
+            setClientLastUpdatedStatString(formatLastUpdated(updatedStats.lastUpdateTimestamp)); // Update client string
+        } catch (err) {
+             console.error("Error re-fetching dashboard stats:", err);
+        }
+    }, 60000); // Re-fetch every 60 seconds
+
+    return () => clearInterval(intervalId);
+
   }, []);
+
+  // Listener for Pending Shipments
+  useEffect(() => {
+    setIsLoadingPending(true);
+    const q = query(collection(db, 'shipments'), where('status', '==', 'Pending'), orderBy('lastUpdated', 'desc'), limit(5));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(fromFirestore);
+      setPendingShipments(data);
+      setIsLoadingPending(false);
+      setError(null); // Clear previous errors if successful
+    }, (err) => {
+      console.error("Error listening to pending shipments:", err);
+      setError("Failed to load pending shipments.");
+      setIsLoadingPending(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Listener for Completed Shipments
+  useEffect(() => {
+    setIsLoadingCompleted(true);
+    const q = query(collection(db, 'shipments'), where('status', '==', 'Completed'), orderBy('lastUpdated', 'desc'), limit(5));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(fromFirestore);
+      setCompletedShipments(data);
+      setIsLoadingCompleted(false);
+      setError(null); // Clear previous errors if successful
+    }, (err) => {
+      console.error("Error listening to completed shipments:", err);
+      setError("Failed to load completed shipments.");
+      setIsLoadingCompleted(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const isLoading = isLoadingStats || isLoadingPending || isLoadingCompleted;
 
   const StatCard = ({ title, value, icon: Icon, unit, bgColorClass, textColorClass }: { title: string, value: string | number, icon: React.ElementType, unit?: string, bgColorClass: string, textColorClass: string }) => (
      <Card className={`shadow-lg rounded-xl overflow-hidden ${bgColorClass}`}>
@@ -106,14 +159,14 @@ export default function DashboardPage() {
 
        {/* Stats Section */}
        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {isLoading ? (
+          {isLoadingStats ? (
             <>
               <Skeleton className="h-24 w-full rounded-xl" />
               <Skeleton className="h-24 w-full rounded-xl" />
               <Skeleton className="h-24 w-full rounded-xl" />
               <Skeleton className="h-24 w-full rounded-xl" />
             </>
-          ) : error ? (
+          ) : error && !isLoadingStats ? ( // Show error only if not loading stats
              <Alert variant="destructive" className="col-span-full">
                  <AlertTriangle className="h-4 w-4" />
                  <AlertTitle>Error Loading Stats</AlertTitle>
@@ -123,18 +176,16 @@ export default function DashboardPage() {
             <>
               <StatCard title="Pending Shipments" value={stats.pendingCount} icon={DASHBOARD_STATS_MAP.pendingShipments.icon} bgColorClass={DASHBOARD_STATS_MAP.pendingShipments.bgColorClass} textColorClass={DASHBOARD_STATS_MAP.pendingShipments.textColorClass} />
               <StatCard title="Completed Shipments" value={stats.completedCount} icon={DASHBOARD_STATS_MAP.completedShipments.icon} bgColorClass={DASHBOARD_STATS_MAP.completedShipments.bgColorClass} textColorClass={DASHBOARD_STATS_MAP.completedShipments.textColorClass} />
-              {/* Placeholder for Total Weight - needs aggregation */}
-              {/* <StatCard title="Total Weight" value={"N/A"} icon={DASHBOARD_STATS_MAP.totalWeight.icon} unit="kg" bgColorClass={DASHBOARD_STATS_MAP.totalWeight.bgColorClass} textColorClass={DASHBOARD_STATS_MAP.totalWeight.textColorClass} /> */}
-              {/* Placeholder for Active Carriers - needs aggregation */}
-              {/* <StatCard title="Active Carriers" value={"N/A"} icon={DASHBOARD_STATS_MAP.totalCarriers.icon} bgColorClass={DASHBOARD_STATS_MAP.totalCarriers.bgColorClass} textColorClass={DASHBOARD_STATS_MAP.totalCarriers.textColorClass} /> */}
+              {/* Updated Total Weight card */}
+              <StatCard title="Total Weight Handled" value={stats.totalWeight.toFixed(3)} icon={DASHBOARD_STATS_MAP.totalWeight.icon} unit="kg" bgColorClass={DASHBOARD_STATS_MAP.totalWeight.bgColorClass} textColorClass={DASHBOARD_STATS_MAP.totalWeight.textColorClass} />
                <Card className="shadow-lg rounded-xl overflow-hidden bg-gray-100">
                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                    <CardTitle className="text-sm font-medium text-gray-600">Last Updated</CardTitle>
                    <List className="h-5 w-5 text-gray-600 opacity-80" />
                  </CardHeader>
                  <CardContent>
-                    {/* Display last updated time safely */}
                     <div className="text-2xl font-bold text-gray-600">
+                       {/* Use state for client-side display */}
                        {clientLastUpdatedStatString || 'Loading...'}
                     </div>
                  </CardContent>
@@ -143,10 +194,10 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {error && !isLoading && (
+        {error && (isLoadingStats || isLoadingPending || isLoadingCompleted) && ( // Show general error if any loading is true
              <Alert variant="destructive">
                  <AlertTriangle className="h-4 w-4" />
-                 <AlertTitle>Error Loading Shipments</AlertTitle>
+                 <AlertTitle>Error Loading Dashboard Data</AlertTitle>
                  <AlertDescription>{error}</AlertDescription>
               </Alert>
         )}
@@ -162,7 +213,7 @@ export default function DashboardPage() {
               <CardDescription>Quick view of shipments needing attention.</CardDescription>
             </CardHeader>
             <CardContent>
-                {isLoading ? (
+                {isLoadingPending ? (
                     <div className="space-y-3">
                         <Skeleton className="h-8 w-full" />
                         <Skeleton className="h-8 w-3/4" />
@@ -198,7 +249,7 @@ export default function DashboardPage() {
                <CardDescription>Overview of recently finalized shipments.</CardDescription>
             </CardHeader>
             <CardContent>
-                {isLoading ? (
+                {isLoadingCompleted ? (
                      <div className="space-y-3">
                          <Skeleton className="h-8 w-full" />
                          <Skeleton className="h-8 w-3/4" />
@@ -228,4 +279,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-```
