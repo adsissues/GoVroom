@@ -28,13 +28,20 @@ export default function ShipmentDetailPage() {
   const [isEditing, setIsEditing] = useState(false); // For editing main shipment info
   const [error, setError] = useState<string | null>(null);
 
+  // Initial check if shipmentId is present from params
   useEffect(() => {
+    // Don't proceed if shipmentId is not yet available or invalid
     if (!shipmentId) {
-      setError("Shipment ID is missing.");
-      setIsLoading(false);
+      // Set loading to false only if we confirm shipmentId is missing after initial check
+      // Otherwise, let the initial loading state handle it.
+      if (params.shipmentId !== undefined) { // Check if params has been populated
+         setError("Shipment ID is missing or invalid.");
+         setIsLoading(false);
+      }
       return;
     }
 
+    // Proceed with fetching only if shipmentId is valid
     const fetchShipment = async () => {
       setIsLoading(true);
       setError(null);
@@ -54,7 +61,7 @@ export default function ShipmentDetailPage() {
     };
 
     fetchShipment();
-  }, [shipmentId]);
+  }, [shipmentId, params.shipmentId]); // Add params.shipmentId to dependencies
 
   const handleUpdateShipment = async (data: Partial<Shipment>) => {
      if (!shipment) return;
@@ -80,15 +87,18 @@ export default function ShipmentDetailPage() {
   };
 
 
-  if (isLoading && !shipment) { // Show skeleton only on initial load
+  // Enhanced loading state: Check for shipmentId presence first or if loading is true
+  if (isLoading || !shipmentId) {
+     // Show skeleton if loading is true OR if shipmentId hasn't been determined yet
     return (
-      <div className="space-y-6 p-4 md:p-6 lg:p-8">
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-96 w-full rounded-xl" />
-        <Skeleton className="h-64 w-full rounded-xl" />
-      </div>
-    );
-  }
+       <div className="space-y-6 p-4 md:p-6 lg:p-8">
+         <Skeleton className="h-8 w-32" />
+         <Skeleton className="h-96 w-full rounded-xl" />
+         <Skeleton className="h-64 w-full rounded-xl" />
+       </div>
+     );
+   }
+
 
   if (error) {
     return (
@@ -104,6 +114,7 @@ export default function ShipmentDetailPage() {
     );
   }
 
+  // This condition should only be hit if !isLoading and !error but shipment is null (e.g., not found)
   if (!shipment) {
      return (
       <div className="p-4 md:p-6 lg:p-8">
@@ -154,3 +165,4 @@ export default function ShipmentDetailPage() {
     </div>
   );
 }
+
