@@ -12,9 +12,10 @@ import {
   Timestamp,
   writeBatch,
   getDoc,
+  where,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
-import { addShipmentDetail, updateShipmentDetail } from '@/lib/firebase/shipmentsService';
+import { addShipmentDetail, updateShipmentDetail, deleteShipmentDetail, recalculateShipmentTotals, detailFromFirestore } from '@/lib/firebase/shipmentsService';
 import type { ShipmentDetail, ShipmentStatus } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,6 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from '@/components/ui/skeleton';
 import { getDropdownOptionsMap } from '@/lib/firebase/dropdownService'; // Helper to get maps
+import { SERVICE_FORMAT_MAPPING } from '@/lib/constants';
 
 interface ShipmentDetailsListProps {
   shipmentId: string;
@@ -56,19 +58,30 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
    useEffect(() => {
     const fetchLabels = async () => {
       try {
-        const maps = await getDropdownOptionsMap(['customers', 'services', 'doe', 'formats_prior', 'formats_eco', 'formats_s3c']); // Add all format collections
+        const allFormatCollections = Object.values(SERVICE_FORMAT_MAPPING);
+        const maps = await getDropdownOptionsMap(['customers', 'services', 'doe', ...allFormatCollections]); // Add all format collections
         setDropdownMaps(maps);
       } catch (err) {
         console.error("Error fetching dropdown labels:", err);
         // Non-critical error, proceed without labels if needed
+        toast({
+            variant: "destructive",
+            title: "Error Loading Dropdown Labels",
+            description: "Some labels might not display correctly."
+        })
       }
     };
     fetchLabels();
-  }, []);
+  }, [toast]);
 
 
   // Fetch Shipment Details in Real-time
   useEffect(() => {
+    if (!shipmentId) {
+        setError("Shipment ID not provided.");
+        setIsLoading(false);
+        return;
+    }
     setIsLoading(true);
     const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
     const q = query(detailsCollectionRef, orderBy('createdAt', 'asc'));
@@ -81,6 +94,8 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
            // Ensure Timestamps are handled if needed, though Firestore SDK usually does
            createdAt: doc.data().createdAt instanceof Timestamp ? doc.data().createdAt : Timestamp.now(), // Fallback
            lastUpdated: doc.data().lastUpdated instanceof Timestamp ? doc.data().lastUpdated : Timestamp.now(),
+           // Make sure calculated fields are present or defaulted
+           netWeight: doc.data().netWeight ?? ((doc.data().grossWeight ?? 0) - (doc.data().tareWeight ?? 0)),
         } as ShipmentDetail));
         setDetails(fetchedDetails);
         setIsLoading(false);
@@ -97,46 +112,63 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
   }, [shipmentId]);
 
   const handleAddDetail = () => {
+    if (isParentCompleted) return; // Prevent adding if parent is completed
     setEditingDetail(null);
     setIsFormOpen(true);
   };
 
   const handleEditDetail = (detail: ShipmentDetail) => {
+     if (isParentCompleted) return; // Prevent editing if parent is completed
     setEditingDetail(detail);
     setIsFormOpen(true);
   };
 
   const handleSaveDetail = async (data: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated' | 'netWeight'>) => {
+    if (isParentCompleted) {
+        toast({ variant: "destructive", title: "Cannot Save", description: "Shipment is already completed." });
+        return;
+    }
     const detailData = {
       ...data,
-      netWeight: data.grossWeight - data.tareWeight, // Calculate net weight
+      netWeight: parseFloat(((data.grossWeight ?? 0) - (data.tareWeight ?? 0)).toFixed(3)), // Calculate net weight
     };
 
-    if (editingDetail) {
-      // Update existing detail
-      await updateShipmentDetail(shipmentId, editingDetail.id, detailData);
-    } else {
-      // Add new detail
-      await addShipmentDetail(shipmentId, detailData);
+    try {
+        if (editingDetail) {
+            // Update existing detail
+            await updateShipmentDetail(shipmentId, editingDetail.id, detailData);
+            toast({ title: "Detail Updated", description: "Shipment detail saved successfully." });
+        } else {
+            // Add new detail
+            await addShipmentDetail(shipmentId, detailData);
+            toast({ title: "Detail Added", description: "Shipment detail added successfully." });
+        }
+         // Close the form after successful save
+         setIsFormOpen(false);
+         // Note: recalculateShipmentTotals is called within add/update/delete service functions
+    } catch (error) {
+        console.error("Error saving shipment detail:", error);
+        toast({ variant: "destructive", title: "Save Failed", description: error instanceof Error ? error.message : "Could not save detail." });
     }
-    // Recalculations will happen via cloud function ideally, or could be triggered here
+
   };
 
   const handleDeleteDetail = async (detailId: string) => {
+     if (isParentCompleted) {
+        toast({ variant: "destructive", title: "Cannot Delete", description: "Shipment is already completed." });
+        return;
+     }
      try {
-         // Prevent deletion if this is the last detail? (Optional business logic)
-         // if (details.length === 1) {
-         //    toast({ variant: "destructive", title: "Deletion Prevented", description: "Cannot delete the last detail item." });
-         //    return;
-         // }
+         // Prevent deletion of the last detail? (Re-enabled for consideration)
+         if (details.length === 1) {
+            toast({ variant: "destructive", title: "Deletion Prevented", description: "Cannot delete the last detail item." });
+            return;
+         }
 
-         const detailRef = doc(db, 'shipments', shipmentId, 'details', detailId);
-         // Optionally check dependencies before deleting if needed
-
-         await deleteDoc(detailRef);
+         await deleteShipmentDetail(shipmentId, detailId);
 
          toast({ title: "Detail Deleted", description: "Shipment detail removed successfully." });
-         // Recalculations will happen via cloud function ideally, or could be triggered here
+         // Note: recalculateShipmentTotals is called within deleteShipmentDetail service function
 
      } catch (error) {
          console.error("Error deleting shipment detail:", error);
@@ -162,7 +194,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Shipment Items</CardTitle>
         {!isParentCompleted && (
-          <Button onClick={handleAddDetail} size="sm">
+          <Button onClick={handleAddDetail} size="sm" disabled={isParentCompleted}>
             <PlusCircle className="mr-2 h-4 w-4" /> Add Item
           </Button>
         )}
@@ -178,10 +210,10 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
                <Skeleton className="h-10 w-full" />
            </div>
         )}
-        {error && (
+        {error && !isLoading && ( // Only show error if not loading
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
+            <AlertTitle>Error Loading Items</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
@@ -189,82 +221,88 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
           <p className="text-center text-muted-foreground py-4">No items added to this shipment yet.</p>
         )}
         {!isLoading && !error && details.length > 0 && (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Customer</TableHead>
-                <TableHead>Service</TableHead>
-                <TableHead>Format</TableHead>
-                <TableHead>Pallets</TableHead>
-                <TableHead>Bags</TableHead>
-                <TableHead className="text-right">Gross (kg)</TableHead>
-                <TableHead className="text-right">Tare (kg)</TableHead>
-                 <TableHead className="text-right">Net (kg)</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {details.map((detail) => (
-                <TableRow key={detail.id}>
-                  <TableCell>{getLabel('customers', detail.customerId)}</TableCell>
-                  <TableCell>{getLabel('services', detail.serviceId)}</TableCell>
-                  <TableCell>{getFormatLabel(detail.serviceId, detail.formatId)}</TableCell>
-                  <TableCell>{detail.numPallets}</TableCell>
-                  <TableCell>{detail.numBags}</TableCell>
-                  <TableCell className="text-right">{detail.grossWeight.toFixed(3)}</TableCell>
-                  <TableCell className="text-right">{detail.tareWeight.toFixed(3)}</TableCell>
-                   <TableCell className="text-right">{(detail.grossWeight - detail.tareWeight).toFixed(3)}</TableCell>
-                  <TableCell className="text-right">
-                    {!isParentCompleted && (
-                       <div className="flex justify-end space-x-2">
-                         <Button variant="ghost" size="icon" onClick={() => handleEditDetail(detail)}>
-                           <Edit className="h-4 w-4" />
-                           <span className="sr-only">Edit</span>
-                         </Button>
-                          <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                                      <Trash2 className="h-4 w-4" />
-                                      <span className="sr-only">Delete</span>
-                                  </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                          This action cannot be undone. This will permanently delete the shipment detail item.
-                                      </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction
-                                          onClick={() => handleDeleteDetail(detail.id)}
-                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                      >
-                                          Delete
-                                      </AlertDialogAction>
-                                  </AlertDialogFooter>
-                              </AlertDialogContent>
-                          </AlertDialog>
-                       </div>
-                    )}
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Service</TableHead>
+                  <TableHead>Format</TableHead>
+                  <TableHead>Pallets</TableHead>
+                  <TableHead>Bags</TableHead>
+                  <TableHead className="text-right">Gross (kg)</TableHead>
+                  <TableHead className="text-right">Tare (kg)</TableHead>
+                  <TableHead className="text-right">Net (kg)</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {details.map((detail) => (
+                  <TableRow key={detail.id}>
+                    <TableCell>{getLabel('customers', detail.customerId)}</TableCell>
+                    <TableCell>{getLabel('services', detail.serviceId)}</TableCell>
+                    <TableCell>{getFormatLabel(detail.serviceId, detail.formatId)}</TableCell>
+                    <TableCell>{detail.numPallets}</TableCell>
+                    <TableCell>{detail.numBags}</TableCell>
+                    <TableCell className="text-right">{detail.grossWeight?.toFixed(3) ?? '0.000'}</TableCell>
+                    <TableCell className="text-right">{detail.tareWeight?.toFixed(3) ?? '0.000'}</TableCell>
+                    <TableCell className="text-right">{detail.netWeight?.toFixed(3) ?? '0.000'}</TableCell>
+                    <TableCell className="text-right">
+                      {!isParentCompleted && (
+                         <div className="flex justify-end space-x-1">
+                           <Button variant="ghost" size="icon" onClick={() => handleEditDetail(detail)} title="Edit Item" disabled={isParentCompleted}>
+                             <Edit className="h-4 w-4" />
+                             <span className="sr-only">Edit</span>
+                           </Button>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" title="Delete Item" disabled={isParentCompleted || details.length <= 1}>
+                                        <Trash2 className="h-4 w-4" />
+                                        <span className="sr-only">Delete</span>
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This action cannot be undone. This will permanently delete the shipment detail item.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                            onClick={() => handleDeleteDetail(detail.id)}
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                            Delete
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                         </div>
+                      )}
+                      {isParentCompleted && (
+                          <span className="text-xs text-muted-foreground italic">Locked</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </CardContent>
 
       {/* Form Modal */}
-      <ShipmentDetailForm
-        shipmentId={shipmentId}
-        detail={editingDetail}
-        isOpen={isFormOpen}
-        onClose={() => setIsFormOpen(false)}
-        onSave={handleSaveDetail}
-      />
+      {isFormOpen && (
+        <ShipmentDetailForm
+            shipmentId={shipmentId}
+            detail={editingDetail}
+            isOpen={isFormOpen}
+            onClose={() => setIsFormOpen(false)}
+            onSave={handleSaveDetail}
+        />
+      )}
     </Card>
   );
 }
-```

@@ -105,4 +105,3 @@ export const getDropdownOptionsMap = async (collectionNames: string[]): Promise<
     await Promise.all(promises);
     return results;
 };
-```

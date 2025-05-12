@@ -30,16 +30,16 @@ import { Skeleton } from '../ui/skeleton';
 // Adjusted Schema for Form (can differ slightly from DB model for form handling)
 const shipmentFormSchema = z.object({
   carrierId: z.string().min(1, "Carrier is required"),
-  subcarrierId: z.string().optional(),
-  driverName: z.string().min(1, "Driver name is required"),
+  subcarrierId: z.string().optional().default(''),
+  driverName: z.string().min(1, "Driver name is required").default(''),
   departureDate: z.date({ required_error: "Departure date is required." }),
   arrivalDate: z.date({ required_error: "Arrival date is required." }),
   status: z.enum(['Pending', 'Completed']).default('Pending'),
-  sealNumber: z.string().optional(),
-  truckRegistration: z.string().optional(),
-  trailerRegistration: z.string().optional(),
-  senderAddress: z.string().optional(),
-  consigneeAddress: z.string().optional(),
+  sealNumber: z.string().optional().default(''),
+  truckRegistration: z.string().optional().default(''),
+  trailerRegistration: z.string().optional().default(''),
+  senderAddress: z.string().optional().default(''),
+  consigneeAddress: z.string().optional().default(''),
 });
 
 type ShipmentFormValues = z.infer<typeof shipmentFormSchema>;
@@ -47,7 +47,7 @@ type ShipmentFormValues = z.infer<typeof shipmentFormSchema>;
 interface ShipmentFormProps {
   isAdmin: boolean;
   initialData?: Shipment | null; // For editing
-  onSubmit: (data: Partial<Shipment>) => Promise<void>; // Modified onSubmit prop
+  onSubmit: (data: Partial<Shipment>) => Promise<string | void>; // Modified onSubmit prop, returns shipmentId for new shipments
   isEditing?: boolean; // Control edit mode from parent
   shipmentId?: string; // Needed if form enables child actions like adding details
   onSaveSuccess?: (shipmentId: string) => void; // Callback on successful save
@@ -58,7 +58,7 @@ export default function ShipmentForm({
   initialData,
   onSubmit,
   isEditing = initialData ? false : true, // Default to edit mode if new, view mode if existing
-  shipmentId,
+  shipmentId: existingShipmentId, // Renamed to avoid confusion with newShipmentId
   onSaveSuccess,
 }: ShipmentFormProps) {
   const { toast } = useToast();
@@ -67,6 +67,8 @@ export default function ShipmentForm({
   const [dropdownsLoading, setDropdownsLoading] = useState(true);
   const [carrierOptions, setCarrierOptions] = useState<DropdownItem[]>([]);
   const [subcarrierOptions, setSubcarrierOptions] = useState<DropdownItem[]>([]);
+  // Used to enable "Add Details" button for new shipments
+  const [currentShipmentId, setCurrentShipmentId] = useState<string | undefined>(existingShipmentId);
 
   const formHook = useForm<ShipmentFormValues>({
     resolver: zodResolver(shipmentFormSchema),
@@ -100,7 +102,8 @@ export default function ShipmentForm({
        senderAddress: initialData?.senderAddress ?? DEFAULT_SENDER_ADDRESS,
        consigneeAddress: initialData?.consigneeAddress ?? DEFAULT_CONSIGNEE_ADDRESS,
      });
-   }, [initialData, formHook.reset]); // Dependency includes reset
+     setCurrentShipmentId(existingShipmentId); // Reset currentShipmentId when initialData changes
+   }, [initialData, formHook.reset, existingShipmentId]);
 
   // Fetch dropdown options
   useEffect(() => {
@@ -130,7 +133,6 @@ export default function ShipmentForm({
              ...data,
              departureDate: Timestamp.fromDate(data.departureDate),
              arrivalDate: Timestamp.fromDate(data.arrivalDate),
-             // Ensure optional fields are handled correctly if empty
              subcarrierId: data.subcarrierId || undefined,
              sealNumber: data.sealNumber || undefined,
              truckRegistration: data.truckRegistration || undefined,
@@ -139,12 +141,18 @@ export default function ShipmentForm({
              consigneeAddress: data.consigneeAddress || undefined,
         };
 
-        await onSubmit(shipmentData); // Use the passed onSubmit prop
+        const resultId = await onSubmit(shipmentData); // Use the passed onSubmit prop
 
-        // No navigation here, parent component handles success (e.g., closing edit mode)
-        // if (onSaveSuccess) {
-        //     onSaveSuccess(shipmentId || 'new'); // Pass ID if available
-        // }
+        if (resultId && typeof resultId === 'string') { // New shipment was created
+            setCurrentShipmentId(resultId); // Set currentShipmentId to enable "Add Details"
+            if (onSaveSuccess) {
+                onSaveSuccess(resultId); // Call callback with the new ID
+            }
+            // For new shipments, router.push happens in the parent page (new/page.tsx)
+        } else if (onSaveSuccess && existingShipmentId) { // Existing shipment updated
+             onSaveSuccess(existingShipmentId);
+        }
+
 
     } catch (error: any) {
       console.error("Error saving shipment:", error);
@@ -158,7 +166,8 @@ export default function ShipmentForm({
     }
   };
 
-   const formDisabled = !isEditing || isLoading || dropdownsLoading || initialData?.status === 'Completed';
+   const formDisabled = !isEditing || isLoading || dropdownsLoading || (initialData?.status === 'Completed' && !isAdmin) ;
+   const isNewShipmentFlow = !initialData && !existingShipmentId;
 
 
   return (
@@ -173,7 +182,7 @@ export default function ShipmentForm({
               <FormItem>
                 <FormLabel>Carrier</FormLabel>
                  {dropdownsLoading ? <Skeleton className="h-10 w-full" /> :
-                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={formDisabled}>
+                <Select onValueChange={field.onChange} value={field.value || ""} disabled={formDisabled}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a carrier" />
@@ -200,13 +209,14 @@ export default function ShipmentForm({
               <FormItem>
                 <FormLabel>Subcarrier (Optional)</FormLabel>
                  {dropdownsLoading ? <Skeleton className="h-10 w-full" /> :
-                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={formDisabled}>
+                <Select onValueChange={field.onChange} value={field.value || ""} disabled={formDisabled}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a subcarrier" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
+                     <SelectItem value="">None</SelectItem>
                     {subcarrierOptions.map((option) => (
                       <SelectItem key={option.id} value={option.value}>
                         {option.label}
@@ -244,9 +254,10 @@ export default function ShipmentForm({
                 <div className='flex items-center space-x-2'>
                     <FormControl>
                         <Switch
+                        id="status-switch"
                         checked={field.value === 'Completed'}
                         onCheckedChange={(checked) => field.onChange(checked ? 'Completed' : 'Pending')}
-                        disabled={formDisabled}
+                        disabled={formDisabled || (initialData?.status === 'Completed' && !isAdmin)} // Admin can revert completed
                         />
                     </FormControl>
                     <Label htmlFor="status-switch" className={cn(field.value === 'Completed' ? "text-green-600" : "text-amber-600")}>
@@ -430,14 +441,33 @@ export default function ShipmentForm({
         {/* Save Button */}
          {isEditing && (
             <div className="flex justify-end pt-6 border-t">
-             <Button type="submit" disabled={formDisabled}>
+             <Button type="submit" disabled={formDisabled || isLoading}>
                <Save className="mr-2 h-4 w-4" />
                {isLoading ? 'Saving...' : (initialData ? 'Update Shipment' : 'Save Shipment')}
              </Button>
             </div>
          )}
+
+         {/* Add Details Button - enabled for new shipments AFTER save, or for existing PENDING shipments */}
+         {currentShipmentId && (isNewShipmentFlow || (initialData && initialData.status === 'Pending')) && !isEditing && (
+             <div className="flex justify-end pt-6 border-t">
+                 <Button
+                    type="button"
+                    onClick={() => router.push(`/shipments/${currentShipmentId}`)} // Navigate to detail page
+                    variant="outline"
+                    disabled={isLoading}
+                 >
+                    Add/Edit Details
+                 </Button>
+             </div>
+         )}
+         {/* Informational message if form is disabled for completed shipment */}
+         {initialData?.status === 'Completed' && !isAdmin && !isEditing && (
+             <p className="text-sm text-muted-foreground text-center pt-4">
+                 This shipment is completed. Main details cannot be edited by users. Admins can edit.
+             </p>
+         )}
       </form>
     </Form>
   );
 }
-```

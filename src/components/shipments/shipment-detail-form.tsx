@@ -207,6 +207,9 @@ export default function ShipmentDetailForm({
          numBags: Number(data.numBags),
          tareWeight: Number(data.tareWeight),
          grossWeight: Number(data.grossWeight),
+         // Ensure optional fields that might be empty strings are saved as undefined or null
+         dispatchNumber: data.dispatchNumber || undefined,
+         doeId: data.doeId || undefined,
        };
       await onSave(saveData);
       toast({ title: detail ? "Detail Updated" : "Detail Added", description: "Shipment detail saved successfully." });
@@ -328,7 +331,7 @@ export default function ShipmentDetailForm({
                                 render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Format</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value || ""}>
                                     <FormControl>
                                         <SelectTrigger>
                                         <SelectValue placeholder="Select a format" />
@@ -397,7 +400,7 @@ export default function ShipmentDetailForm({
                            render={({ field }) => (
                               <FormItem>
                                  <FormLabel>DOE</FormLabel>
-                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                 <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
                                     <FormControl>
                                        <SelectTrigger>
                                           <SelectValue placeholder="Select DOE" />
@@ -431,4 +434,3 @@ export default function ShipmentDetailForm({
     </Dialog>
   );
 }
-```
