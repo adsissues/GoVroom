@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -41,9 +40,9 @@ const shipmentFormSchema = z.object({
   sealNumber: z.string().optional(),
   truckRegistration: z.string().optional(),
   trailerRegistration: z.string().optional(),
-  senderAddress: z.string().optional(), // Default will be fetched
-  consigneeAddress: z.string().optional(), // Default will be fetched
-  totalWeight: z.number().optional(),
+  senderAddress: z.string().optional(), 
+  consigneeAddress: z.string().optional(),
+  // totalWeight removed as per specific field list for "Add Main Shipment Form"
 });
 
 type ShipmentFormData = z.infer<typeof shipmentFormSchema>;
@@ -61,7 +60,7 @@ export default function ShipmentForm() {
 
   const formHook = useForm<ShipmentFormData>({
     resolver: zodResolver(shipmentFormSchema),
-    defaultValues: { // Provide initial defaults to avoid undefined -> defined transition
+    defaultValues: { 
       carrier: '',
       subcarrier: '',
       driverName: '',
@@ -71,9 +70,8 @@ export default function ShipmentForm() {
       sealNumber: '',
       truckRegistration: '',
       trailerRegistration: '',
-      senderAddress: '', // Will be overridden by fetched settings or constants
-      consigneeAddress: '', // Will be overridden by fetched settings or constants
-      totalWeight: 0,
+      senderAddress: '', 
+      consigneeAddress: '',
     }
   });
 
@@ -83,7 +81,6 @@ export default function ShipmentForm() {
   });
 
   useEffect(() => {
-    // Reset the form once settings are loaded or loading fails
     if (!isLoadingAppSettings) {
       const defaults = {
         carrier: '',
@@ -92,10 +89,9 @@ export default function ShipmentForm() {
         departureDate: new Date(),
         arrivalDate: new Date(new Date().setDate(new Date().getDate() + 1)),
         status: false,
-        sealNumber: '', // Ensure empty string default
-        truckRegistration: '', // Ensure empty string default
-        trailerRegistration: '', // Ensure empty string default
-        totalWeight: 0, // Ensure default number
+        sealNumber: '', 
+        truckRegistration: '', 
+        trailerRegistration: '', 
         senderAddress: (appSettings?.defaultSenderAddress || DEFAULT_SENDER_ADDRESS),
         consigneeAddress: (appSettings?.defaultConsigneeAddress || DEFAULT_CONSIGNEE_ADDRESS),
       };
@@ -147,16 +143,18 @@ export default function ShipmentForm() {
     try {
       const shipmentDataForFirestore = {
         ...data,
+        // totalWeight will be undefined here and handled by Firestore schema if optional or set to default
         departureDate: new Date(data.departureDate),
         arrivalDate: new Date(data.arrivalDate),
-        status: data.status,
+        status: data.status, // This is boolean, addShipmentToFirestore converts it
         senderAddress: data.senderAddress || (appSettings?.defaultSenderAddress || DEFAULT_SENDER_ADDRESS),
         consigneeAddress: data.consigneeAddress || (appSettings?.defaultConsigneeAddress || DEFAULT_CONSIGNEE_ADDRESS),
       };
 
       const newShipmentId = await addShipmentToFirestore({
         ...shipmentDataForFirestore,
-        status: shipmentDataForFirestore.status,
+        // Explicitly pass boolean status to addShipmentToFirestore
+        status: shipmentDataForFirestore.status, 
       });
 
       toast({
@@ -166,9 +164,7 @@ export default function ShipmentForm() {
       });
 
       await queryClient.invalidateQueries({ queryKey: ['shipments'] });
-      // await queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
 
-      // Reset form to initial defaults after successful submission
       formHook.reset({
         carrier: '',
         subcarrier: '',
@@ -181,7 +177,6 @@ export default function ShipmentForm() {
         trailerRegistration: '',
         senderAddress: (appSettings?.defaultSenderAddress || DEFAULT_SENDER_ADDRESS),
         consigneeAddress: (appSettings?.defaultConsigneeAddress || DEFAULT_CONSIGNEE_ADDRESS),
-        totalWeight: 0,
       });
       setShowAISuggestions(false);
       setAiInput(null);
@@ -218,7 +213,6 @@ export default function ShipmentForm() {
                     <Skeleton className="h-20 w-full" />
                 </div>
             )}
-            <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-1/4" />
             <div className="flex justify-end space-x-3 pt-6">
                 <Skeleton className="h-10 w-24" />
@@ -363,7 +357,7 @@ export default function ShipmentForm() {
               <FormItem>
                 <Label htmlFor="sealNumber">Seal Number</Label>
                 <FormControl>
-                  <Input id="sealNumber" {...field} className="mt-1" placeholder="Optional" />
+                  <Input id="sealNumber" {...field} value={field.value ?? ''} className="mt-1" placeholder="Optional" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -376,7 +370,7 @@ export default function ShipmentForm() {
               <FormItem>
                 <Label htmlFor="truckRegistration">Truck Registration #</Label>
                 <FormControl>
-                  <Input id="truckRegistration" {...field} className="mt-1" placeholder="Optional" />
+                  <Input id="truckRegistration" {...field} value={field.value ?? ''} className="mt-1" placeholder="Optional" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -389,7 +383,7 @@ export default function ShipmentForm() {
               <FormItem>
                 <Label htmlFor="trailerRegistration">Trailer Registration #</Label>
                 <FormControl>
-                  <Input id="trailerRegistration" {...field} className="mt-1" placeholder="Optional" />
+                  <Input id="trailerRegistration" {...field} value={field.value ?? ''} className="mt-1" placeholder="Optional" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -409,7 +403,7 @@ export default function ShipmentForm() {
                   <FormItem>
                     <Label htmlFor="senderAddress">Sender Address</Label>
                     <FormControl>
-                      <Textarea id="senderAddress" {...field} className="mt-1 min-h-[80px]" />
+                      <Textarea id="senderAddress" {...field} value={field.value ?? ''} className="mt-1 min-h-[80px]" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -422,7 +416,7 @@ export default function ShipmentForm() {
                   <FormItem>
                     <Label htmlFor="consigneeAddress">Consignee Address</Label>
                     <FormControl>
-                      <Textarea id="consigneeAddress" {...field} className="mt-1 min-h-[80px]" />
+                      <Textarea id="consigneeAddress" {...field} value={field.value ?? ''} className="mt-1 min-h-[80px]" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -431,20 +425,6 @@ export default function ShipmentForm() {
           </div>
         )}
 
-        <FormField
-            control={formHook.control}
-            name="totalWeight"
-            render={({ field }) => (
-              <FormItem>
-                <Label htmlFor="totalWeight">Total Weight (kg)</Label>
-                <FormControl>
-                  {/* Pass value={field.value ?? 0} to ensure controlled input */}
-                  <Input id="totalWeight" type="number" {...field} value={field.value ?? 0} onChange={event => field.onChange(event.target.value === '' ? 0 : +event.target.value)} className="mt-1" placeholder="Optional, e.g., 1250.5" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
 
         <FormField
           control={formHook.control}
@@ -488,4 +468,5 @@ export default function ShipmentForm() {
   );
 }
 
+    
     
