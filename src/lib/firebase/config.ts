@@ -28,13 +28,14 @@ const getRequiredEnv = (key: string, placeholderValue: string): string => {
 // The getRequiredEnv function will throw an error if these are used,
 // prompting the user to set up their .env.local file.
 const firebaseConfig = {
-  apiKey: getRequiredEnv('NEXT_PUBLIC_FIREBASE_API_KEY', "YOUR_API_KEY"),
-  authDomain: getRequiredEnv('NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN', "YOUR_AUTH_DOMAIN"),
-  projectId: getRequiredEnv('NEXT_PUBLIC_FIREBASE_PROJECT_ID', "YOUR_PROJECT_ID"),
-  storageBucket: getRequiredEnv('NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET', "YOUR_STORAGE_BUCKET"),
-  messagingSenderId: getRequiredEnv('NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID', "YOUR_MESSAGING_SENDER_ID"),
-  appId: getRequiredEnv('NEXT_PUBLIC_FIREBASE_APP_ID', "YOUR_APP_ID")
+  apiKey: "AIzaSyDVZt1LykxJWZCbkAuxI9fuK1GQ6vjbnUw",
+  authDomain: "stockwatch-naaa0.firebaseapp.com",
+  projectId: "stockwatch-naaa0",
+  storageBucket: "stockwatch-naaa0.firebasestorage.app",
+  messagingSenderId: "167547366333",
+  appId: "1:167547366333:web:6c9ccbc6b1d52ff21380d4"
 };
+
 
 let app: FirebaseApp;
 let auth: Auth;
