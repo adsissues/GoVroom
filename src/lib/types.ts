@@ -1,78 +1,36 @@
 
 export type ShipmentStatus = 'Pending' | 'Completed';
 
+// Minimal Shipment interface for now, will be expanded later.
 export interface Shipment {
   id: string;
   carrier: string;
-  subcarrier: string;
   driverName: string;
-  departureDate: Date;
-  arrivalDate: Date;
   status: ShipmentStatus;
-  sealNumber?: string;
-  truckRegistration?: string;
-  trailerRegistration?: string;
-  senderAddress?: string;
-  consigneeAddress?: string;
-  totalWeight?: number; // Calculated or entered
-  lastUpdated: Date;
-  // details are now fetched separately
+  // ... other fields will be added in later steps
 }
 
+// Minimal ShipmentDetail interface for now.
 export interface ShipmentDetail {
-  id: string; // Firestore document ID
-  shipmentId: string; // Parent shipment ID
-  numberOfPallets: number;
-  numberOfBags?: number; // Shown if Pallets > 0
-  customer: string; // Customer ID/value from dropdown
-  service: string; // Service ID/value from dropdown
-  format?: string; // Format ID/value from dropdown, dynamically loaded based on service
-  tareWeight: number;
-  grossWeight: number;
-  dispatchNumber?: string;
-  doe?: string; // DOE ID/value from dropdown
-  // Timestamps can be added if needed
-  // createdAt?: Date;
-  // updatedAt?: Date;
+  id: string;
+  shipmentId: string;
+  // ... other fields will be added in later steps
 }
 
-// For displaying shipment along with its details
-export interface ShipmentWithDetails extends Shipment {
-  details: ShipmentDetail[];
-}
-
-
-export interface SummaryStat {
-  title: string;
-  value: string | number;
-  icon: React.ElementType;
-  bgColorClass?: string;
-  textColorClass?: string;
-  change?: string; // e.g., "+5% from last month"
-}
-
-// For dropdown options
-export type SelectOption = {
+export interface SelectOption {
   value: string;
   label: string;
-};
+}
 
-// For AI suggestions
-export type AISuggestion = {
-  numberOfBags: number;
-  customer: string;
-  service: string;
-};
-
-// User type for authentication
 export type UserRole = 'admin' | 'user';
 
 export interface User {
   uid: string;
   email: string | null;
-  role: UserRole | null; // Role can be null if not set or during loading
+  role: UserRole | null;
 }
 
+// AppSettings will be defined when the Admin Settings feature is implemented.
 export interface AppSettings {
   defaultSenderAddress: string;
   defaultConsigneeAddress: string;

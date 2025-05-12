@@ -1,21 +1,13 @@
 
 import type { SelectOption } from './types';
 import {
-  Truck,
   LayoutDashboard,
-  PackagePlus,
   Settings,
-  ListChecks as ListChecksIcon,
-  Users,
-  CalendarClock,
-  Weight, // Explicitly import used icons
-  FileText, // For App Settings
+  PackageSearch, // For App Logo
 } from 'lucide-react';
 
 
 export const APP_NAME = "GoVroom";
-// Make sure this value matches the 'value' field in your Firestore /customers collection for Asendia
-export const ASENDIA_CUSTOMER_VALUE = "asendia";
 
 // For sidebar navigation
 export interface NavItem {
@@ -23,83 +15,44 @@ export interface NavItem {
   href: string;
   icon: React.ElementType;
   adminOnly?: boolean;
-  children?: NavItem[]; // For sub-menus, if needed in future
+  children?: NavItem[];
 }
 
 export const SIDEBAR_NAV_ITEMS: NavItem[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { title: 'Shipments', href: '/shipments', icon: Truck },
-  { title: 'Add Shipment', href: '/shipments/new', icon: PackagePlus },
   {
     title: 'Admin',
     href: '/admin',
     icon: Settings,
     adminOnly: true,
-    children: [
-      { title: 'Dropdowns', href: '/admin/dropdowns', icon: ListChecksIcon, adminOnly: true },
-      { title: 'App Settings', href: '/admin/settings', icon: FileText, adminOnly: true },
-    ]
+    // Children can be added in later steps as admin features are built
+    // children: [
+    //   { title: 'Sub Admin Page', href: '/admin/subpage', icon: Settings, adminOnly: true },
+    // ]
   },
 ];
 
+// Constants for Dropdown Management (will be populated in a later step)
+export interface DropdownCollectionConfig {
+  id: string;
+  name: string;
+  description: string;
+}
+export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [];
+export const DROPDOWN_COLLECTION_ICONS: { [key: string]: React.ElementType } = {};
 
-// Default addresses (can be overridden in Admin Settings)
+
+// Default addresses (will be part of Admin Settings feature)
 export const DEFAULT_SENDER_ADDRESS = "Asendia UK, Unit 5, The Hub, Solent Business Park, Fareham, PO15 7FH";
 export const DEFAULT_CONSIGNEE_ADDRESS = "La Poste, Avenue de la Poste, 75000 Paris, France";
 
-// Constants for calculations
-export const TARE_WEIGHT_DEFAULT = 25.7; // Default tare weight if no bags
-export const BAG_WEIGHT_MULTIPLIER = 0.125; // Weight per bag for auto tare calculation
+// Value for Asendia customer (will be used in Shipment Calculations feature)
+export const ASENDIA_CUSTOMER_VALUE = "asendia";
 
-// Static service options removed - fetch from Firestore collection 'services' now
-// export const SERVICES_OPTIONS: SelectOption[] = [
-//   { value: 'prior', label: 'Priority Service' },
-//   { value: 'eco', label: 'Economy Service' },
-//   { value: 's3c', label: 'Special Service 3C' },
-//   { value: 'standard', label: 'Standard' },
-//   { value: 'express', label: 'Express' },
-//   { value: 'overnight', label: 'Overnight' },
-// ];
 
-// Mapping from service value to the Firestore collection name for formats
-// Make sure the keys here match the 'value' field in your Firestore /services collection
-export const SERVICE_FORMAT_MAPPING: { [serviceValue: string]: string } = {
-  'priority': 'formats_prior', // Example: if 'priority' is the value in Firestore /services
-  'economy': 'formats_eco',   // Example: if 'economy' is the value
-  's3c': 'formats_s3c',     // Example: if 's3c' is the value
-  // Add mappings for other services as needed, matching their Firestore 'value'
-};
+// Constants for calculations (will be used in Details Form & Shipment Calculations features)
+export const TARE_WEIGHT_DEFAULT = 25.7;
+export const BAG_WEIGHT_MULTIPLIER = 0.125;
 
-// Configuration for dropdown management in Admin UI
-export interface DropdownCollectionConfig {
-  id: string; // Firestore collection name
-  name: string; // User-friendly name for UI
-  description: string;
-}
-
-export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
-  { id: 'carriers', name: 'Carriers', description: 'Manage carrier options used in shipment forms.' },
-  { id: 'subcarriers', name: 'Subcarriers', description: 'Manage subcarrier options for logistics.' },
-  { id: 'customers', name: 'Customers', description: 'Manage customer profiles and identifiers.' },
-  { id: 'services', name: 'Services', description: 'Manage the types of services offered.' },
-  { id: 'doe', name: 'DOE Options', description: 'Manage Date Of Entry (or similar reference) options.' },
-  { id: 'formats', name: 'General Formats', description: 'Manage general format options (use if no service-specific formats apply).' },
-  { id: 'formats_prior', name: 'Formats (Priority)', description: 'Manage format options specifically for Priority service.' },
-  { id: 'formats_eco', name: 'Formats (Economy)', description: 'Manage format options specifically for Economy service.' },
-  { id: 'formats_s3c', name: 'Formats (Special S3C)', description: 'Manage format options for Special Service 3C.' },
-  // Add entries for other service-specific format collections (e.g., formats_standard) if they exist
-];
-
-// Icons for the dropdown management page
-export const DROPDOWN_COLLECTION_ICONS: { [key: string]: React.ElementType } = {
-  carriers: Truck,
-  subcarriers: Truck,
-  customers: Users,
-  services: Settings, // Added Services icon
-  doe: CalendarClock,
-  formats: ListChecksIcon,
-  formats_prior: ListChecksIcon,
-  formats_eco: ListChecksIcon,
-  formats_s3c: ListChecksIcon,
-  default: ListChecksIcon, // Fallback icon
-};
+// Mapping for service-specific formats (will be used in Details Form feature)
+export const SERVICE_FORMAT_MAPPING: { [serviceValue: string]: string } = {};

@@ -3,71 +3,49 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can read and write their own user document.
-    // Admins can read any user document (for role management, etc. - future use)
+
+    // Users collection:
+    // - Authenticated users can read their own document.
+    // - Only admins can create/update/delete user documents (e.g., to assign roles).
+    // - For simplicity in this initial step, allow authenticated users to create their own doc if it doesn't exist (e.g. on first sign-up, though app doesn't have sign-up yet).
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      allow read: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId; // User can create their own doc
+      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Shipments can be read and written by any authenticated user.
-    // More granular control (e.g., only admins can delete, or users can only see their own shipments) can be added later.
+    // Shipments collection (and its subcollections like 'details')
+    // - Authenticated users can read/write.
+    // - More granular rules will be added based on roles for specific fields (e.g., senderAddress).
     match /shipments/{shipmentId} {
-      allow read, write, delete: if request.auth != null;
+      allow read, write: if request.auth != null; // Or refine with user roles
+
+      // Details subcollection
+      match /details/{detailId} {
+        allow read, write: if request.auth != null; // Or refine based on parent shipment access
+      }
     }
 
-    // Shipment details (subcollection) - same rules as parent shipment for now
-    match /shipments/{shipmentId}/details/{detailId} {
-      allow read, write, delete: if request.auth != null;
+    // Dropdown collections (carriers, subcarriers, customers, services, doe, formats_*)
+    // - Authenticated users can read.
+    // - Only admins can write (create, update, delete).
+    match /{collectionName}/{docId}
+      where collectionName in ['carriers', 'subcarriers', 'customers', 'services', 'doe', 'formats', 'formats_prior', 'formats_eco', 'formats_s3c'] {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Dropdown collections (e.g., carriers, customers)
-    // Allow read for any authenticated user.
-    // Allow write only for admins (assuming admin role is stored in /users/{uid}).
-    match /carriers/{carrierId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-    match /subcarriers/{subcarrierId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-     match /customers/{customerId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-     match /services/{serviceId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-     match /formats/{formatId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-    match /doe/{doeId} { // Assuming 'doe' is a collection name for DOE dropdown items
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-    
-    // Audit Logs: Typically only admins or specific functions write here. Read access might be restricted too.
-    // For now, allow admins to write. Read access can be defined later.
-    match /audit_logs/{logId} {
-        allow create: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-        allow read: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    // Config collection (for appSettings)
+    // - Authenticated users can read.
+    // - Only admins can write.
+    match /config/{configId} {
+       allow read: if request.auth != null;
+       allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Notifications: Users might read their own notifications. Creating notifications might be server-side or admin.
-    // This is a placeholder, specific rules depend on implementation.
-    match /notifications/{notificationId} {
-        allow read: if request.auth != null; // Example: user can read their notifications
-        allow create: if request.auth != null; // Example: server function or admin creates notifications
+    // Default deny for any other collections not explicitly matched
+    match /{document=**} {
+      allow read, write: if false;
     }
-
-
-    // Deny all other access by default
-    // It's good practice to have this, but make sure all intended paths are covered above.
-    // match /{document=**} {
-    //   allow read, write: if false;
-    // }
   }
 }
