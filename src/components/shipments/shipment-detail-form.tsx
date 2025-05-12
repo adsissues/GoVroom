@@ -46,14 +46,14 @@ export default function ShipmentDetailForm({ shipmentId, initialData, onSubmitSu
     resolver: zodResolver(shipmentDetailFormSchema),
     defaultValues: {
       numberOfPallets: initialData?.numberOfPallets ?? 1,
-      numberOfBags: initialData?.numberOfBags ?? 0,
+      numberOfBags: initialData?.numberOfBags ?? 0, // Default to 0
       customer: initialData?.customer ?? '',
       service: initialData?.service ?? '',
       format: initialData?.format ?? '',
-      tareWeight: initialData?.tareWeight ?? TARE_WEIGHT_DEFAULT,
-      grossWeight: initialData?.grossWeight ?? 0,
-      dispatchNumber: initialData?.dispatchNumber ?? '',
-      doe: initialData?.doe ?? '',
+      tareWeight: initialData?.tareWeight ?? TARE_WEIGHT_DEFAULT, // Initial default
+      grossWeight: initialData?.grossWeight ?? 0, // Default to 0
+      dispatchNumber: initialData?.dispatchNumber ?? '', // Default to empty string
+      doe: initialData?.doe ?? '', // Default to empty string
     },
   });
 
@@ -66,7 +66,7 @@ export default function ShipmentDetailForm({ shipmentId, initialData, onSubmitSu
     queryKey: ['doeDropdown'],
     queryFn: () => getDropdownOptions('doe'),
   });
-  
+
   const services = SERVICES_OPTIONS; // Using static for now, can be fetched if dynamic
 
   const watchedService = form.watch('service');
@@ -82,19 +82,24 @@ export default function ShipmentDetailForm({ shipmentId, initialData, onSubmitSu
     queryFn: () => formatCollectionName ? getDropdownOptions(formatCollectionName) : Promise.resolve([]),
     enabled: !!formatCollectionName, // Only fetch if a format collection is identified
   });
-  
-  // Auto-calculate Tare Weight
+
+  // Auto-calculate Tare Weight based on number of bags
   useEffect(() => {
-    if (watchedNumberOfBags !== undefined && watchedNumberOfBags > 0) {
-      const calculatedTare = parseFloat((watchedNumberOfBags * BAG_WEIGHT_MULTIPLIER).toFixed(3));
+    const bags = watchedNumberOfBags ?? 0; // Use 0 if undefined
+    if (bags > 0) {
+      const calculatedTare = parseFloat((bags * BAG_WEIGHT_MULTIPLIER).toFixed(3));
       form.setValue('tareWeight', calculatedTare, { shouldValidate: true });
-    } else if (watchedNumberOfBags === 0 || watchedNumberOfBags === undefined) {
-       // If bags are 0 or undefined, but pallets might imply a default tare
-      if (initialData?.tareWeight === undefined) { // only set default if not editing existing
-          form.setValue('tareWeight', TARE_WEIGHT_DEFAULT, { shouldValidate: true });
+    } else {
+      // If bags are 0, reset to default tare weight only if not editing an existing entry with a specific tare weight
+      if (initialData?.tareWeight === undefined) {
+        form.setValue('tareWeight', TARE_WEIGHT_DEFAULT, { shouldValidate: true });
+      } else {
+        // Keep the initial data's tare weight if editing and bags become 0
+        form.setValue('tareWeight', initialData.tareWeight, { shouldValidate: true });
       }
     }
   }, [watchedNumberOfBags, form, initialData?.tareWeight]);
+
 
   // Reset format if service changes and selected format is no longer valid
   useEffect(() => {
@@ -117,9 +122,13 @@ export default function ShipmentDetailForm({ shipmentId, initialData, onSubmitSu
         shipmentId,
         ...data,
         numberOfBags: data.numberOfPallets > 0 ? (data.numberOfBags ?? 0) : undefined, // Only include bags if pallets > 0
+        // Ensure optional fields that should be empty strings are handled if needed, though Zod optional usually makes them undefined
+        dispatchNumber: data.dispatchNumber || undefined,
+        doe: data.doe || undefined,
+        format: data.format || undefined,
       };
       onSubmitSuccess(submittedDetail); // Pass the fully formed detail data (including ID if editing)
-      
+
       toast({
         title: initialData ? "Detail Updated" : "Detail Added",
         description: `Shipment detail has been successfully ${initialData ? 'updated' : 'added'}.`,
@@ -147,7 +156,7 @@ export default function ShipmentDetailForm({ shipmentId, initialData, onSubmitSu
               <FormItem>
                 <Label htmlFor="numberOfPallets">Number of Pallets</Label>
                 <FormControl>
-                  <Input id="numberOfPallets" type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value,10) || 0)} className="mt-1" />
+                  <Input id="numberOfPallets" type="number" {...field} value={field.value ?? 0} onChange={e => field.onChange(parseInt(e.target.value,10) || 0)} className="mt-1" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -161,7 +170,7 @@ export default function ShipmentDetailForm({ shipmentId, initialData, onSubmitSu
                 <FormItem>
                   <Label htmlFor="numberOfBags">Number of Bags</Label>
                   <FormControl>
-                    <Input id="numberOfBags" type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value,10) || 0)} className="mt-1" />
+                    <Input id="numberOfBags" type="number" {...field} value={field.value ?? 0} onChange={e => field.onChange(parseInt(e.target.value,10) || 0)} className="mt-1" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -218,7 +227,7 @@ export default function ShipmentDetailForm({ shipmentId, initialData, onSubmitSu
                 <FormItem>
                   <Label htmlFor="format">Format</Label>
                   {isLoadingFormats ? <Skeleton className="h-10 w-full mt-1" /> : (
-                    <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingFormats || !formats || formats.length === 0}>
+                    <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={isLoadingFormats || !formats || formats.length === 0}>
                       <FormControl>
                         <SelectTrigger id="format" className="mt-1">
                           <SelectValue placeholder={formats && formats.length > 0 ? "Select format" : "No formats for service"} />
@@ -235,7 +244,7 @@ export default function ShipmentDetailForm({ shipmentId, initialData, onSubmitSu
             />
           )}
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -244,7 +253,8 @@ export default function ShipmentDetailForm({ shipmentId, initialData, onSubmitSu
               <FormItem>
                 <Label htmlFor="tareWeight">Tare Weight (kg)</Label>
                 <FormControl>
-                  <Input id="tareWeight" type="number" step="0.001" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} className="mt-1" />
+                  {/* Ensure value is controlled */}
+                  <Input id="tareWeight" type="number" step="0.001" {...field} value={field.value ?? 0} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} className="mt-1" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -257,7 +267,8 @@ export default function ShipmentDetailForm({ shipmentId, initialData, onSubmitSu
               <FormItem>
                 <Label htmlFor="grossWeight">Gross Weight (kg)</Label>
                 <FormControl>
-                  <Input id="grossWeight" type="number" step="0.001" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} className="mt-1" />
+                   {/* Ensure value is controlled */}
+                  <Input id="grossWeight" type="number" step="0.001" {...field} value={field.value ?? 0} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} className="mt-1" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -272,7 +283,7 @@ export default function ShipmentDetailForm({ shipmentId, initialData, onSubmitSu
             render={({ field }) => (
               <FormItem>
                 <Label htmlFor="dispatchNumber">Dispatch Number</Label>
-                <FormControl><Input id="dispatchNumber" {...field} className="mt-1" placeholder="Optional" /></FormControl>
+                <FormControl><Input id="dispatchNumber" {...field} value={field.value ?? ''} className="mt-1" placeholder="Optional" /></FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -284,7 +295,7 @@ export default function ShipmentDetailForm({ shipmentId, initialData, onSubmitSu
               <FormItem>
                 <Label htmlFor="doe">DOE</Label>
                  {isLoadingDoes ? <Skeleton className="h-10 w-full mt-1" /> : (
-                    <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingDoes}>
+                    <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={isLoadingDoes}>
                     <FormControl>
                         <SelectTrigger id="doe" className="mt-1"><SelectValue placeholder="Select DOE" /></SelectTrigger>
                     </FormControl>
@@ -311,3 +322,5 @@ export default function ShipmentDetailForm({ shipmentId, initialData, onSubmitSu
     </Form>
   );
 }
+
+    

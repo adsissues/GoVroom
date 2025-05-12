@@ -55,13 +55,26 @@ export default function ShipmentForm() {
   const { toast } = useToast();
   const router = useRouter();
   const { currentUser } = useAuth();
-  const queryClient = useQueryClient(); 
+  const queryClient = useQueryClient();
 
   const isAdmin = currentUser?.role === 'admin';
-  
+
   const formHook = useForm<ShipmentFormData>({
     resolver: zodResolver(shipmentFormSchema),
-    // Default values will be set after fetching app settings
+    defaultValues: { // Provide initial defaults to avoid undefined -> defined transition
+      carrier: '',
+      subcarrier: '',
+      driverName: '',
+      departureDate: new Date(),
+      arrivalDate: new Date(new Date().setDate(new Date().getDate() + 1)),
+      status: false,
+      sealNumber: '',
+      truckRegistration: '',
+      trailerRegistration: '',
+      senderAddress: '', // Will be overridden by fetched settings or constants
+      consigneeAddress: '', // Will be overridden by fetched settings or constants
+      totalWeight: 0,
+    }
   });
 
   const { data: appSettings, isLoading: isLoadingAppSettings } = useQuery({
@@ -70,36 +83,23 @@ export default function ShipmentForm() {
   });
 
   useEffect(() => {
-    if (appSettings) {
-      formHook.reset({
-        carrier: '', 
-        subcarrier: '', 
+    // Reset the form once settings are loaded or loading fails
+    if (!isLoadingAppSettings) {
+      const defaults = {
+        carrier: '',
+        subcarrier: '',
         driverName: '',
         departureDate: new Date(),
         arrivalDate: new Date(new Date().setDate(new Date().getDate() + 1)),
         status: false,
-        senderAddress: appSettings.defaultSenderAddress || DEFAULT_SENDER_ADDRESS,
-        consigneeAddress: appSettings.defaultConsigneeAddress || DEFAULT_CONSIGNEE_ADDRESS,
-        sealNumber: '',
-        truckRegistration: '',
-        trailerRegistration: '',
-        totalWeight: 0,
-      });
-    } else if (!isLoadingAppSettings) { // Not loading and no settings from Firestore
-         formHook.reset({
-            carrier: '', 
-            subcarrier: '', 
-            driverName: '',
-            departureDate: new Date(),
-            arrivalDate: new Date(new Date().setDate(new Date().getDate() + 1)),
-            status: false,
-            senderAddress: DEFAULT_SENDER_ADDRESS, // Fallback
-            consigneeAddress: DEFAULT_CONSIGNEE_ADDRESS, // Fallback
-            sealNumber: '',
-            truckRegistration: '',
-            trailerRegistration: '',
-            totalWeight: 0,
-         });
+        sealNumber: '', // Ensure empty string default
+        truckRegistration: '', // Ensure empty string default
+        trailerRegistration: '', // Ensure empty string default
+        totalWeight: 0, // Ensure default number
+        senderAddress: (appSettings?.defaultSenderAddress || DEFAULT_SENDER_ADDRESS),
+        consigneeAddress: (appSettings?.defaultConsigneeAddress || DEFAULT_CONSIGNEE_ADDRESS),
+      };
+      formHook.reset(defaults);
     }
   }, [appSettings, isLoadingAppSettings, formHook]);
 
@@ -147,32 +147,46 @@ export default function ShipmentForm() {
     try {
       const shipmentDataForFirestore = {
         ...data,
-        departureDate: new Date(data.departureDate), 
-        arrivalDate: new Date(data.arrivalDate),   
-        status: data.status, 
+        departureDate: new Date(data.departureDate),
+        arrivalDate: new Date(data.arrivalDate),
+        status: data.status,
         senderAddress: data.senderAddress || (appSettings?.defaultSenderAddress || DEFAULT_SENDER_ADDRESS),
         consigneeAddress: data.consigneeAddress || (appSettings?.defaultConsigneeAddress || DEFAULT_CONSIGNEE_ADDRESS),
       };
-      
+
       const newShipmentId = await addShipmentToFirestore({
         ...shipmentDataForFirestore,
-        status: shipmentDataForFirestore.status, 
+        status: shipmentDataForFirestore.status,
       });
-      
+
       toast({
         title: "Shipment Created",
         description: "The new shipment has been saved successfully.",
-        variant: "default", 
+        variant: "default",
       });
 
       await queryClient.invalidateQueries({ queryKey: ['shipments'] });
-      // await queryClient.invalidateQueries({ queryKey: ['dashboardStats'] }); 
+      // await queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
 
-      formHook.reset(); 
-      setShowAISuggestions(false); 
+      // Reset form to initial defaults after successful submission
+      formHook.reset({
+        carrier: '',
+        subcarrier: '',
+        driverName: '',
+        departureDate: new Date(),
+        arrivalDate: new Date(new Date().setDate(new Date().getDate() + 1)),
+        status: false,
+        sealNumber: '',
+        truckRegistration: '',
+        trailerRegistration: '',
+        senderAddress: (appSettings?.defaultSenderAddress || DEFAULT_SENDER_ADDRESS),
+        consigneeAddress: (appSettings?.defaultConsigneeAddress || DEFAULT_CONSIGNEE_ADDRESS),
+        totalWeight: 0,
+      });
+      setShowAISuggestions(false);
       setAiInput(null);
-      
-      router.push(`/shipments/${newShipmentId}`); 
+
+      router.push(`/shipments/${newShipmentId}`);
     } catch (error) {
       console.error("Error saving shipment:", error);
       toast({
@@ -184,7 +198,7 @@ export default function ShipmentForm() {
       setIsSubmitting(false);
     }
   };
-  
+
   if (isLoadingAppSettings) {
     return (
         <div className="space-y-8">
@@ -224,8 +238,8 @@ export default function ShipmentForm() {
             render={({ field }) => (
               <FormItem>
                 <Label htmlFor="carrier">Carrier</Label>
-                <Select 
-                  onValueChange={field.onChange} 
+                <Select
+                  onValueChange={field.onChange}
                   value={field.value}
                   disabled={isLoadingCarriers || !!carriersError}
                 >
@@ -250,8 +264,8 @@ export default function ShipmentForm() {
             render={({ field }) => (
               <FormItem>
                 <Label htmlFor="subcarrier">Subcarrier</Label>
-                <Select 
-                  onValueChange={field.onChange} 
+                <Select
+                  onValueChange={field.onChange}
                   value={field.value}
                   disabled={isLoadingSubcarriers || !!subcarriersError}
                 >
@@ -382,7 +396,7 @@ export default function ShipmentForm() {
             )}
           />
         </div>
-        
+
         {isAdmin && (
           <div className="space-y-6 border-t border-border pt-6 mt-6">
               <h3 className="text-lg font-medium text-foreground">
@@ -424,7 +438,8 @@ export default function ShipmentForm() {
               <FormItem>
                 <Label htmlFor="totalWeight">Total Weight (kg)</Label>
                 <FormControl>
-                  <Input id="totalWeight" type="number" {...field} onChange={event => field.onChange(event.target.value === '' ? undefined : +event.target.value)} className="mt-1" placeholder="Optional, e.g., 1250.5" />
+                  {/* Pass value={field.value ?? 0} to ensure controlled input */}
+                  <Input id="totalWeight" type="number" {...field} value={field.value ?? 0} onChange={event => field.onChange(event.target.value === '' ? 0 : +event.target.value)} className="mt-1" placeholder="Optional, e.g., 1250.5" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -464,7 +479,7 @@ export default function ShipmentForm() {
           <Button type="button" variant="outline" onClick={() => { router.back(); }}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting || isLoadingAppSettings}>
             {isSubmitting ? "Saving..." : "Save Shipment"}
           </Button>
         </div>
