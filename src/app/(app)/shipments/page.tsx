@@ -1,17 +1,17 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
-import { getAllShipments, deleteShipment } from '@/lib/firebase/shipmentsService';
+import { useState, useEffect, useCallback } from 'react';
+import { getAllShipments, deleteShipment } from '@/lib/firebase/shipmentsService'; // Assuming pagination/filtering logic is added here later
 import type { Shipment } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Edit, Trash2, AlertTriangle, Eye } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, AlertTriangle, Eye, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import SearchFilterBar from '@/components/shipments/search-filter-bar'; // Assuming this will be created
+import SearchFilterBar from '@/components/shipments/search-filter-bar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -27,58 +27,112 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import { Timestamp } from 'firebase/firestore';
+import { format } from 'date-fns'; // Use date-fns for reliable formatting
+
+
+// Helper function to format date/time or return 'N/A'
+const formatDate = (timestamp: Timestamp | Date | undefined): string => {
+    if (!timestamp) return 'N/A';
+    const date = timestamp instanceof Timestamp ? timestamp.toDate() : timestamp;
+    try {
+        // Format as date only, adjust format string as needed (e.g., 'PP' for Sep 24, 2023)
+        return format(date, "P"); // Example: 09/24/2023
+    } catch (error) {
+        console.error("Error formatting date:", error);
+        return 'Invalid Date';
+    }
+};
+
 
 export default function ShipmentsPage() {
-  const [shipments, setShipments] = useState<Shipment[]>([]);
-  const [filteredShipments, setFilteredShipments] = useState<Shipment[]>([]);
+  const [allShipments, setAllShipments] = useState<Shipment[]>([]); // Holds all fetched shipments
+  const [filteredShipments, setFilteredShipments] = useState<Shipment[]>([]); // Holds displayed shipments
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchShipments = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const data = await getAllShipments();
-        setShipments(data);
-        setFilteredShipments(data); // Initially show all
-      } catch (err) {
-        console.error("Error fetching shipments:", err);
-        setError(err instanceof Error ? err.message : "Failed to load shipments.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchShipments();
-  }, []);
+  // Function to fetch shipments
+  const fetchShipments = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Replace with a potentially paginated/filtered fetch function later
+      const data = await getAllShipments();
+      setAllShipments(data);
+      setFilteredShipments(data); // Initially show all
+    } catch (err) {
+      console.error("Error fetching shipments:", err);
+      setError(err instanceof Error ? err.message : "Failed to load shipments.");
+      setAllShipments([]); // Clear data on error
+      setFilteredShipments([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []); // Empty dependency array means this useCallback instance is created once
 
-  const handleFilter = (filters: any) => {
-    // Basic filtering example (expand as needed)
-    let result = shipments;
+  // Fetch shipments on initial mount
+  useEffect(() => {
+    fetchShipments();
+  }, [fetchShipments]); // Depend on the memoized fetch function
+
+  // Handle filtering logic (client-side for now)
+  const handleFilter = useCallback((filters: any) => {
+    let result = allShipments;
+
+    // Status Filter
     if (filters.status) {
       result = result.filter(s => s.status === filters.status);
     }
+
+    // Search Term Filter (ID, Carrier ID, Driver Name)
     if (filters.searchTerm) {
-      const term = filters.searchTerm.toLowerCase();
-      result = result.filter(s =>
-        s.carrierId?.toLowerCase().includes(term) || // Assuming carrierId is a string identifier
-        s.driverName?.toLowerCase().includes(term) ||
-        s.id.toLowerCase().includes(term) // Search by ID?
-      );
+      const term = filters.searchTerm.toLowerCase().trim();
+      if (term) {
+        result = result.filter(s =>
+          s.id.toLowerCase().includes(term) ||
+          s.carrierId?.toLowerCase().includes(term) ||
+          s.driverName?.toLowerCase().includes(term)
+        );
+      }
     }
-    // Add date range filtering etc.
+
+     // Date Range Filter (assuming filters.startDate and filters.endDate are Date objects or null)
+     if (filters.startDate) {
+         const start = filters.startDate.getTime();
+         result = result.filter(s => s.departureDate && s.departureDate.toDate().getTime() >= start);
+     }
+     if (filters.endDate) {
+         // Set end date to end of day for inclusive range
+         const end = new Date(filters.endDate);
+         end.setHours(23, 59, 59, 999);
+         const endTime = end.getTime();
+         result = result.filter(s => s.departureDate && s.departureDate.toDate().getTime() <= endTime);
+     }
+
+     // Customer Filter
+     if (filters.customerId) {
+         // This requires fetching shipment details, which is inefficient client-side.
+         // Filtering by customer should ideally be done server-side (or requires denormalization).
+         // For now, we'll skip client-side customer filtering.
+         console.warn("Client-side filtering by customer is not implemented due to performance concerns.");
+     }
+
+     // Carrier Filter
+      if (filters.carrierId) {
+        result = result.filter(s => s.carrierId === filters.carrierId);
+      }
+
     setFilteredShipments(result);
-  };
+  }, [allShipments]); // Re-run filter function if allShipments data changes
 
  const handleDelete = async (id: string) => {
     try {
       await deleteShipment(id);
       toast({ title: "Shipment Deleted", description: `Shipment ${id} removed successfully.` });
-      // Refetch or filter local state
-      const updatedShipments = shipments.filter(s => s.id !== id);
-      setShipments(updatedShipments);
+      // Refetch or filter local state to update UI immediately
+      const updatedShipments = allShipments.filter(s => s.id !== id);
+      setAllShipments(updatedShipments);
       setFilteredShipments(updatedShipments); // Update filtered list too
     } catch (error: any) {
       console.error("Error deleting shipment:", error);
@@ -90,17 +144,11 @@ export default function ShipmentsPage() {
     }
   };
 
-  const formatDate = (timestamp: Timestamp | Date | undefined): string => {
-    if (!timestamp) return 'N/A';
-    const date = timestamp instanceof Timestamp ? timestamp.toDate() : timestamp;
-    return date.toLocaleDateString();
-  };
-
-
   return (
-    <div className="space-y-6 p-4 md:p-6 lg:p-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Shipments</h1>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h1 className="text-2xl md:text-3xl font-bold">Shipments</h1>
         <Link href="/shipments/new">
           <Button>
             <PlusCircle className="mr-2 h-4 w-4" /> Add New Shipment
@@ -108,114 +156,127 @@ export default function ShipmentsPage() {
         </Link>
       </div>
 
-      <Card className="shadow-lg rounded-xl">
+      {/* Main Card */}
+      <Card className="shadow-lg rounded-xl border">
         <CardHeader>
           <CardTitle>Manage Shipments</CardTitle>
           <CardDescription>View, filter, and manage all your shipments.</CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Search and Filter Bar (Placeholder) */}
+           {/* Search and Filter Bar */}
            <SearchFilterBar onFilterChange={handleFilter} />
 
-
+           {/* Loading State */}
            {isLoading && (
-                <div className="space-y-4 mt-4">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
+                <div className="space-y-4 mt-6">
+                    <Skeleton className="h-12 w-full rounded-md" />
+                    <Skeleton className="h-12 w-full rounded-md" />
+                    <Skeleton className="h-12 w-full rounded-md" />
                 </div>
             )}
-            {error && (
-                 <Alert variant="destructive" className="mt-4">
+
+            {/* Error State */}
+            {error && !isLoading && (
+                 <Alert variant="destructive" className="mt-6">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>Error Loading Shipments</AlertTitle>
                     <AlertDescription>{error}</AlertDescription>
+                     <Button variant="outline" size="sm" onClick={fetchShipments} className="mt-4">
+                         Retry
+                     </Button>
                  </Alert>
              )}
 
-          {!isLoading && !error && (
-            <Table className="mt-4">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Carrier</TableHead>
-                  <TableHead>Driver</TableHead>
-                  <TableHead>Departure</TableHead>
-                  <TableHead>Arrival</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredShipments.length === 0 ? (
-                    <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground py-4">
-                           No shipments found.
-                        </TableCell>
-                    </TableRow>
-                ) : (
-                    filteredShipments.map((shipment) => (
-                    <TableRow key={shipment.id}>
-                        <TableCell className="font-medium truncate max-w-[100px]"><Link href={`/shipments/${shipment.id}`} className='hover:underline'>{shipment.id}</Link></TableCell>
-                        <TableCell>{shipment.carrierId}</TableCell> {/* Replace with actual carrier name later */}
-                        <TableCell>{shipment.driverName}</TableCell>
-                        <TableCell>{formatDate(shipment.departureDate)}</TableCell>
-                        <TableCell>{formatDate(shipment.arrivalDate)}</TableCell>
-                        <TableCell>
-                        <Badge variant={shipment.status === 'Completed' ? 'default' : 'secondary'} className={shipment.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}>
-                            {shipment.status}
-                        </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                           <div className="flex justify-end space-x-1">
-                             <Link href={`/shipments/${shipment.id}`}>
-                               <Button variant="ghost" size="icon" title="View Details">
-                                 <Eye className="h-4 w-4" />
-                               </Button>
-                             </Link>
-                             {/* Edit might navigate to the detail page with edit mode enabled */}
-                             {/* <Link href={`/shipments/${shipment.id}?edit=true`}> */}
-                             {/*   <Button variant="ghost" size="icon" title="Edit"> */}
-                             {/*     <Edit className="h-4 w-4" /> */}
-                             {/*   </Button> */}
-                             {/* </Link> */}
-                              <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" title="Delete">
-                                          <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                          <AlertDialogDescription>
-                                              This action cannot be undone. This will permanently delete shipment <strong>{shipment.id}</strong> and potentially its details (if implemented).
-                                          </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                          <AlertDialogAction
-                                              onClick={() => handleDelete(shipment.id)}
-                                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                          >
-                                              Delete
-                                          </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                  </AlertDialogContent>
-                              </AlertDialog>
-                           </div>
-                        </TableCell>
-                    </TableRow>
-                    ))
-                )}
-              </TableBody>
-            </Table>
+            {/* Table Display */}
+            {!isLoading && !error && (
+                <div className="mt-6 overflow-x-auto">
+                    <Table>
+                    <TableHeader>
+                        <TableRow>
+                        <TableHead className="w-[120px]">ID</TableHead>
+                        <TableHead>Carrier</TableHead>
+                        <TableHead>Driver</TableHead>
+                        <TableHead>Departure</TableHead>
+                        <TableHead>Arrival</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right w-[100px]">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {filteredShipments.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                                No shipments found matching your criteria.
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            filteredShipments.map((shipment) => (
+                            <TableRow key={shipment.id} className="hover:bg-muted/50">
+                                <TableCell className="font-medium truncate max-w-[120px]">
+                                    <Link href={`/shipments/${shipment.id}`} className='hover:underline text-primary'>
+                                        {shipment.id}
+                                    </Link>
+                                </TableCell>
+                                {/* TODO: Fetch carrier label based on carrierId */}
+                                <TableCell>{shipment.carrierId}</TableCell>
+                                <TableCell>{shipment.driverName}</TableCell>
+                                <TableCell>{formatDate(shipment.departureDate)}</TableCell>
+                                <TableCell>{formatDate(shipment.arrivalDate)}</TableCell>
+                                <TableCell>
+                                <Badge variant={shipment.status === 'Completed' ? 'default' : 'secondary'} className={shipment.status === 'Completed' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-amber-100 text-amber-700 border-amber-200'}>
+                                    {shipment.status}
+                                </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                <div className="flex justify-end space-x-1">
+                                    {/* View Details */}
+                                    <Link href={`/shipments/${shipment.id}`}>
+                                    <Button variant="ghost" size="icon" title="View Details">
+                                        <Eye className="h-4 w-4" />
+                                        <span className="sr-only">View</span>
+                                    </Button>
+                                    </Link>
+
+                                    {/* Delete Action */}
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" title="Delete">
+                                                <Trash2 className="h-4 w-4" />
+                                                 <span className="sr-only">Delete</span>
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This action cannot be undone. This will permanently delete the shipment{' '}
+                                                    <strong className="break-all">{shipment.id}</strong> and all its associated details.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                    onClick={() => handleDelete(shipment.id)}
+                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                >
+                                                    Delete Shipment
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </div>
+                                </TableCell>
+                            </TableRow>
+                            ))
+                        )}
+                    </TableBody>
+                    </Table>
+                </div>
            )}
-          {/* TODO: Add Pagination if needed */}
+          {/* TODO: Add Pagination controls if implementing server-side pagination */}
         </CardContent>
       </Card>
     </div>
   );
 }
 
-```

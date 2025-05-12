@@ -1,21 +1,31 @@
 
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
+"use client";
 
-export default function HomePage() {
-  // Temporary static content to test the root route
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
+
+export default function RootPage() {
+  const { currentUser, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading) {
+      if (currentUser) {
+        // User is logged in, redirect to dashboard
+        router.replace('/dashboard');
+      } else {
+        // User is not logged in, redirect to login
+        router.replace('/login');
+      }
+    }
+  }, [currentUser, loading, router]);
+
+  // Show a loading indicator while checking auth state
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
-      <h1 className="text-3xl font-bold mb-4">Welcome to GoVroom</h1>
-      <p className="text-muted-foreground mb-6">This is the temporary root page.</p>
-      <div className="space-x-4">
-         <Link href="/login">
-             <Button>Go to Login</Button>
-         </Link>
-          <Link href="/dashboard">
-             <Button variant="outline">Go to Dashboard (if logged in)</Button>
-          </Link>
-      </div>
+    <div className="flex items-center justify-center min-h-screen bg-background">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
     </div>
   );
 }

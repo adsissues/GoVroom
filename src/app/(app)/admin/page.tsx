@@ -1,18 +1,32 @@
 
-"use client";
+"use client"; // Keep as client component if it needs interaction or hooks later
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Settings } from "lucide-react"; // Example icon
 
 export default function AdminRootPage() {
+  // This page assumes it's rendered within AdminLayout, which handles authentication/authorization.
   return (
     <div className="space-y-6">
-      <Card className="shadow-xl rounded-xl">
+      <Card className="shadow-lg rounded-xl border">
         <CardHeader>
-          <CardTitle className="text-2xl">Admin Section</CardTitle>
+           <div className="flex items-center gap-3 mb-2">
+               <Settings className="h-6 w-6 text-primary" />
+              <CardTitle className="text-2xl">Admin Dashboard</CardTitle>
+           </div>
+          <CardDescription>Welcome to the administration area. Use the sidebar to manage application settings and data.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p>Welcome to the Admin Area.</p>
-          <p className="mt-2">Use the sidebar to navigate to different admin management pages once they are implemented.</p>
+          <p>
+            Select an option from the Admin menu in the sidebar to manage dropdowns, settings, or other administrative tasks.
+          </p>
+          {/* Add links or quick actions here later if needed */}
+          {/* Example:
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Link href="/admin/dropdowns"><Button variant="outline">Manage Dropdowns</Button></Link>
+            <Link href="/admin/settings"><Button variant="outline">Application Settings</Button></Link>
+          </div>
+          */}
         </CardContent>
       </Card>
     </div>

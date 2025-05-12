@@ -3,7 +3,7 @@ import type { Timestamp } from 'firebase/firestore';
 
 export type ShipmentStatus = 'Pending' | 'Completed';
 
-// Expanded Shipment interface
+// Main Shipment document
 export interface Shipment {
   id: string; // Firestore document ID
   carrierId: string; // Reference to /carriers/{id} -> value field
@@ -15,26 +15,31 @@ export interface Shipment {
   sealNumber?: string;
   truckRegistration?: string;
   trailerRegistration?: string;
-  senderAddress?: string; // Only editable by admin
-  consigneeAddress?: string; // Only editable by admin
+  senderAddress: string; // Editable only by admin, defaults from settings
+  consigneeAddress: string; // Editable only by admin, defaults from settings
   lastUpdated: Timestamp;
   createdAt: Timestamp;
-  // Aggregated fields (calculated later)
+  // Aggregated fields (calculated via Cloud Function or on read)
   totalPallets?: number;
   totalBags?: number;
   totalGrossWeight?: number;
   totalTareWeight?: number;
   totalNetWeight?: number;
-  asendiaGrossWeight?: number;
-  asendiaTareWeight?: number;
-  asendiaNetWeight?: number;
+  asendiaGrossWeight?: number; // Gross weight for customer 'asendia'
+  asendiaTareWeight?: number;  // Tare weight for customer 'asendia'
+  asendiaNetWeight?: number;   // Net weight for customer 'asendia'
+  pdfUrls?: { // Placeholder for PDF generation feature
+    preAlert?: string;
+    cmr?: string;
+  };
+  scannedDocuments?: string[]; // Placeholder for mobile camera upload
 }
 
 
-// ShipmentDetail interface for the subcollection
+// ShipmentDetail document (subcollection of shipments)
 export interface ShipmentDetail {
   id: string; // Firestore document ID
-  shipmentId: string; // Parent shipment ID
+  shipmentId: string; // Parent shipment ID (for potential queries, though direct path is primary)
   numPallets: number;
   numBags: number;
   customerId: string; // Reference to /customers/{id} -> value field
@@ -47,7 +52,7 @@ export interface ShipmentDetail {
   createdAt: Timestamp;
   lastUpdated: Timestamp;
   // Calculated
-  netWeight?: number; // Gross - Tare
+  netWeight: number; // Gross - Tare (Ensure this is always calculated on write/update)
 }
 
 export interface SelectOption {
@@ -57,22 +62,53 @@ export interface SelectOption {
 
 export type UserRole = 'admin' | 'user';
 
+// User document (/users/{uid})
 export interface User {
   uid: string;
   email: string | null;
-  role: UserRole | null;
+  role: UserRole; // Ensure role is always set
+  createdAt?: Timestamp; // Optional: track user creation
+  lastLogin?: Timestamp; // Optional: track last login
 }
 
-// AppSettings will be defined when the Admin Settings feature is implemented.
+// Placeholder for App Settings document (e.g., in /settings/app)
 export interface AppSettings {
+  id?: string; // Usually a fixed ID like 'global'
   defaultSenderAddress: string;
   defaultConsigneeAddress: string;
+  // Add other global settings as needed
+  lastUpdated?: Timestamp;
 }
 
-// Interface for Dropdown items fetched from Firestore
+// Dropdown Item document (used in /carriers, /customers, etc.)
 export interface DropdownItem {
   id: string; // Firestore document ID
   label: string;
-  value: string;
+  value: string; // Unique value used for storing references
+  createdAt?: Timestamp; // Optional
+  lastUpdated?: Timestamp; // Optional
 }
-```
+
+// Placeholder for Audit Log document (/audit_logs/{logId})
+export interface AuditLog {
+    id: string;
+    timestamp: Timestamp;
+    userId: string; // UID of the user performing the action
+    userEmail?: string; // Email for easier reading
+    action: string; // e.g., 'create_shipment', 'update_detail', 'delete_dropdown'
+    collectionPath: string; // e.g., 'shipments', 'shipments/abc/details'
+    documentId: string;
+    changes?: Record<string, { oldValue: any; newValue: any }>; // Optional: Log specific field changes
+    details?: string; // Optional: More context
+}
+
+// Placeholder for Notification document (/notifications/{notificationId})
+export interface Notification {
+    id: string;
+    userId: string; // Target user UID
+    title: string;
+    body: string;
+    shipmentId?: string; // Optional: Link to relevant shipment
+    read: boolean;
+    createdAt: Timestamp;
+}

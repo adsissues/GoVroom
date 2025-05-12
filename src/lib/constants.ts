@@ -11,11 +11,19 @@ import {
   Wrench, // Placeholder for Services
   Boxes, // Placeholder for Formats
   CalendarDays, // Placeholder for DOE
-  AlertTriangle, // For dashboard stats
-  CheckCircle2, // For dashboard stats
+  AlertTriangle, // For dashboard stats & pending shipments
+  CheckCircle2, // For dashboard stats & completed shipments
   Weight, // For dashboard stats
   PlusCircle, // For Add New Shipment
+  FileText, // For Audit Logs / PDF
+  Bell, // For Notifications
+  Camera, // For Mobile Camera
+  Database, // For Offline Mode
+  CloudUpload, // For CSV Import/Export
+  UserCog, // For User Management (Admin)
+  Sheet, // For CSV Import/Export icon
 } from 'lucide-react';
+import type React from 'react'; // Import React for type React.ElementType
 
 
 export const APP_NAME = "GoVroom";
@@ -48,9 +56,12 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
     adminOnly: true,
     children: [
       { title: 'Dropdowns', href: '/admin/dropdowns', icon: List, adminOnly: true },
-      // Add other admin pages here later (e.g., Users, Settings)
+      { title: 'Settings', href: '/admin/settings', icon: UserCog, adminOnly: true }, // Placeholder for default addresses etc.
+      // { title: 'Audit Logs', href: '/admin/audit-logs', icon: FileText, adminOnly: true }, // Placeholder
+      // { title: 'Users', href: '/admin/users', icon: Users, adminOnly: true }, // Placeholder
     ]
   },
+  // { title: 'Notifications', href: '/notifications', icon: Bell }, // Placeholder
 ];
 
 // Constants for Dropdown Management (used in Admin UI and Forms)
@@ -69,7 +80,7 @@ export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
   { id: 'formats_eco', name: 'Formats (Economy)', description: 'Manage formats for Economy service', icon: Boxes },
   { id: 'formats_s3c', name: 'Formats (S3C)', description: 'Manage formats for S3C service', icon: Boxes },
   { id: 'doe', name: 'DOE', description: 'Manage Date of Entry options', icon: CalendarDays },
-  // Note: '/formats' itself might not be directly managed if sub-formats cover all cases.
+  // Note: '/formats' itself might not be directly managed if sub-formats cover all cases. Add if needed.
 ];
 
 // Mapping for service-specific format collections
@@ -84,11 +95,11 @@ export const SERVICE_FORMAT_MAPPING: { [serviceValue: string]: string } = {
 export const DEFAULT_SENDER_ADDRESS = "Asendia UK, Unit 5, The Hub, Solent Business Park, Fareham, PO15 7FH";
 export const DEFAULT_CONSIGNEE_ADDRESS = "La Poste, Avenue de la Poste, 75000 Paris, France";
 
-// Value for Asendia customer (will be used in Shipment Calculations feature)
+// Value for Asendia customer (used in Shipment Calculations feature)
 export const ASENDIA_CUSTOMER_VALUE = "asendia";
 
 
-// Constants for calculations (will be used in Details Form & Shipment Calculations features)
+// Constants for calculations (used in Details Form & Shipment Calculations features)
 export const TARE_WEIGHT_DEFAULT = 25.7;
 export const BAG_WEIGHT_MULTIPLIER = 0.125;
 
@@ -96,6 +107,7 @@ export const BAG_WEIGHT_MULTIPLIER = 0.125;
 export const DASHBOARD_STATS_MAP: { [key: string]: { title: string; icon: React.ElementType; unit?: string; bgColorClass: string; textColorClass: string } } = {
   pendingShipments: { title: "Pending Shipments", icon: AlertTriangle, bgColorClass: "bg-amber-100", textColorClass: "text-amber-600" },
   completedShipments: { title: "Completed Shipments", icon: CheckCircle2, bgColorClass: "bg-green-100", textColorClass: "text-green-600" },
-  totalWeight: { title: "Total Gross Weight", icon: Weight, unit: "kg", bgColorClass: "bg-blue-100", textColorClass: "text-blue-600" },
-  totalCarriers: { title: "Active Carriers", icon: Truck, bgColorClass: "bg-indigo-100", textColorClass: "text-indigo-600" }, // Example, might change
+  totalGrossWeight: { title: "Total Gross Weight", icon: Weight, unit: "kg", bgColorClass: "bg-blue-100", textColorClass: "text-blue-600" },
+  // totalCarriers: { title: "Active Carriers", icon: Truck, bgColorClass: "bg-indigo-100", textColorClass: "text-indigo-600" }, // Example, maybe count from DB
+  lastUpdated: { title: "Last Updated", icon: CalendarDays, unit: "", bgColorClass: "bg-gray-100", textColorClass: "text-gray-600" }, // Placeholder, value is dynamic
 };

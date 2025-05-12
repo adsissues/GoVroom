@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Timestamp } from 'firebase/firestore';
@@ -17,32 +17,55 @@ import type { ShipmentDetail, DropdownItem } from '@/lib/types';
 import { getDropdownOptions } from '@/lib/firebase/dropdownService';
 import { TARE_WEIGHT_DEFAULT, BAG_WEIGHT_MULTIPLIER, SERVICE_FORMAT_MAPPING } from '@/lib/constants';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query'; // For dropdown caching
 
-
-// Validation Schema
+// --- Zod Schema Definition ---
 const detailFormSchema = z.object({
-  numPallets: z.coerce.number().min(0, "Number of pallets cannot be negative").default(1),
-  numBags: z.coerce.number().min(0, "Number of bags cannot be negative").default(0),
+  numPallets: z.coerce.number().min(0, "Pallets cannot be negative").default(1),
+  numBags: z.coerce.number().min(0, "Bags cannot be negative").default(0),
   customerId: z.string().min(1, "Customer is required"),
   serviceId: z.string().min(1, "Service is required"),
-  formatId: z.string().min(1, "Format is required"), // Initially required, may become optional based on service
+  // Format becomes required only if SERVICE_FORMAT_MAPPING has an entry for the selected service
+  formatId: z.string().optional(),
   tareWeight: z.coerce.number().min(0, "Tare weight cannot be negative"),
   grossWeight: z.coerce.number().min(0, "Gross weight cannot be negative"),
   dispatchNumber: z.string().optional(),
   doeId: z.string().optional(),
+}).refine(data => {
+    // If service requires a format, formatId must not be empty
+    const requiresFormat = !!SERVICE_FORMAT_MAPPING[data.serviceId];
+    return !requiresFormat || (requiresFormat && !!data.formatId);
+}, {
+    message: "Format is required for the selected service.",
+    path: ["formatId"], // Point error to formatId field
+}).refine(data => data.grossWeight >= data.tareWeight, { // Gross weight must be >= Tare weight
+    message: "Gross weight cannot be less than tare weight.",
+    path: ["grossWeight"],
 });
 
 type DetailFormValues = z.infer<typeof detailFormSchema>;
 
+// --- Component Props ---
 interface ShipmentDetailFormProps {
-  shipmentId: string;
-  detail?: ShipmentDetail | null; // Pass existing detail for editing
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (data: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated' | 'netWeight'>) => Promise<void>; // Callback after saving
+  shipmentId: string; // Parent shipment ID is always required
+  detail?: ShipmentDetail | null; // Pass existing detail for editing, null/undefined for adding
+  isOpen: boolean; // Control modal visibility from parent
+  onClose: () => void; // Function to call when modal should close
+  onSave: (data: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated'>) => Promise<void>; // Callback after successful save attempt
 }
 
+// --- Fetch Functions for TanStack Query ---
+const fetchCustomers = () => getDropdownOptions('customers');
+const fetchServices = () => getDropdownOptions('services');
+const fetchDoes = () => getDropdownOptions('doe');
+const fetchFormats = (formatCollectionId: string | null) => {
+    if (!formatCollectionId) return Promise.resolve([]); // Return empty if no collection ID
+    return getDropdownOptions(formatCollectionId);
+};
+
+
+// --- Component Implementation ---
 export default function ShipmentDetailForm({
   shipmentId,
   detail,
@@ -51,186 +74,147 @@ export default function ShipmentDetailForm({
   onSave,
 }: ShipmentDetailFormProps) {
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const [dropdownsLoading, setDropdownsLoading] = useState(true);
-  const [customerOptions, setCustomerOptions] = useState<DropdownItem[]>([]);
-  const [serviceOptions, setServiceOptions] = useState<DropdownItem[]>([]);
-  const [formatOptions, setFormatOptions] = useState<DropdownItem[]>([]);
-  const [doeOptions, setDoeOptions] = useState<DropdownItem[]>([]);
-  const [selectedService, setSelectedService] = useState<string>(detail?.serviceId || '');
-  const [showFormat, setShowFormat] = useState(!!detail?.serviceId); // Show format if service is pre-selected
+  const [isSaving, setIsSaving] = useState(false);
+  const [currentServiceId, setCurrentServiceId] = useState<string>(detail?.serviceId ?? '');
 
+  // Determine the format collection based on the currently selected service
+  const formatCollectionId = useMemo(() => SERVICE_FORMAT_MAPPING[currentServiceId] || null, [currentServiceId]);
+  const showFormatDropdown = !!formatCollectionId; // Show format only if there's a mapping
+
+  // --- TanStack Query for Dropdowns ---
+  const { data: customerOptions = [], isLoading: isLoadingCustomers } = useQuery({
+      queryKey: ['customers'], queryFn: fetchCustomers, staleTime: 5 * 60 * 1000, gcTime: 10 * 60 * 1000 });
+  const { data: serviceOptions = [], isLoading: isLoadingServices } = useQuery({
+      queryKey: ['services'], queryFn: fetchServices, staleTime: 5 * 60 * 1000, gcTime: 10 * 60 * 1000 });
+  const { data: doeOptions = [], isLoading: isLoadingDoes } = useQuery({
+      queryKey: ['doe'], queryFn: fetchDoes, staleTime: 5 * 60 * 1000, gcTime: 10 * 60 * 1000 });
+  const { data: formatOptions = [], isLoading: isLoadingFormats } = useQuery({
+      queryKey: ['formats', formatCollectionId], // Include collection ID in key
+      queryFn: () => fetchFormats(formatCollectionId),
+      enabled: !!formatCollectionId && isOpen, // Only fetch if a valid collection ID exists and modal is open
+      staleTime: 5 * 60 * 1000,
+      gcTime: 10 * 60 * 1000,
+  });
+
+  const dropdownsLoading = isLoadingCustomers || isLoadingServices || isLoadingDoes || (showFormatDropdown && isLoadingFormats);
+
+  // --- Form Hook Setup ---
   const formHook = useForm<DetailFormValues>({
     resolver: zodResolver(detailFormSchema),
     defaultValues: {
-      numPallets: detail?.numPallets ?? 1,
-      numBags: detail?.numBags ?? 0,
-      customerId: detail?.customerId ?? '',
-      serviceId: detail?.serviceId ?? '',
-      formatId: detail?.formatId ?? '',
-      tareWeight: detail?.tareWeight ?? TARE_WEIGHT_DEFAULT,
-      grossWeight: detail?.grossWeight ?? 0,
-      dispatchNumber: detail?.dispatchNumber ?? '',
-      doeId: detail?.doeId ?? '',
+        numPallets: 1,
+        numBags: 0,
+        customerId: '',
+        serviceId: '',
+        formatId: '',
+        tareWeight: TARE_WEIGHT_DEFAULT,
+        grossWeight: 0,
+        dispatchNumber: '',
+        doeId: '',
     },
   });
+  const { watch, setValue, reset, getValues, trigger } = formHook;
 
-  const { watch, setValue, reset } = formHook;
+  // Watch relevant fields for dynamic calculations/updates
   const numBags = watch('numBags');
-  const numPallets = watch('numPallets');
-  const currentServiceId = watch('serviceId');
+  const numPallets = watch('numPallets'); // Watch pallets to potentially hide bags
+  const watchedServiceId = watch('serviceId');
 
-  // Fetch dropdown options
+
+  // --- Effects ---
+
+  // Effect to reset form when modal opens/closes or detail data changes
   useEffect(() => {
-    const fetchOptions = async () => {
-      setDropdownsLoading(true);
-      try {
-        const [customers, services, does] = await Promise.all([
-          getDropdownOptions('customers'),
-          getDropdownOptions('services'),
-          getDropdownOptions('doe'),
-        ]);
-        setCustomerOptions(customers);
-        setServiceOptions(services);
-        setDoeOptions(does);
-
-        // Pre-select service if editing
-        if (detail?.serviceId) {
-           setSelectedService(detail.serviceId);
-           setShowFormat(true); // Assume format is needed if service exists
-        }
-
-      } catch (error) {
-        console.error("Error fetching dropdown options:", error);
-        toast({ variant: "destructive", title: "Error", description: "Could not load dropdown options." });
-      } finally {
-        setDropdownsLoading(false);
-      }
-    };
-    if (isOpen) { // Only fetch when the dialog opens
-        fetchOptions();
-    }
-  }, [isOpen, detail, toast]);
-
-
-   // Fetch format options based on selected service
-   useEffect(() => {
-    const fetchFormatOptions = async () => {
-      if (!currentServiceId) {
-        setFormatOptions([]);
-        setShowFormat(false);
-        setValue('formatId', ''); // Reset format if service is cleared
-        return;
-      }
-
-      const formatCollectionId = SERVICE_FORMAT_MAPPING[currentServiceId];
-      if (!formatCollectionId) {
-        console.warn(`No format mapping found for service: ${currentServiceId}`);
-        setFormatOptions([]);
-        setShowFormat(false); // Hide format if no mapping exists
-        setValue('formatId', ''); // Reset format
-        return;
-      }
-
-      setShowFormat(true); // Show format dropdown
-      try {
-        const formats = await getDropdownOptions(formatCollectionId);
-        setFormatOptions(formats);
-        // If editing and the original formatId doesn't exist in new options, reset it.
-         if (detail && detail.serviceId === currentServiceId && !formats.some(f => f.value === detail.formatId)) {
-            setValue('formatId', '');
-         } else if (detail && detail.serviceId !== currentServiceId) {
-             setValue('formatId', ''); // Reset if service changed
-         }
-
-      } catch (error) {
-        console.error(`Error fetching formats from ${formatCollectionId}:`, error);
-        toast({ variant: "destructive", title: "Error", description: "Could not load format options." });
-        setFormatOptions([]);
-      }
-    };
-
-     fetchFormatOptions();
-  }, [currentServiceId, detail, setValue, toast]);
-
-
-  // Auto-calculate Tare Weight
-  useEffect(() => {
-    if (numBags > 0) {
-      const calculatedTare = parseFloat((numBags * BAG_WEIGHT_MULTIPLIER).toFixed(3)); // Keep precision
-      setValue('tareWeight', calculatedTare, { shouldValidate: true });
+    if (isOpen) {
+      console.log("ShipmentDetailForm: Resetting form for detail:", detail?.id ?? 'New');
+      reset({
+        numPallets: detail?.numPallets ?? 1,
+        numBags: detail?.numBags ?? 0,
+        customerId: detail?.customerId ?? '',
+        serviceId: detail?.serviceId ?? '',
+        formatId: detail?.formatId ?? '',
+        tareWeight: detail?.tareWeight ?? TARE_WEIGHT_DEFAULT,
+        grossWeight: detail?.grossWeight ?? 0,
+        dispatchNumber: detail?.dispatchNumber ?? '',
+        doeId: detail?.doeId ?? '',
+      });
+      setCurrentServiceId(detail?.serviceId ?? ''); // Sync local service ID state
     } else {
-      // Reset to default only if user hasn't manually changed it from the initial default
-       const currentTare = formHook.getValues('tareWeight');
-       if (currentTare === parseFloat((0 * BAG_WEIGHT_MULTIPLIER).toFixed(3))) { // Check if it was auto-calculated based on 0 bags before
-           setValue('tareWeight', TARE_WEIGHT_DEFAULT, { shouldValidate: true });
-       } else if (detail && currentTare === parseFloat((detail.numBags * BAG_WEIGHT_MULTIPLIER).toFixed(3))) {
-           // if editing and tare weight matches calculation for original bags, reset to default
-           setValue('tareWeight', TARE_WEIGHT_DEFAULT, { shouldValidate: true });
-       }
-       // Otherwise, keep the manually entered value even if bags are 0
+       // Optional: Reset fully when closing to clear stale data if needed
+       // reset(); // Resets to defaultValues defined in useForm
+       // setCurrentServiceId('');
     }
-  }, [numBags, setValue, detail, formHook]);
+  }, [isOpen, detail, reset]);
 
 
-   // Reset form when dialog closes or detail changes
-   useEffect(() => {
-     if (isOpen) {
-       reset({
-         numPallets: detail?.numPallets ?? 1,
-         numBags: detail?.numBags ?? 0,
-         customerId: detail?.customerId ?? '',
-         serviceId: detail?.serviceId ?? '',
-         formatId: detail?.formatId ?? '',
-         tareWeight: detail?.tareWeight ?? TARE_WEIGHT_DEFAULT,
-         grossWeight: detail?.grossWeight ?? 0,
-         dispatchNumber: detail?.dispatchNumber ?? '',
-         doeId: detail?.doeId ?? '',
-       });
-       setSelectedService(detail?.serviceId || '');
-       setShowFormat(!!detail?.serviceId);
-     } else {
-        reset(); // Reset to defaults when closed
-        setSelectedService('');
-        setShowFormat(false);
-        setFormatOptions([]); // Clear format options
-     }
-   }, [isOpen, detail, reset]);
+  // Update local service ID state when form value changes
+  useEffect(() => {
+    if (watchedServiceId !== currentServiceId) {
+        setCurrentServiceId(watchedServiceId);
+        // Reset formatId when service changes, as options will change
+        setValue('formatId', '', { shouldValidate: true }); // Reset and validate
+    }
+  }, [watchedServiceId, currentServiceId, setValue]);
 
 
+  // Auto-calculate Tare Weight based on number of bags
+  useEffect(() => {
+      let newTareWeight = TARE_WEIGHT_DEFAULT; // Start with default
+      // Only auto-calculate if bags > 0
+      if (numBags > 0) {
+          newTareWeight = parseFloat((numBags * BAG_WEIGHT_MULTIPLIER).toFixed(3));
+      }
+      // Set the value only if it differs from the current form value
+      if (newTareWeight !== getValues('tareWeight')) {
+          setValue('tareWeight', newTareWeight, { shouldValidate: true });
+          // Re-validate gross weight as tare weight change might affect gross >= tare validation
+          trigger("grossWeight");
+      }
+  }, [numBags, setValue, getValues, trigger]);
+
+
+  // --- Form Submission Handler ---
   const onSubmit = async (data: DetailFormValues) => {
-    setIsLoading(true);
+    setIsSaving(true);
+    console.log("ShipmentDetailForm: Submitting data:", data);
     try {
+       // Prepare data for saving (omit fields not directly part of the DB model if needed)
+       // Net weight calculation is handled by service/firestore helpers
        const saveData: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated' | 'netWeight'> = {
-         ...data,
-         numPallets: Number(data.numPallets),
-         numBags: Number(data.numBags),
-         tareWeight: Number(data.tareWeight),
-         grossWeight: Number(data.grossWeight),
-         // Ensure optional fields that might be empty strings are saved as undefined or null
-         dispatchNumber: data.dispatchNumber || undefined,
-         doeId: data.doeId || undefined,
+         numPallets: data.numPallets,
+         numBags: data.numBags,
+         customerId: data.customerId,
+         serviceId: data.serviceId,
+         formatId: showFormatDropdown ? data.formatId || '' : '', // Save format only if shown, ensure it's string
+         tareWeight: data.tareWeight,
+         grossWeight: data.grossWeight,
+         dispatchNumber: data.dispatchNumber || undefined, // Save as undefined if empty
+         doeId: data.doeId || undefined, // Save as undefined if empty
        };
+       // Call the parent's save function
       await onSave(saveData);
-      toast({ title: detail ? "Detail Updated" : "Detail Added", description: "Shipment detail saved successfully." });
-      onClose(); // Close dialog on success
+      // Toast message is handled by the parent component after successful save
+      // toast({ title: detail ? "Detail Updated" : "Detail Added", description: "Shipment item saved successfully." });
+      onClose(); // Close dialog on successful save
     } catch (error) {
       console.error("Error saving shipment detail:", error);
-      toast({ variant: "destructive", title: "Save Failed", description: error instanceof Error ? error.message : "Could not save detail." });
+      // Toast message is handled by the parent component on error
+      // toast({ variant: "destructive", title: "Save Failed", description: error instanceof Error ? error.message : "Could not save item." });
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
-
+  // --- Render Logic ---
   return (
      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{detail ? 'Edit Shipment Detail' : 'Add Shipment Detail'}</DialogTitle>
+      <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto p-0">
+        <DialogHeader className="p-6 pb-4">
+          <DialogTitle>{detail ? 'Edit Shipment Item' : 'Add Shipment Item'}</DialogTitle>
         </DialogHeader>
-         {dropdownsLoading ? (
+         {dropdownsLoading && isOpen ? ( // Show loading skeleton only when open
              <div className="space-y-4 p-6">
+                 <Skeleton className="h-10 w-full" />
                  <Skeleton className="h-10 w-full" />
                  <Skeleton className="h-10 w-full" />
                  <Skeleton className="h-10 w-full" />
@@ -238,8 +222,11 @@ export default function ShipmentDetailForm({
              </div>
          ) : (
              <Form {...formHook}>
-                 <form onSubmit={formHook.handleSubmit(onSubmit)} className="space-y-6 p-6">
-                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                 {/* Use overflow-y-auto on the form itself if content might exceed modal height */}
+                 <form onSubmit={formHook.handleSubmit(onSubmit)} className="space-y-6 px-6 pb-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+                     {/* Grid for layout */}
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6">
+                        {/* Number of Pallets */}
                         <FormField
                            control={formHook.control}
                            name="numPallets"
@@ -247,35 +234,38 @@ export default function ShipmentDetailForm({
                            <FormItem>
                               <FormLabel>Number of Pallets</FormLabel>
                               <FormControl>
-                                 <Input type="number" min="0" {...field} />
+                                 <Input type="number" min="0" {...field} disabled={isSaving} />
                               </FormControl>
                               <FormMessage />
                            </FormItem>
                            )}
                         />
-                         {/* Conditionally render Number of Bags */}
+                         {/* Number of Bags (Conditional) */}
+                         {/* Conditionally render based on numPallets > 0, but use visibility hidden for layout stability? */}
+                         {/* Or just remove from DOM - simpler here */}
                          {numPallets > 0 && (
                            <FormField
                               control={formHook.control}
                               name="numBags"
                               render={({ field }) => (
                                  <FormItem>
-                                 <FormLabel>Number of Bags</FormLabel>
-                                 <FormControl>
-                                    <Input type="number" min="0" {...field} />
-                                 </FormControl>
-                                 <FormMessage />
+                                    <FormLabel>Number of Bags</FormLabel>
+                                    <FormControl>
+                                       <Input type="number" min="0" {...field} disabled={isSaving} />
+                                    </FormControl>
+                                    <FormMessage />
                                  </FormItem>
                               )}
                            />
                          )}
+                         {/* Customer Dropdown */}
                          <FormField
                             control={formHook.control}
                             name="customerId"
                             render={({ field }) => (
                                 <FormItem>
                                 <FormLabel>Customer</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select onValueChange={field.onChange} value={field.value} disabled={isSaving || isLoadingCustomers}>
                                     <FormControl>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select a customer" />
@@ -293,6 +283,7 @@ export default function ShipmentDetailForm({
                                 </FormItem>
                             )}
                          />
+                         {/* Service Dropdown */}
                          <FormField
                             control={formHook.control}
                             name="serviceId"
@@ -300,11 +291,9 @@ export default function ShipmentDetailForm({
                                 <FormItem>
                                 <FormLabel>Service</FormLabel>
                                 <Select
-                                    onValueChange={(value) => {
-                                        field.onChange(value);
-                                        setSelectedService(value); // Update local state for format fetching
-                                    }}
-                                    defaultValue={field.value}
+                                    onValueChange={field.onChange} // Let react-hook-form handle value change
+                                    value={field.value} // Controlled by react-hook-form
+                                    disabled={isSaving || isLoadingServices}
                                  >
                                     <FormControl>
                                     <SelectTrigger>
@@ -323,22 +312,27 @@ export default function ShipmentDetailForm({
                                 </FormItem>
                             )}
                          />
-                         {/* Conditionally render Format */}
-                         {showFormat && (
+                         {/* Format Dropdown (Conditional) */}
+                         {showFormatDropdown && (
                             <FormField
                                 control={formHook.control}
                                 name="formatId"
                                 render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Format</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value || ""}>
+                                    <Select
+                                        onValueChange={field.onChange}
+                                        value={field.value || ""} // Ensure controlled, default to ""
+                                        disabled={isSaving || isLoadingFormats}
+                                    >
                                     <FormControl>
                                         <SelectTrigger>
                                         <SelectValue placeholder="Select a format" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        {formatOptions.length === 0 && <SelectItem value="loading" disabled>Loading formats...</SelectItem>}
+                                        {isLoadingFormats && <SelectItem value="loading" disabled>Loading...</SelectItem>}
+                                        {!isLoadingFormats && formatOptions.length === 0 && <SelectItem value="no-options" disabled>No formats for this service</SelectItem>}
                                         {formatOptions.map((option) => (
                                         <SelectItem key={option.id} value={option.value}>
                                             {option.label}
@@ -352,6 +346,7 @@ export default function ShipmentDetailForm({
                             />
                           )}
 
+                         {/* Tare Weight */}
                         <FormField
                            control={formHook.control}
                            name="tareWeight"
@@ -359,15 +354,16 @@ export default function ShipmentDetailForm({
                               <FormItem>
                                  <FormLabel>Tare Weight (kg)</FormLabel>
                                  <FormControl>
-                                    {/* Make read-only if auto-calculated? Maybe add tooltip */}
-                                    <Input type="number" step="0.001" {...field} disabled={numBags > 0} title={numBags > 0 ? "Auto-calculated based on number of bags" : ""}/>
+                                    {/* Disable if bags > 0 as it's auto-calculated */}
+                                    <Input type="number" step="0.001" min="0" {...field} disabled={isSaving || numBags > 0} title={numBags > 0 ? "Auto-calculated based on number of bags" : "Enter tare weight"}/>
                                  </FormControl>
-                                 {numBags > 0 && <p className="text-xs text-muted-foreground">Auto-calculated ({numBags} bags * {BAG_WEIGHT_MULTIPLIER} kg/bag)</p>}
+                                 {numBags > 0 && <p className="text-xs text-muted-foreground pt-1">Auto-calculated ({numBags} bags × {BAG_WEIGHT_MULTIPLIER} kg/bag)</p>}
                                  <FormMessage />
                               </FormItem>
                            )}
                         />
 
+                         {/* Gross Weight */}
                         <FormField
                            control={formHook.control}
                            name="grossWeight"
@@ -375,38 +371,41 @@ export default function ShipmentDetailForm({
                            <FormItem>
                               <FormLabel>Gross Weight (kg)</FormLabel>
                               <FormControl>
-                                 <Input type="number" step="0.001" min="0" {...field} />
+                                 <Input type="number" step="0.001" min="0" {...field} disabled={isSaving} />
                               </FormControl>
                               <FormMessage />
                            </FormItem>
                            )}
                         />
+                         {/* Dispatch Number */}
                          <FormField
                            control={formHook.control}
                            name="dispatchNumber"
                            render={({ field }) => (
                            <FormItem>
-                              <FormLabel>Dispatch Number</FormLabel>
+                              <FormLabel>Dispatch Number (Optional)</FormLabel>
                               <FormControl>
-                                 <Input type="text" {...field} />
+                                 <Input type="text" {...field} value={field.value || ''} disabled={isSaving} />
                               </FormControl>
                               <FormMessage />
                            </FormItem>
                            )}
                         />
+                         {/* DOE Dropdown */}
                          <FormField
                            control={formHook.control}
                            name="doeId"
                            render={({ field }) => (
                               <FormItem>
-                                 <FormLabel>DOE</FormLabel>
-                                 <Select onValueChange={field.onChange} defaultValue={field.value || ""}>
+                                 <FormLabel>DOE (Optional)</FormLabel>
+                                 <Select onValueChange={field.onChange} value={field.value || ""} disabled={isSaving || isLoadingDoes}>
                                     <FormControl>
                                        <SelectTrigger>
                                           <SelectValue placeholder="Select DOE" />
                                        </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
+                                       <SelectItem value="">None</SelectItem> {/* Allow clearing */}
                                        {doeOptions.map((option) => (
                                           <SelectItem key={option.id} value={option.value}>
                                              {option.label}
@@ -419,12 +418,18 @@ export default function ShipmentDetailForm({
                            )}
                          />
                      </div>
-                      <DialogFooter>
+                     {/* Form Footer with Actions */}
+                      <DialogFooter className="pt-6 border-t mt-6">
                          <DialogClose asChild>
-                            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+                            <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
                          </DialogClose>
-                         <Button type="submit" disabled={isLoading}>
-                            {isLoading ? (detail ? 'Updating...' : 'Adding...') : (detail ? 'Update Detail' : 'Add Detail')}
+                         <Button type="submit" disabled={isSaving || dropdownsLoading}>
+                            {isSaving ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
+                                </>
+                               ) : (detail ? 'Update Item' : 'Add Item')
+                            }
                          </Button>
                      </DialogFooter>
                  </form>
