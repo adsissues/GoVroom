@@ -14,17 +14,18 @@ import {
   QueryDocumentSnapshot,
   where,
   getCountFromServer,
+  getDoc, // Added for fetching single shipment
 } from 'firebase/firestore';
 import type { Shipment, ShipmentStatus } from '@/lib/types';
+import { countShipmentDetails } from './shipmentDetails'; // Import the counter
 
 // Helper to convert Firestore document snapshot to Shipment type
-// This helper might be used by other parts of the application, so it's kept here.
-// If only DashboardPage uses it and it's defined there, this can be removed.
-// For now, assuming it might be used elsewhere.
-const fromFirestoreToShipment = (docSnap: QueryDocumentSnapshot<DocumentData>): Shipment => {
-  const data = docSnap.data();
+const fromFirestoreToShipment = (docSnap: QueryDocumentSnapshot<DocumentData> | DocumentData): Shipment => {
+  const data = typeof docSnap.data === 'function' ? docSnap.data() : docSnap; // Handle both snapshot and direct data
+  const id = typeof (docSnap as QueryDocumentSnapshot<DocumentData>).id === 'string' ? (docSnap as QueryDocumentSnapshot<DocumentData>).id : '';
+  
   return {
-    id: docSnap.id,
+    id: id,
     carrier: data.carrier,
     subcarrier: data.subcarrier,
     driverName: data.driverName,
@@ -38,9 +39,19 @@ const fromFirestoreToShipment = (docSnap: QueryDocumentSnapshot<DocumentData>): 
     consigneeAddress: data.consigneeAddress,
     totalWeight: data.totalWeight,
     lastUpdated: (data.lastUpdated as Timestamp)?.toDate(),
-    // details field is not handled here, assuming it's fetched separately if needed
   };
 };
+
+
+export async function getShipmentFromFirestore(shipmentId: string): Promise<Shipment | null> {
+  const shipmentDocRef = doc(db, 'shipments', shipmentId);
+  const docSnap = await getDoc(shipmentDocRef);
+  if (docSnap.exists()) {
+    return fromFirestoreToShipment(docSnap);
+  }
+  return null;
+}
+
 
 export async function getShipmentsFromFirestore(filters?: Record<string, any>): Promise<Shipment[]> {
   const shipmentsCol = collection(db, 'shipments');
@@ -63,11 +74,11 @@ export async function getShipmentsFromFirestore(filters?: Record<string, any>): 
   }
 
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(fromFirestoreToShipment);
+  return querySnapshot.docs.map(doc => fromFirestoreToShipment(doc as QueryDocumentSnapshot<DocumentData>));
 }
 
 export async function addShipmentToFirestore(
-  shipmentData: Omit<Shipment, 'id' | 'lastUpdated' | 'details' | 'status'> & { status: boolean; departureDate: Date; arrivalDate: Date }
+  shipmentData: Omit<Shipment, 'id' | 'lastUpdated' | 'status'> & { status: boolean; departureDate: Date; arrivalDate: Date }
 ): Promise<string> {
   const { status, ...restOfData } = shipmentData;
   const docRef = await addDoc(collection(db, 'shipments'), {
@@ -81,6 +92,11 @@ export async function addShipmentToFirestore(
 }
 
 export async function deleteShipmentFromFirestore(shipmentId: string): Promise<void> {
+  // Check if the shipment has any details
+  const detailsCount = await countShipmentDetails(shipmentId);
+  if (detailsCount > 0) {
+    throw new Error(`Cannot delete shipment. It has ${detailsCount} associated detail(s). Please delete them first.`);
+  }
   await deleteDoc(doc(db, 'shipments', shipmentId));
 }
 
@@ -131,3 +147,4 @@ export async function getShipmentStats() {
         lastUpdated,
     };
 }
+

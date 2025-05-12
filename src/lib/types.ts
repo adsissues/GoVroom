@@ -16,22 +16,31 @@ export interface Shipment {
   consigneeAddress?: string;
   totalWeight?: number; // Calculated or entered
   lastUpdated: Date;
-  details?: ShipmentDetail[]; // Optional: if details are part of main shipment doc
+  // details are now fetched separately
 }
 
 export interface ShipmentDetail {
-  id: string;
-  shipmentId: string;
+  id: string; // Firestore document ID
+  shipmentId: string; // Parent shipment ID
   numberOfPallets: number;
   numberOfBags?: number; // Shown if Pallets > 0
-  customer: string;
-  service: string;
-  format?: string; // Filtered by Service
-  tareWeight: number; // Default or auto-calculated
+  customer: string; // Customer ID/value from dropdown
+  service: string; // Service ID/value from dropdown
+  format?: string; // Format ID/value from dropdown, dynamically loaded based on service
+  tareWeight: number;
   grossWeight: number;
   dispatchNumber?: string;
-  doe?: string; // Dropdown from Firestore
+  doe?: string; // DOE ID/value from dropdown
+  // Timestamps can be added if needed
+  // createdAt?: Date;
+  // updatedAt?: Date;
 }
+
+// For displaying shipment along with its details
+export interface ShipmentWithDetails extends Shipment {
+  details: ShipmentDetail[];
+}
+
 
 export interface SummaryStat {
   title: string;
@@ -63,3 +72,4 @@ export interface User {
   email: string | null;
   role: UserRole | null; // Role can be null if not set or during loading
 }
+
