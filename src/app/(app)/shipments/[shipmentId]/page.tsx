@@ -57,6 +57,7 @@ export default function ShipmentDetailPage() {
 
   const handleUpdateShipment = async (data: Partial<Shipment>) => {
      if (!shipment) return;
+    setIsLoading(true); // Set loading state during update
     try {
       // Merge existing data with new data, add lastUpdated timestamp
       // Ensure status is updated correctly based on the form's toggle
@@ -72,11 +73,13 @@ export default function ShipmentDetailPage() {
     } catch (err) {
       console.error("Error updating shipment:", err);
       toast({ variant: "destructive", title: "Update Failed", description: err instanceof Error ? err.message : "Could not save shipment changes." });
+    } finally {
+        setIsLoading(false); // Reset loading state
     }
   };
 
 
-  if (isLoading) {
+  if (isLoading && !shipment) { // Show skeleton only on initial load
     return (
       <div className="space-y-6 p-4 md:p-6 lg:p-8">
         <Skeleton className="h-8 w-32" />
