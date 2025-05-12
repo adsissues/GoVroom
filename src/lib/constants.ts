@@ -2,18 +2,20 @@
 import type { SelectOption } from './types';
 import { 
   Truck, 
-  Gauge, 
+  LayoutDashboard, // Changed from Gauge to LayoutDashboard for better semantics
   PackagePlus, 
   Settings, 
-  ListPlus, 
+  ListChecks as ListChecksIcon, // Renamed to avoid conflict
   Users, 
   CalendarClock,
-  AlertTriangle, // Added import
-  CheckCircle2,  // Added import
-  Weight         // Added import
+  AlertTriangle,
+  CheckCircle2,
+  Weight,
+  FileText, // For App Settings
 } from 'lucide-react';
 
 export const APP_NAME = "GoVroom";
+export const ASENDIA_CUSTOMER_VALUE = "asendia"; // Define a constant for Asendia customer value, adjust as needed
 
 // For sidebar navigation
 export interface NavItem {
@@ -25,18 +27,25 @@ export interface NavItem {
 }
 
 export const SIDEBAR_NAV_ITEMS: NavItem[] = [
-  { title: 'Dashboard', href: '/dashboard', icon: Gauge },
+  { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { title: 'Shipments', href: '/shipments', icon: Truck },
   { title: 'Add Shipment', href: '/shipments/new', icon: PackagePlus },
-  { title: 'Dropdown Admin', href: '/admin/dropdowns', icon: Settings, adminOnly: true },
-  // { title: 'Customers', href: '/customers', icon: Users },
-  // { title: 'Settings', href: '/settings', icon: Settings },
+  { 
+    title: 'Admin', 
+    href: '/admin', 
+    icon: Settings, 
+    adminOnly: true,
+    children: [
+      { title: 'Dropdowns', href: '/admin/dropdowns', icon: ListChecksIcon, adminOnly: true },
+      { title: 'App Settings', href: '/admin/settings', icon: FileText, adminOnly: true },
+    ]
+  },
 ];
 
 
 // For dashboard summary cards
 // Note: These icons are now directly imported and used here.
-// DashboardPage also imports them for its summaryStatsData array, which is slightly redundant but fine.
+// DashboardPage also imports them for its summaryStatsData array.
 export const DASHBOARD_STATS_MAP = {
   pendingShipments: { title: "Pending Shipments", icon: AlertTriangle, bgColorClass: "bg-amber-100", textColorClass: "text-amber-600" },
   completedShipments: { title: "Completed Shipments", icon: CheckCircle2, bgColorClass: "bg-green-100", textColorClass: "text-green-600" },
@@ -52,9 +61,7 @@ export const BAG_WEIGHT_MULTIPLIER = 0.125;
 
 
 // CARRIERS, SUBCARRIERS, and CUSTOMERS are now fetched from Firestore.
-// See src/lib/firebase/dropdowns.ts and components using them.
 
-// Example services, assuming these might also come from Firestore or be relatively static
 export const SERVICES_OPTIONS: SelectOption[] = [
   { value: 'prior', label: 'Priority Service' },
   { value: 'eco', label: 'Economy Service' },
@@ -69,7 +76,6 @@ export const SERVICE_FORMAT_MAPPING: { [serviceValue: string]: string } = {
   'prior': 'formats_prior',
   'eco': 'formats_eco',
   's3c': 'formats_s3c',
-  // Add other services and their format collections if needed
   // 'standard': 'formats_standard', // example
 };
 
@@ -80,16 +86,15 @@ export interface DropdownCollectionConfig {
 }
 
 export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
-  { id: 'carriers', name: 'Carriers', description: 'Manage carrier options for shipments.' },
-  { id: 'subcarriers', name: 'Subcarriers', description: 'Manage subcarrier options.' },
-  { id: 'customers', name: 'Customers', description: 'Manage customer names and identifiers.' },
-  { id: 'services', name: 'Services', description: 'Manage service types offered.' },
-  { id: 'doe', name: 'DOE Options', description: 'Manage Date Of Entry (or similar) options.' },
-  { id: 'formats', name: 'General Formats', description: 'Manage general format options (if any).' },
-  { id: 'formats_prior', name: 'Formats (Priority)', description: 'Manage format options for Priority service.' },
-  { id: 'formats_eco', name: 'Formats (Economy)', description: 'Manage format options for Economy service.' },
-  { id: 'formats_s3c', name: 'Formats (Special S3C)', description: 'Manage format options for Special S3C service.' },
-  // Add other format collections as specified, e.g., formats_standard
+  { id: 'carriers', name: 'Carriers', description: 'Manage carrier options used in shipment forms.' },
+  { id: 'subcarriers', name: 'Subcarriers', description: 'Manage subcarrier options for logistics.' },
+  { id: 'customers', name: 'Customers', description: 'Manage customer profiles and identifiers.' },
+  { id: 'services', name: 'Services', description: 'Manage the types of services offered.' },
+  { id: 'doe', name: 'DOE Options', description: 'Manage Date Of Entry (or similar reference) options.' },
+  { id: 'formats', name: 'General Formats', description: 'Manage general format options (use if no service-specific formats apply).' },
+  { id: 'formats_prior', name: 'Formats (Priority)', description: 'Manage format options specifically for Priority service.' },
+  { id: 'formats_eco', name: 'Formats (Economy)', description: 'Manage format options specifically for Economy service.' },
+  { id: 'formats_s3c', name: 'Formats (Special S3C)', description: 'Manage format options for Special Service 3C.' },
 ];
 
 export const DROPDOWN_COLLECTION_ICONS: { [key: string]: React.ElementType } = {
@@ -98,14 +103,9 @@ export const DROPDOWN_COLLECTION_ICONS: { [key: string]: React.ElementType } = {
   customers: Users, 
   services: Settings,
   doe: CalendarClock, 
-  formats: ListPlus,
-  formats_prior: ListPlus,
-  formats_eco: ListPlus,
-  formats_s3c: ListPlus,
-  default: ListPlus,
+  formats: ListChecksIcon,
+  formats_prior: ListChecksIcon,
+  formats_eco: ListChecksIcon,
+  formats_s3c: ListChecksIcon,
+  default: ListChecksIcon,
 };
-
-// Icons like AlertTriangle, CheckCircle2, Weight used in DASHBOARD_STATS_MAP
-// are imported in the DashboardPage component where SummaryCard is instantiated.
-// Users, CalendarClock, Gauge etc. if used in THIS file must be imported at the top.
-

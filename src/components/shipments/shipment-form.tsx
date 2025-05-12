@@ -21,10 +21,11 @@ import { DEFAULT_SENDER_ADDRESS, DEFAULT_CONSIGNEE_ADDRESS } from '@/lib/constan
 import AISuggestionSection from './ai-suggestion-section';
 import type { SuggestShipmentDetailsInput } from '@/ai/flows/suggest-shipment-details';
 import { addShipmentToFirestore } from '@/lib/firebase/shipments';
+import { getAppSettingsFromFirestore } from '@/lib/firebase/settings';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { useQuery, useQueryClient } from '@tanstack/react-query'; // Import useQueryClient
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getDropdownOptions } from '@/lib/firebase/dropdowns';
 import type { SelectOption } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -40,8 +41,8 @@ const shipmentFormSchema = z.object({
   sealNumber: z.string().optional(),
   truckRegistration: z.string().optional(),
   trailerRegistration: z.string().optional(),
-  senderAddress: z.string().optional().default(DEFAULT_SENDER_ADDRESS),
-  consigneeAddress: z.string().optional().default(DEFAULT_CONSIGNEE_ADDRESS),
+  senderAddress: z.string().optional(), // Default will be fetched
+  consigneeAddress: z.string().optional(), // Default will be fetched
   totalWeight: z.number().optional(),
 });
 
@@ -54,27 +55,54 @@ export default function ShipmentForm() {
   const { toast } = useToast();
   const router = useRouter();
   const { currentUser } = useAuth();
-  const queryClient = useQueryClient(); // Get query client instance
+  const queryClient = useQueryClient(); 
 
   const isAdmin = currentUser?.role === 'admin';
   
   const formHook = useForm<ShipmentFormData>({
     resolver: zodResolver(shipmentFormSchema),
-    defaultValues: {
-      carrier: '', 
-      subcarrier: '', 
-      driverName: '',
-      departureDate: new Date(),
-      arrivalDate: new Date(new Date().setDate(new Date().getDate() + 1)),
-      status: false,
-      senderAddress: DEFAULT_SENDER_ADDRESS,
-      consigneeAddress: DEFAULT_CONSIGNEE_ADDRESS,
-      sealNumber: '',
-      truckRegistration: '',
-      trailerRegistration: '',
-      totalWeight: 0,
-    },
+    // Default values will be set after fetching app settings
   });
+
+  const { data: appSettings, isLoading: isLoadingAppSettings } = useQuery({
+    queryKey: ['appSettings'],
+    queryFn: getAppSettingsFromFirestore,
+  });
+
+  useEffect(() => {
+    if (appSettings) {
+      formHook.reset({
+        carrier: '', 
+        subcarrier: '', 
+        driverName: '',
+        departureDate: new Date(),
+        arrivalDate: new Date(new Date().setDate(new Date().getDate() + 1)),
+        status: false,
+        senderAddress: appSettings.defaultSenderAddress || DEFAULT_SENDER_ADDRESS,
+        consigneeAddress: appSettings.defaultConsigneeAddress || DEFAULT_CONSIGNEE_ADDRESS,
+        sealNumber: '',
+        truckRegistration: '',
+        trailerRegistration: '',
+        totalWeight: 0,
+      });
+    } else if (!isLoadingAppSettings) { // Not loading and no settings from Firestore
+         formHook.reset({
+            carrier: '', 
+            subcarrier: '', 
+            driverName: '',
+            departureDate: new Date(),
+            arrivalDate: new Date(new Date().setDate(new Date().getDate() + 1)),
+            status: false,
+            senderAddress: DEFAULT_SENDER_ADDRESS, // Fallback
+            consigneeAddress: DEFAULT_CONSIGNEE_ADDRESS, // Fallback
+            sealNumber: '',
+            truckRegistration: '',
+            trailerRegistration: '',
+            totalWeight: 0,
+         });
+    }
+  }, [appSettings, isLoadingAppSettings, formHook]);
+
 
   const { data: carriers, isLoading: isLoadingCarriers, error: carriersError } = useQuery<SelectOption[]>({
     queryKey: ['carriersDropdown'],
@@ -86,7 +114,6 @@ export default function ShipmentForm() {
     queryFn: () => getDropdownOptions('subcarriers'),
   });
 
-  // Watch form fields for dynamic AI suggestions
   const watchedCarrier = formHook.watch('carrier');
   const watchedSubcarrier = formHook.watch('subcarrier');
   const watchedDriverName = formHook.watch('driverName');
@@ -122,7 +149,8 @@ export default function ShipmentForm() {
         ...data,
         departureDate: new Date(data.departureDate),
         arrivalDate: new Date(data.arrivalDate),
-        // status is boolean from form, addShipmentToFirestore converts it
+        senderAddress: data.senderAddress || (appSettings?.defaultSenderAddress || DEFAULT_SENDER_ADDRESS),
+        consigneeAddress: data.consigneeAddress || (appSettings?.defaultConsigneeAddress || DEFAULT_CONSIGNEE_ADDRESS),
       };
       
       const newShipmentId = await addShipmentToFirestore(shipmentDataForFirestore);
@@ -133,13 +161,10 @@ export default function ShipmentForm() {
         variant: "default", 
       });
 
-      // Invalidate queries to ensure data freshness on other pages
       await queryClient.invalidateQueries({ queryKey: ['shipments'] });
-      // Example: if dashboard had a specific query key like ['dashboardSummary'], invalidate it too
-      // await queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboardStats'] }); // If exists
 
-
-      formHook.reset();
+      formHook.reset(); // Reset to initial values including fetched defaults
       setShowAISuggestions(false); 
       setAiInput(null);
       
@@ -155,6 +180,36 @@ export default function ShipmentForm() {
       setIsSubmitting(false);
     }
   };
+  
+  if (isLoadingAppSettings) {
+    return (
+        <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+            </div>
+            <Skeleton className="h-10 w-full" />
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+            </div>
+            {isAdmin && (
+                <div className="space-y-6 border-t border-border pt-6 mt-6">
+                    <Skeleton className="h-6 w-1/3" />
+                    <Skeleton className="h-20 w-full" />
+                    <Skeleton className="h-20 w-full" />
+                </div>
+            )}
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-1/4" />
+            <div className="flex justify-end space-x-3 pt-6">
+                <Skeleton className="h-10 w-24" />
+                <Skeleton className="h-10 w-24" />
+            </div>
+        </div>
+    );
+  }
+
 
   return (
     <Form {...formHook}>
@@ -200,7 +255,7 @@ export default function ShipmentForm() {
                   <FormControl>
                     <SelectTrigger id="subcarrier" className="mt-1">
                       <SelectValue placeholder="Select subcarrier" />
-                    </SelectTrigger>
+                    SelectTrigger>
                   </FormControl>
                   <SelectContent>
                     {isLoadingSubcarriers && <SelectItem value="loading_subcarriers_sentinel" disabled>Loading subcarriers...</SelectItem>}
@@ -249,10 +304,10 @@ export default function ShipmentForm() {
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
                     <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
-                  </PopoverContent>
-                </Popover>
+                  PopoverContent>
+                Popover>
                 <FormMessage />
-              </FormItem>
+              FormItem>
             )}
           />
           <FormField
@@ -271,14 +326,14 @@ export default function ShipmentForm() {
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
                       </Button>
-                    </FormControl>
+                    FormControl>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
                     <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
-                  </PopoverContent>
-                </Popover>
+                  PopoverContent>
+                Popover>
                 <FormMessage />
-              </FormItem>
+              FormItem>
             )}
           />
         </div>
@@ -292,9 +347,9 @@ export default function ShipmentForm() {
                 <Label htmlFor="sealNumber">Seal Number</Label>
                 <FormControl>
                   <Input id="sealNumber" {...field} className="mt-1" placeholder="Optional" />
-                </FormControl>
+                FormControl>
                 <FormMessage />
-              </FormItem>
+              FormItem>
             )}
           />
           <FormField
@@ -305,9 +360,9 @@ export default function ShipmentForm() {
                 <Label htmlFor="truckRegistration">Truck Registration #</Label>
                 <FormControl>
                   <Input id="truckRegistration" {...field} className="mt-1" placeholder="Optional" />
-                </FormControl>
+                FormControl>
                 <FormMessage />
-              </FormItem>
+              FormItem>
             )}
           />
           <FormField
@@ -318,9 +373,9 @@ export default function ShipmentForm() {
                 <Label htmlFor="trailerRegistration">Trailer Registration #</Label>
                 <FormControl>
                   <Input id="trailerRegistration" {...field} className="mt-1" placeholder="Optional" />
-                </FormControl>
+                FormControl>
                 <FormMessage />
-              </FormItem>
+              FormItem>
             )}
           />
         </div>
@@ -328,7 +383,7 @@ export default function ShipmentForm() {
         {isAdmin && (
           <div className="space-y-6 border-t border-border pt-6 mt-6">
               <h3 className="text-lg font-medium text-foreground">
-                  Address Information (Admin)
+                  Address Information (Admin only)
               </h3>
               <FormField
                 control={formHook.control}
@@ -338,9 +393,9 @@ export default function ShipmentForm() {
                     <Label htmlFor="senderAddress">Sender Address</Label>
                     <FormControl>
                       <Textarea id="senderAddress" {...field} className="mt-1 min-h-[80px]" />
-                    </FormControl>
+                    FormControl>
                     <FormMessage />
-                  </FormItem>
+                  FormItem>
                 )}
               />
               <FormField
@@ -351,9 +406,9 @@ export default function ShipmentForm() {
                     <Label htmlFor="consigneeAddress">Consignee Address</Label>
                     <FormControl>
                       <Textarea id="consigneeAddress" {...field} className="mt-1 min-h-[80px]" />
-                    </FormControl>
+                    FormControl>
                     <FormMessage />
-                  </FormItem>
+                  FormItem>
                 )}
               />
           </div>
@@ -367,9 +422,9 @@ export default function ShipmentForm() {
                 <Label htmlFor="totalWeight">Total Weight (kg)</Label>
                 <FormControl>
                   <Input id="totalWeight" type="number" {...field} onChange={event => field.onChange(event.target.value === '' ? undefined : +event.target.value)} className="mt-1" placeholder="Optional, e.g., 1250.5" />
-                </FormControl>
+                FormControl>
                 <FormMessage />
-              </FormItem>
+              FormItem>
             )}
           />
 
@@ -384,11 +439,11 @@ export default function ShipmentForm() {
                   checked={field.value}
                   onCheckedChange={field.onChange}
                 />
-              </FormControl>
+              FormControl>
               <Label htmlFor="status" className="text-base">
                 Mark as Completed (Status: {formHook.watch("status") ? "Completed" : "Pending"})
               </Label>
-            </FormItem>
+            FormItem>
           )}
         />
 
@@ -403,7 +458,7 @@ export default function ShipmentForm() {
         )}
 
         <div className="flex justify-end space-x-3 pt-6">
-          <Button type="button" variant="outline" onClick={() => {formHook.reset(); setShowAISuggestions(false); setAiInput(null); router.back(); }}>
+          <Button type="button" variant="outline" onClick={() => { router.back(); }}>
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>
@@ -414,5 +469,3 @@ export default function ShipmentForm() {
     </Form>
   );
 }
-
-    

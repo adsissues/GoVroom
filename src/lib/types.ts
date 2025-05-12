@@ -73,3 +73,7 @@ export interface User {
   role: UserRole | null; // Role can be null if not set or during loading
 }
 
+export interface AppSettings {
+  defaultSenderAddress: string;
+  defaultConsigneeAddress: string;
+}

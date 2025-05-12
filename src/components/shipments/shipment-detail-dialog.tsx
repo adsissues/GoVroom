@@ -9,32 +9,40 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import ShipmentDetailForm, { type ShipmentDetailFormData } from "./shipment-detail-form";
+import ShipmentDetailForm from "./shipment-detail-form";
 import type { ShipmentDetail } from "@/lib/types";
 import { addShipmentDetailToFirestore, updateShipmentDetailInFirestore } from "@/lib/firebase/shipmentDetails";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+// No longer need useState here as it's controlled by parent
 
 interface ShipmentDetailDialogProps {
   shipmentId: string;
-  detail?: ShipmentDetail; // For editing existing detail
-  children: React.ReactNode; // Trigger element for the dialog
-  onSuccess: () => void; // Callback to refresh data after successful operation
+  detail?: ShipmentDetail; 
+  children: React.ReactNode; 
+  onSuccess: () => void; 
+  isOpen: boolean; // Added prop to control dialog open state
+  onOpenChange: (isOpen: boolean) => void; // Added prop to handle open state changes
 }
 
-export default function ShipmentDetailDialog({ shipmentId, detail, children, onSuccess }: ShipmentDetailDialogProps) {
+export default function ShipmentDetailDialog({ 
+  shipmentId, 
+  detail, 
+  children, 
+  onSuccess,
+  isOpen, 
+  onOpenChange 
+}: ShipmentDetailDialogProps) {
   const { toast } = useToast();
-  const [isOpen, setIsOpen] = useState(false);
 
-  const handleFormSubmit = async (formData: ShipmentDetail) => { // formData is already ShipmentDetail type from form
+  const handleFormSubmit = async (formData: ShipmentDetail) => { 
     try {
-      if (detail?.id) { // Editing existing detail
+      if (detail?.id) { 
         await updateShipmentDetailInFirestore(shipmentId, detail.id, formData);
-      } else { // Adding new detail
+      } else { 
         await addShipmentDetailToFirestore(shipmentId, formData);
       }
-      onSuccess(); // Refresh parent data
-      setIsOpen(false); // Close dialog
+      onSuccess(); 
+      onOpenChange(false); // Close dialog using the prop
       // Toast is handled within ShipmentDetailForm now
     } catch (error) {
       console.error("Error in dialog submission:", error);
@@ -47,22 +55,22 @@ export default function ShipmentDetailDialog({ shipmentId, detail, children, onS
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{detail ? "Edit Shipment Detail" : "Add New Shipment Detail"}</DialogTitle>
           <DialogDescription>
             {detail ? "Update the information for this shipment detail." : "Fill in the form below to add a new detail to this shipment."}
-          </DialogDescription>
-        </DialogHeader>
-        <ShipmentDetailForm
+          DialogDescription>
+        DialogHeader>
+        ShipmentDetailForm
           shipmentId={shipmentId}
           initialData={detail}
           onSubmitSuccess={handleFormSubmit}
-          onCancel={() => setIsOpen(false)}
+          onCancel={() => onOpenChange(false)} // Close dialog using the prop
         />
-      </DialogContent>
-    </Dialog>
+      DialogContent>
+    Dialog>
   );
 }
