@@ -147,13 +147,17 @@ export default function ShipmentForm() {
     try {
       const shipmentDataForFirestore = {
         ...data,
-        departureDate: new Date(data.departureDate),
-        arrivalDate: new Date(data.arrivalDate),
+        departureDate: new Date(data.departureDate), 
+        arrivalDate: new Date(data.arrivalDate),   
+        status: data.status, 
         senderAddress: data.senderAddress || (appSettings?.defaultSenderAddress || DEFAULT_SENDER_ADDRESS),
         consigneeAddress: data.consigneeAddress || (appSettings?.defaultConsigneeAddress || DEFAULT_CONSIGNEE_ADDRESS),
       };
       
-      const newShipmentId = await addShipmentToFirestore(shipmentDataForFirestore);
+      const newShipmentId = await addShipmentToFirestore({
+        ...shipmentDataForFirestore,
+        status: shipmentDataForFirestore.status, 
+      });
       
       toast({
         title: "Shipment Created",
@@ -162,9 +166,9 @@ export default function ShipmentForm() {
       });
 
       await queryClient.invalidateQueries({ queryKey: ['shipments'] });
-      await queryClient.invalidateQueries({ queryKey: ['dashboardStats'] }); // If exists
+      // await queryClient.invalidateQueries({ queryKey: ['dashboardStats'] }); 
 
-      formHook.reset(); // Reset to initial values including fetched defaults
+      formHook.reset(); 
       setShowAISuggestions(false); 
       setAiInput(null);
       
@@ -210,7 +214,6 @@ export default function ShipmentForm() {
     );
   }
 
-
   return (
     <Form {...formHook}>
       <form onSubmit={formHook.handleSubmit(onSubmit)} className="space-y-8">
@@ -255,7 +258,7 @@ export default function ShipmentForm() {
                   <FormControl>
                     <SelectTrigger id="subcarrier" className="mt-1">
                       <SelectValue placeholder="Select subcarrier" />
-                    SelectTrigger>
+                    </SelectTrigger>
                   </FormControl>
                   <SelectContent>
                     {isLoadingSubcarriers && <SelectItem value="loading_subcarriers_sentinel" disabled>Loading subcarriers...</SelectItem>}
@@ -304,10 +307,10 @@ export default function ShipmentForm() {
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
                     <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
-                  PopoverContent>
-                Popover>
+                  </PopoverContent>
+                </Popover>
                 <FormMessage />
-              FormItem>
+              </FormItem>
             )}
           />
           <FormField
@@ -326,14 +329,14 @@ export default function ShipmentForm() {
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
                       </Button>
-                    FormControl>
+                    </FormControl>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
                     <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
-                  PopoverContent>
-                Popover>
+                  </PopoverContent>
+                </Popover>
                 <FormMessage />
-              FormItem>
+              </FormItem>
             )}
           />
         </div>
@@ -347,9 +350,9 @@ export default function ShipmentForm() {
                 <Label htmlFor="sealNumber">Seal Number</Label>
                 <FormControl>
                   <Input id="sealNumber" {...field} className="mt-1" placeholder="Optional" />
-                FormControl>
+                </FormControl>
                 <FormMessage />
-              FormItem>
+              </FormItem>
             )}
           />
           <FormField
@@ -360,9 +363,9 @@ export default function ShipmentForm() {
                 <Label htmlFor="truckRegistration">Truck Registration #</Label>
                 <FormControl>
                   <Input id="truckRegistration" {...field} className="mt-1" placeholder="Optional" />
-                FormControl>
+                </FormControl>
                 <FormMessage />
-              FormItem>
+              </FormItem>
             )}
           />
           <FormField
@@ -373,9 +376,9 @@ export default function ShipmentForm() {
                 <Label htmlFor="trailerRegistration">Trailer Registration #</Label>
                 <FormControl>
                   <Input id="trailerRegistration" {...field} className="mt-1" placeholder="Optional" />
-                FormControl>
+                </FormControl>
                 <FormMessage />
-              FormItem>
+              </FormItem>
             )}
           />
         </div>
@@ -393,9 +396,9 @@ export default function ShipmentForm() {
                     <Label htmlFor="senderAddress">Sender Address</Label>
                     <FormControl>
                       <Textarea id="senderAddress" {...field} className="mt-1 min-h-[80px]" />
-                    FormControl>
+                    </FormControl>
                     <FormMessage />
-                  FormItem>
+                  </FormItem>
                 )}
               />
               <FormField
@@ -406,9 +409,9 @@ export default function ShipmentForm() {
                     <Label htmlFor="consigneeAddress">Consignee Address</Label>
                     <FormControl>
                       <Textarea id="consigneeAddress" {...field} className="mt-1 min-h-[80px]" />
-                    FormControl>
+                    </FormControl>
                     <FormMessage />
-                  FormItem>
+                  </FormItem>
                 )}
               />
           </div>
@@ -422,9 +425,9 @@ export default function ShipmentForm() {
                 <Label htmlFor="totalWeight">Total Weight (kg)</Label>
                 <FormControl>
                   <Input id="totalWeight" type="number" {...field} onChange={event => field.onChange(event.target.value === '' ? undefined : +event.target.value)} className="mt-1" placeholder="Optional, e.g., 1250.5" />
-                FormControl>
+                </FormControl>
                 <FormMessage />
-              FormItem>
+              </FormItem>
             )}
           />
 
@@ -439,11 +442,11 @@ export default function ShipmentForm() {
                   checked={field.value}
                   onCheckedChange={field.onChange}
                 />
-              FormControl>
+              </FormControl>
               <Label htmlFor="status" className="text-base">
                 Mark as Completed (Status: {formHook.watch("status") ? "Completed" : "Pending"})
               </Label>
-            FormItem>
+            </FormItem>
           )}
         />
 
@@ -469,3 +472,5 @@ export default function ShipmentForm() {
     </Form>
   );
 }
+
+    
