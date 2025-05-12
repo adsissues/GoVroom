@@ -38,19 +38,29 @@ GoVroom aims to provide an efficient way to track and manage shipment logistics,
     *   Obtain your Firebase project configuration credentials.
 
 3.  **CRITICAL: Environment Variables Setup**
-    *   Create a file named `.env.local` in the project root (you can copy `.env` if it exists and rename it, but ensure it has your actual values).
     *   **This step is crucial for the application to connect to your Firebase project.**
-    *   Add your Firebase project configuration details to `.env.local`. You can find these in your Firebase project settings (Project settings > General > Your apps > Web app > SDK setup and configuration > Config).
-    *   **IMPORTANT:** Prefix each key with `NEXT_PUBLIC_`:
+    *   Copy the file named `.env.local.example` in the project root and rename it to `.env.local`.
+    *   Open the newly created `.env.local` file.
+    *   Add your Firebase project configuration details to this file. You can find these in your Firebase project settings:
+        1.  Go to the [Firebase Console](https://console.firebase.google.com/).
+        2.  Select your project.
+        3.  Click on the gear icon (⚙️) next to "Project Overview" and select "Project settings".
+        4.  Under the "General" tab, scroll down to the "Your apps" section.
+        5.  If you haven't added a web app, click the Web icon (</>) and follow the instructions to register your app.
+        6.  For your registered web app, find the "SDK setup and configuration" section and select "Config".
+        7.  You will see a JavaScript object with your Firebase credentials.
+    *   Copy the values from the Firebase console (apiKey, authDomain, projectId, etc.) into your `.env.local` file, matching them to the `NEXT_PUBLIC_FIREBASE_...` variables.
         ```env
-        NEXT_PUBLIC_FIREBASE_API_KEY="YOUR_ACTUAL_API_KEY"
-        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="your-actual-project-id.firebaseapp.com"
-        NEXT_PUBLIC_FIREBASE_PROJECT_ID="your-actual-project-id"
-        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="your-actual-project-id.appspot.com"
-        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="YOUR_ACTUAL_SENDER_ID"
-        NEXT_PUBLIC_FIREBASE_APP_ID="YOUR_ACTUAL_APP_ID"
+        # Example of what your .env.local should look like after filling it:
+        NEXT_PUBLIC_FIREBASE_API_KEY="AIzaSy***************************"
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="your-project-id.firebaseapp.com"
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID="your-project-id"
+        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="your-project-id.appspot.com"
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="123456789012"
+        NEXT_PUBLIC_FIREBASE_APP_ID="1:123456789012:web:abcdef1234567890abcdef"
         ```
-    *   **Replace the placeholder values** (e.g., `"YOUR_ACTUAL_API_KEY"`) with your real credentials. If you see an error about "YOUR_API_KEY" or similar, it means this step was missed or done incorrectly.
+    *   **Replace the placeholder values** (e.g., `"YOUR_ACTUAL_API_KEY"`) in `.env.local.example` with your **real credentials** in your `.env.local` file.
+    *   **IMPORTANT:** Ensure each key in `.env.local` is prefixed with `NEXT_PUBLIC_`. If you see an error about "YOUR_API_KEY" or similar, it means this step was missed or done incorrectly.
 
 4.  **Install Dependencies:**
     ```bash
@@ -101,3 +111,4 @@ GoVroom aims to provide an efficient way to track and manage shipment logistics,
 *   Zod (Validation)
 *   React Hook Form
 *   Lucide Icons
+
