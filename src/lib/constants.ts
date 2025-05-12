@@ -1,6 +1,16 @@
 
 import type { SelectOption } from './types';
-import { Truck, Gauge, PackagePlus, AlertTriangle, CheckCircle2, Weight, Settings, ListPlus, UploadCloud, DownloadCloud } from 'lucide-react';
+import { 
+  Truck, 
+  Gauge, 
+  PackagePlus, 
+  Settings, 
+  ListPlus, 
+  Users, 
+  CalendarClock 
+} from 'lucide-react';
+// Note: AlertTriangle, CheckCircle2, Weight are used in DASHBOARD_STATS_MAP but passed as components
+// to SummaryCard from DashboardPage, so they are imported in DashboardPage.
 
 export const APP_NAME = "GoVroom";
 
@@ -82,9 +92,9 @@ export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
 export const DROPDOWN_COLLECTION_ICONS: { [key: string]: React.ElementType } = {
   carriers: Truck,
   subcarriers: Truck,
-  customers: Users, // Assuming Users icon exists or import it
+  customers: Users, 
   services: Settings,
-  doe: CalendarClock, // Assuming CalendarClock icon exists or import it
+  doe: CalendarClock, 
   formats: ListPlus,
   formats_prior: ListPlus,
   formats_eco: ListPlus,
@@ -92,5 +102,6 @@ export const DROPDOWN_COLLECTION_ICONS: { [key: string]: React.ElementType } = {
   default: ListPlus,
 };
 
-// Import Lucide icons used in DROPDOWN_COLLECTION_ICONS if not already imported
-import { Users, CalendarClock } from 'lucide-react';
+// Icons like AlertTriangle, CheckCircle2, Weight used in DASHBOARD_STATS_MAP
+// are imported in the DashboardPage component where SummaryCard is instantiated.
+// Users, CalendarClock, Gauge etc. if used in THIS file must be imported at the top.
