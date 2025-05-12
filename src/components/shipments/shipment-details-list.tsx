@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -88,15 +87,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
 
     const unsubscribe = onSnapshot(q,
       (snapshot) => {
-        const fetchedDetails: ShipmentDetail[] = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-           // Ensure Timestamps are handled if needed, though Firestore SDK usually does
-           createdAt: doc.data().createdAt instanceof Timestamp ? doc.data().createdAt : Timestamp.now(), // Fallback
-           lastUpdated: doc.data().lastUpdated instanceof Timestamp ? doc.data().lastUpdated : Timestamp.now(),
-           // Make sure calculated fields are present or defaulted
-           netWeight: doc.data().netWeight ?? ((doc.data().grossWeight ?? 0) - (doc.data().tareWeight ?? 0)),
-        } as ShipmentDetail));
+        const fetchedDetails: ShipmentDetail[] = snapshot.docs.map(doc => detailFromFirestore(doc));
         setDetails(fetchedDetails);
         setIsLoading(false);
         setError(null);
@@ -160,10 +151,10 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
      }
      try {
          // Prevent deletion of the last detail? (Re-enabled for consideration)
-         if (details.length === 1) {
-            toast({ variant: "destructive", title: "Deletion Prevented", description: "Cannot delete the last detail item." });
-            return;
-         }
+         // if (details.length === 1) {
+         //    toast({ variant: "destructive", title: "Deletion Prevented", description: "Cannot delete the last detail item." });
+         //    return;
+         // }
 
          await deleteShipmentDetail(shipmentId, detailId);
 
