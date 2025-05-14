@@ -43,7 +43,7 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
   {
     title: 'Shipments',
     href: '/shipments',
-    icon: Truck, // Changed icon
+    icon: Truck,
     children: [
       { title: 'View All', href: '/shipments', icon: List, matchExact: true },
       { title: 'Add New', href: '/shipments/new', icon: PlusCircle, matchExact: true },
@@ -56,12 +56,9 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
     adminOnly: true,
     children: [
       { title: 'Dropdowns', href: '/admin/dropdowns', icon: List, adminOnly: true },
-      { title: 'Settings', href: '/admin/settings', icon: UserCog, adminOnly: true }, // Placeholder for default addresses etc.
-      // { title: 'Audit Logs', href: '/admin/audit-logs', icon: FileText, adminOnly: true }, // Placeholder
-      // { title: 'Users', href: '/admin/users', icon: Users, adminOnly: true }, // Placeholder
+      { title: 'Settings', href: '/admin/settings', icon: UserCog, adminOnly: true },
     ]
   },
-  // { title: 'Notifications', href: '/notifications', icon: Bell }, // Placeholder
 ];
 
 // Constants for Dropdown Management (used in Admin UI and Forms)
@@ -76,19 +73,21 @@ export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
   { id: 'subcarriers', name: 'Subcarriers', description: 'Manage specific sub-carrier services', icon: Truck },
   { id: 'customers', name: 'Customers', description: 'Manage customer accounts', icon: Users },
   { id: 'services', name: 'Services', description: 'Manage shipment service types', icon: Wrench },
-  { id: 'formats_prior', name: 'Formats (Priority)', description: 'Manage formats for Priority service', icon: Boxes },
-  { id: 'formats_eco', name: 'Formats (Economy)', description: 'Manage formats for Economy service', icon: Boxes },
-  { id: 'formats_s3c', name: 'Formats (S3C)', description: 'Manage formats for S3C service', icon: Boxes },
+  { id: 'formats_prior', name: 'Formats (Priority)', description: 'Manage formats for "Priority" service type', icon: Boxes },
+  { id: 'formats_eco', name: 'Formats (Economy)', description: 'Manage formats for "Economy" service type', icon: Boxes },
+  { id: 'formats_s3c', name: 'Formats (S3C)', description: 'Manage formats for "S3C" service type', icon: Boxes },
   { id: 'doe', name: 'DOE', description: 'Manage Date of Entry options', icon: CalendarDays },
-  // Note: '/formats' itself might not be directly managed if sub-formats cover all cases. Add if needed.
+  // Note: A general '/formats' collection is no longer listed as formats are service-specific.
 ];
 
 // Mapping for service-specific format collections
+// Keys should be the 'value' of the service from the 'services' collection
 export const SERVICE_FORMAT_MAPPING: { [serviceValue: string]: string } = {
-  'priority': 'formats_prior',
-  'economy': 'formats_eco',
-  's3c': 'formats_s3c',
+  'priority': 'formats_prior', // Example: if 'priority' is a value in your 'services' dropdown
+  'economy': 'formats_eco',   // Example: if 'economy' is a value in your 'services' dropdown
+  's3c': 'formats_s3c',       // Example: if 's3c' is a value in your 'services' dropdown
   // Add other service values and their corresponding format collection IDs here
+  // e.g., 'express_freight': 'formats_express_freight_options'
 };
 
 // Default addresses (will be part of Admin Settings feature)
@@ -96,18 +95,17 @@ export const DEFAULT_SENDER_ADDRESS = "Asendia UK, Unit 5, The Hub, Solent Busin
 export const DEFAULT_CONSIGNEE_ADDRESS = "La Poste, Avenue de la Poste, 75000 Paris, France";
 
 // Value for Asendia customer (used in Shipment Calculations feature)
-export const ASENDIA_CUSTOMER_VALUE = "asendia";
+export const ASENDIA_CUSTOMER_VALUE = "asendia"; // Ensure this matches a 'value' in your 'customers' collection
 
 
 // Constants for calculations (used in Details Form & Shipment Calculations features)
-export const TARE_WEIGHT_DEFAULT = 25.7;
-export const BAG_WEIGHT_MULTIPLIER = 0.125;
+export const TARE_WEIGHT_DEFAULT = 25.7; // Default tare weight if no bags
+export const BAG_WEIGHT_MULTIPLIER = 0.125; // Weight per bag in kg
 
 // For dashboard summary cards
 export const DASHBOARD_STATS_MAP: { [key: string]: { title: string; icon: React.ElementType; unit?: string; bgColorClass: string; textColorClass: string } } = {
   pendingShipments: { title: "Pending Shipments", icon: AlertTriangle, bgColorClass: "bg-amber-100", textColorClass: "text-amber-600" },
   completedShipments: { title: "Completed Shipments", icon: CheckCircle2, bgColorClass: "bg-green-100", textColorClass: "text-green-600" },
   totalGrossWeight: { title: "Total Gross Weight", icon: Weight, unit: "kg", bgColorClass: "bg-blue-100", textColorClass: "text-blue-600" },
-  // totalCarriers: { title: "Active Carriers", icon: Truck, bgColorClass: "bg-indigo-100", textColorClass: "text-indigo-600" }, // Example, maybe count from DB
-  lastUpdated: { title: "Last Updated", icon: CalendarDays, unit: "", bgColorClass: "bg-gray-100", textColorClass: "text-gray-600" }, // Placeholder, value is dynamic
+  lastUpdated: { title: "Last Updated", icon: CalendarDays, unit: "", bgColorClass: "bg-gray-100", textColorClass: "text-gray-600" },
 };

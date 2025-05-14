@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { getAllShipments, deleteShipment } from '@/lib/firebase/shipmentsService'; // Assuming pagination/filtering logic is added here later
+import { getAllShipments, deleteShipment, getShipmentDetailsCount } from '@/lib/firebase/shipmentsService'; 
 import type { Shipment } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -27,16 +27,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import { Timestamp } from 'firebase/firestore';
-import { format } from 'date-fns'; // Use date-fns for reliable formatting
+import { format } from 'date-fns';
 
 
-// Helper function to format date/time or return 'N/A'
 const formatDate = (timestamp: Timestamp | Date | undefined): string => {
     if (!timestamp) return 'N/A';
     const date = timestamp instanceof Timestamp ? timestamp.toDate() : timestamp;
     try {
-        // Format as date only, adjust format string as needed (e.g., 'PP' for Sep 24, 2023)
-        return format(date, "P"); // Example: 09/24/2023
+        return format(date, "P"); 
     } catch (error) {
         console.error("Error formatting date:", error);
         return 'Invalid Date';
@@ -45,47 +43,41 @@ const formatDate = (timestamp: Timestamp | Date | undefined): string => {
 
 
 export default function ShipmentsPage() {
-  const [allShipments, setAllShipments] = useState<Shipment[]>([]); // Holds all fetched shipments
-  const [filteredShipments, setFilteredShipments] = useState<Shipment[]>([]); // Holds displayed shipments
+  const [allShipments, setAllShipments] = useState<Shipment[]>([]); 
+  const [filteredShipments, setFilteredShipments] = useState<Shipment[]>([]); 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { toast } = useToast();
 
-  // Function to fetch shipments
   const fetchShipments = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      // Replace with a potentially paginated/filtered fetch function later
       const data = await getAllShipments();
       setAllShipments(data);
-      setFilteredShipments(data); // Initially show all
+      setFilteredShipments(data); 
     } catch (err) {
       console.error("Error fetching shipments:", err);
       setError(err instanceof Error ? err.message : "Failed to load shipments.");
-      setAllShipments([]); // Clear data on error
+      setAllShipments([]); 
       setFilteredShipments([]);
     } finally {
       setIsLoading(false);
     }
-  }, []); // Empty dependency array means this useCallback instance is created once
+  }, []); 
 
-  // Fetch shipments on initial mount
   useEffect(() => {
     fetchShipments();
-  }, [fetchShipments]); // Depend on the memoized fetch function
+  }, [fetchShipments]); 
 
-  // Handle filtering logic (client-side for now)
   const handleFilter = useCallback((filters: any) => {
     let result = allShipments;
 
-    // Status Filter
     if (filters.status) {
       result = result.filter(s => s.status === filters.status);
     }
 
-    // Search Term Filter (ID, Carrier ID, Driver Name)
     if (filters.searchTerm) {
       const term = filters.searchTerm.toLowerCase().trim();
       if (term) {
@@ -97,43 +89,46 @@ export default function ShipmentsPage() {
       }
     }
 
-     // Date Range Filter (assuming filters.startDate and filters.endDate are Date objects or null)
      if (filters.startDate) {
          const start = filters.startDate.getTime();
          result = result.filter(s => s.departureDate && s.departureDate.toDate().getTime() >= start);
      }
      if (filters.endDate) {
-         // Set end date to end of day for inclusive range
          const end = new Date(filters.endDate);
          end.setHours(23, 59, 59, 999);
          const endTime = end.getTime();
          result = result.filter(s => s.departureDate && s.departureDate.toDate().getTime() <= endTime);
      }
 
-     // Customer Filter
      if (filters.customerId) {
-         // This requires fetching shipment details, which is inefficient client-side.
-         // Filtering by customer should ideally be done server-side (or requires denormalization).
-         // For now, we'll skip client-side customer filtering.
          console.warn("Client-side filtering by customer is not implemented due to performance concerns.");
      }
 
-     // Carrier Filter
       if (filters.carrierId) {
         result = result.filter(s => s.carrierId === filters.carrierId);
       }
 
     setFilteredShipments(result);
-  }, [allShipments]); // Re-run filter function if allShipments data changes
+  }, [allShipments]); 
 
  const handleDelete = async (id: string) => {
     try {
+      // Check if shipment has details before deleting
+      const detailsCount = await getShipmentDetailsCount(id);
+      if (detailsCount > 0) {
+        toast({
+          variant: "destructive",
+          title: "Deletion Prevented",
+          description: `Shipment ${id} has ${detailsCount} item(s). Please remove all items before deleting the shipment.`,
+        });
+        return;
+      }
+
       await deleteShipment(id);
       toast({ title: "Shipment Deleted", description: `Shipment ${id} removed successfully.` });
-      // Refetch or filter local state to update UI immediately
       const updatedShipments = allShipments.filter(s => s.id !== id);
       setAllShipments(updatedShipments);
-      setFilteredShipments(updatedShipments); // Update filtered list too
+      setFilteredShipments(updatedShipments); 
     } catch (error: any) {
       console.error("Error deleting shipment:", error);
       toast({
@@ -146,7 +141,6 @@ export default function ShipmentsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl md:text-3xl font-bold">Shipments</h1>
         <Link href="/shipments/new">
@@ -156,17 +150,14 @@ export default function ShipmentsPage() {
         </Link>
       </div>
 
-      {/* Main Card */}
       <Card className="shadow-lg rounded-xl border">
         <CardHeader>
           <CardTitle>Manage Shipments</CardTitle>
           <CardDescription>View, filter, and manage all your shipments.</CardDescription>
         </CardHeader>
         <CardContent>
-           {/* Search and Filter Bar */}
            <SearchFilterBar onFilterChange={handleFilter} />
 
-           {/* Loading State */}
            {isLoading && (
                 <div className="space-y-4 mt-6">
                     <Skeleton className="h-12 w-full rounded-md" />
@@ -175,7 +166,6 @@ export default function ShipmentsPage() {
                 </div>
             )}
 
-            {/* Error State */}
             {error && !isLoading && (
                  <Alert variant="destructive" className="mt-6">
                     <AlertTriangle className="h-4 w-4" />
@@ -187,7 +177,6 @@ export default function ShipmentsPage() {
                  </Alert>
              )}
 
-            {/* Table Display */}
             {!isLoading && !error && (
                 <div className="mt-6 overflow-x-auto">
                     <Table>
@@ -217,7 +206,6 @@ export default function ShipmentsPage() {
                                         {shipment.id}
                                     </Link>
                                 </TableCell>
-                                {/* TODO: Fetch carrier label based on carrierId */}
                                 <TableCell>{shipment.carrierId}</TableCell>
                                 <TableCell>{shipment.driverName}</TableCell>
                                 <TableCell>{formatDate(shipment.departureDate)}</TableCell>
@@ -229,15 +217,12 @@ export default function ShipmentsPage() {
                                 </TableCell>
                                 <TableCell className="text-right">
                                 <div className="flex justify-end space-x-1">
-                                    {/* View Details */}
                                     <Link href={`/shipments/${shipment.id}`}>
                                     <Button variant="ghost" size="icon" title="View Details">
                                         <Eye className="h-4 w-4" />
                                         <span className="sr-only">View</span>
                                     </Button>
                                     </Link>
-
-                                    {/* Delete Action */}
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
                                             <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" title="Delete">
@@ -250,7 +235,7 @@ export default function ShipmentsPage() {
                                                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                                 <AlertDialogDescription>
                                                     This action cannot be undone. This will permanently delete the shipment{' '}
-                                                    <strong className="break-all">{shipment.id}</strong> and all its associated details.
+                                                    <strong className="break-all">{shipment.id}</strong> and all its associated details (if any).
                                                 </AlertDialogDescription>
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
@@ -273,10 +258,8 @@ export default function ShipmentsPage() {
                     </Table>
                 </div>
            )}
-          {/* TODO: Add Pagination controls if implementing server-side pagination */}
         </CardContent>
       </Card>
     </div>
   );
 }
-
