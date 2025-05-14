@@ -73,21 +73,27 @@ export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
   { id: 'subcarriers', name: 'Subcarriers', description: 'Manage specific sub-carrier services', icon: Truck },
   { id: 'customers', name: 'Customers', description: 'Manage customer accounts', icon: Users },
   { id: 'services', name: 'Services', description: 'Manage shipment service types', icon: Wrench },
-  { id: 'formats_prior', name: 'Formats (Priority)', description: 'Manage formats for "Priority" service type', icon: Boxes },
-  { id: 'formats_eco', name: 'Formats (Economy)', description: 'Manage formats for "Economy" service type', icon: Boxes },
-  { id: 'formats_s3c', name: 'Formats (S3C)', description: 'Manage formats for "S3C" service type', icon: Boxes },
+  { id: 'formats_prior', name: 'Formats (Priority)', description: 'Manage formats for "Priority" service type (e.g., when service value is "priority")', icon: Boxes },
+  { id: 'formats_eco', name: 'Formats (Economy)', description: 'Manage formats for "Economy" service type (e.g., when service value is "economy")', icon: Boxes },
+  { id: 'formats_s3c', name: 'Formats (S3C)', description: 'Manage formats for "S3C" service type (e.g., when service value is "s3c")', icon: Boxes },
   { id: 'doe', name: 'DOE', description: 'Manage Date of Entry options', icon: CalendarDays },
-  // Note: A general '/formats' collection is no longer listed as formats are service-specific.
 ];
 
-// Mapping for service-specific format collections
-// Keys should be the 'value' of the service from the 'services' collection
+/**
+ * Mapping for service-specific format collections.
+ * IMPORTANT: The keys in this object MUST match the *value* field (converted to lowercase)
+ * from your '/services' Firestore collection.
+ * For example, if a service document in '/services' has { label: "Priority Express", value: "PRIO_EXP" },
+ * then the mapping here should be: 'prio_exp': 'formats_prior_express_collection_name'
+ */
 export const SERVICE_FORMAT_MAPPING: { [serviceValue: string]: string } = {
-  'priority': 'formats_prior', // Example: if 'priority' is a value in your 'services' dropdown
-  'economy': 'formats_eco',   // Example: if 'economy' is a value in your 'services' dropdown
-  's3c': 'formats_s3c',       // Example: if 's3c' is a value in your 'services' dropdown
+  // Ensure these keys (e.g., 'priority') match the 'value' field (lowercase)
+  // of the corresponding documents in your '/services' Firestore collection.
+  'priority': 'formats_prior',
+  'economy': 'formats_eco',
+  's3c': 'formats_s3c',
   // Add other service values and their corresponding format collection IDs here
-  // e.g., 'express_freight': 'formats_express_freight_options'
+  // Example: 'express_freight': 'formats_express_freight_options',
 };
 
 // Default addresses (will be part of Admin Settings feature)
@@ -95,7 +101,8 @@ export const DEFAULT_SENDER_ADDRESS = "Asendia UK, Unit 5, The Hub, Solent Busin
 export const DEFAULT_CONSIGNEE_ADDRESS = "La Poste, Avenue de la Poste, 75000 Paris, France";
 
 // Value for Asendia customer (used in Shipment Calculations feature)
-export const ASENDIA_CUSTOMER_VALUE = "asendia"; // Ensure this matches a 'value' in your 'customers' collection
+// Ensure this value matches a 'value' in your 'customers' Firestore collection.
+export const ASENDIA_CUSTOMER_VALUE = "asendia";
 
 
 // Constants for calculations (used in Details Form & Shipment Calculations features)

@@ -345,8 +345,8 @@ export default function ShipmentDetailForm({
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        {isLoadingFormats && <SelectItem value="loading_formats_placeholder" disabled>Loading formats...</SelectItem>}
-                                        {!isLoadingFormats && validFormatOptions.length === 0 && <SelectItem value="no_formats_placeholder" disabled>No formats for this service</SelectItem>}
+                                        {isLoadingFormats && <SelectItem value="___loading_formats_placeholder___" disabled>Loading formats...</SelectItem>}
+                                        {!isLoadingFormats && validFormatOptions.length === 0 && <SelectItem value="___no_formats_placeholder___" disabled>No formats for this service</SelectItem>}
                                         {validFormatOptions.map((option) => (
                                         <SelectItem key={option.id} value={option.value}>
                                             {option.label}
@@ -461,4 +461,3 @@ export default function ShipmentDetailForm({
     </Dialog>
   );
 }
-
