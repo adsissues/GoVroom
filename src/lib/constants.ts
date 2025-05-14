@@ -73,9 +73,11 @@ export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
   { id: 'subcarriers', name: 'Subcarriers', description: 'Manage specific sub-carrier services', icon: Truck },
   { id: 'customers', name: 'Customers', description: 'Manage customer accounts', icon: Users },
   { id: 'services', name: 'Services', description: 'Manage shipment service types', icon: Wrench },
-  { id: 'formats_prior', name: 'Formats (Priority)', description: 'Manage formats for "Priority" service type (e.g., when service value is "priority")', icon: Boxes },
-  { id: 'formats_eco', name: 'Formats (Economy)', description: 'Manage formats for "Economy" service type (e.g., when service value is "economy")', icon: Boxes },
-  { id: 'formats_s3c', name: 'Formats (S3C)', description: 'Manage formats for "S3C" service type (e.g., when service value is "s3c")', icon: Boxes },
+  // These are the collections that will hold the format options specific to each service.
+  // The 'id' here MUST match the value used in SERVICE_FORMAT_MAPPING below.
+  { id: 'formats_prior', name: 'Formats (Priority)', description: 'Manage formats for "Priority" service', icon: Boxes },
+  { id: 'formats_eco', name: 'Formats (Economy)', description: 'Manage formats for "Economy" service', icon: Boxes },
+  { id: 'formats_s3c', name: 'Formats (S3C)', description: 'Manage formats for "S3C" service', icon: Boxes },
   { id: 'doe', name: 'DOE', description: 'Manage Date of Entry options', icon: CalendarDays },
 ];
 
@@ -83,18 +85,40 @@ export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
  * Mapping for service-specific format collections.
  * IMPORTANT: The keys in this object MUST match the *value* field (converted to lowercase)
  * from your '/services' Firestore collection.
- * For example, if a service document in '/services' has { label: "Priority Express", value: "PRIO_EXP" },
- * then the mapping here should be: 'prio_exp': 'formats_prior_express_collection_name'
+ *
+ * The application code will convert the selected service's value to lowercase before
+ * looking it up in this map.
+ *
+ * Example:
+ * If a service document in your '/services' Firestore collection has:
+ *   { label: "Priority Express Mail", value: "priority_express_mail" }
+ *
+ * Then the mapping here MUST include:
+ *   'priority_express_mail': 'formats_prior'  // or whatever collection stores formats for this service
+ *
+ * If a service document in your '/services' Firestore collection has:
+ *   { label: "Economy Ground", value: "ECONOMY_GROUND_SERVICE" } // Note: Uppercase
+ *
+ * Then the mapping here MUST include:
+ *   'economy_ground_service': 'formats_eco' // Key is lowercase
+ * (The application logic will convert "ECONOMY_GROUND_SERVICE" to "economy_ground_service" before lookup)
  */
-export const SERVICE_FORMAT_MAPPING: { [serviceValue: string]: string } = {
-  // Ensure these keys (e.g., 'priority') match the 'value' field (lowercase)
-  // of the corresponding documents in your '/services' Firestore collection.
-  'priority': 'formats_prior',
-  'economy': 'formats_eco',
-  's3c': 'formats_s3c',
-  // Add other service values and their corresponding format collection IDs here
-  // Example: 'express_freight': 'formats_express_freight_options',
+export const SERVICE_FORMAT_MAPPING: { [serviceValue: string]: string | null } = {
+  // Replace these with your ACTUAL service values (as lowercase strings) from Firestore
+  // and the corresponding format collection ID from MANAGED_DROPDOWN_COLLECTIONS.
+  'priority': 'formats_prior',       // If a service has value "priority" (or "Priority")
+  'priority_service': 'formats_prior', // If a service has value "priority_service"
+  'eco': 'formats_eco',              // If a service has value "eco" (or "Eco")
+  'economy': 'formats_eco',          // If a service has value "economy"
+  's3c': 'formats_s3c',              // If a service has value "s3c" (or "S3C")
+
+  // Add more mappings as needed for ALL your services that have distinct format dropdowns.
+  // If a service does NOT have a specific format dropdown, you can either omit its key
+  // or map it to `null` (the ShipmentDetailForm will not show a format dropdown if the mapping is null or not found).
+  // 'another_service_value': 'formats_another',
+  // 'service_without_formats': null,
 };
+
 
 // Default addresses (will be part of Admin Settings feature)
 export const DEFAULT_SENDER_ADDRESS = "Asendia UK, Unit 5, The Hub, Solent Business Park, Fareham, PO15 7FH";
