@@ -32,7 +32,8 @@ const detailFormSchema = z.object({
   doeId: z.string().optional().default(''), // Default to empty string for optional select
 }).refine(data => {
     // Check if the selected service requires a format by looking it up in SERVICE_FORMAT_MAPPING
-    const requiresFormat = !!SERVICE_FORMAT_MAPPING[data.serviceId];
+    const serviceKey = data.serviceId ? data.serviceId.toLowerCase() : ''; // Normalize to lowercase for lookup
+    const requiresFormat = !!SERVICE_FORMAT_MAPPING[serviceKey];
     // If it requires a format, then formatId must be present and not an empty string
     return !requiresFormat || (requiresFormat && !!data.formatId && data.formatId.trim() !== '');
 }, {
@@ -75,7 +76,8 @@ export default function ShipmentDetailForm({
 
   // Determine the format collection based on the current service ID
   const formatCollectionId = useMemo(() => {
-    return currentServiceId ? SERVICE_FORMAT_MAPPING[currentServiceId] || null : null;
+    const serviceKey = currentServiceId ? currentServiceId.toLowerCase() : ''; // Normalize to lowercase
+    return serviceKey ? SERVICE_FORMAT_MAPPING[serviceKey] || null : null;
   }, [currentServiceId]);
 
   const showFormatDropdown = !!formatCollectionId; // Show format dropdown if a collection ID is determined
@@ -181,13 +183,17 @@ export default function ShipmentDetailForm({
     try {
        // Ensure numBags is 0 if numPallets is 0
        const finalNumBags = data.numPallets === 0 ? 0 : data.numBags;
+       // Ensure formatId is empty if the format dropdown is not shown (i.e., service doesn't require it)
+       const serviceKeyForSubmit = data.serviceId ? data.serviceId.toLowerCase() : '';
+       const finalFormatId = SERVICE_FORMAT_MAPPING[serviceKeyForSubmit] ? (data.formatId || '') : '';
+
 
        const saveData: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated' | 'netWeight'> = {
          numPallets: data.numPallets,
          numBags: finalNumBags,
          customerId: data.customerId,
          serviceId: data.serviceId,
-         formatId: showFormatDropdown ? data.formatId || '' : '', // Ensure formatId is empty if not shown
+         formatId: finalFormatId,
          tareWeight: data.tareWeight,
          grossWeight: data.grossWeight,
          dispatchNumber: data.dispatchNumber || undefined, // Store as undefined if empty
@@ -455,3 +461,4 @@ export default function ShipmentDetailForm({
     </Dialog>
   );
 }
+
