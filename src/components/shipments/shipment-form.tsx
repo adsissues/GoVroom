@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
@@ -5,8 +6,9 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { getDropdownOptions } from '@/lib/firebase/dropdownService';
-import type { Shipment, DropdownItem, ShipmentStatus } from '@/lib/types';
-import { DEFAULT_SENDER_ADDRESS, DEFAULT_CONSIGNEE_ADDRESS } from '@/lib/constants';
+import { getAppSettings } from '@/lib/firebase/settingsService'; // Import settings service
+import type { Shipment, DropdownItem, ShipmentStatus, AppSettings } from '@/lib/types';
+import { DEFAULT_SENDER_ADDRESS as FALLBACK_SENDER_ADDRESS, DEFAULT_CONSIGNEE_ADDRESS as FALLBACK_CONSIGNEE_ADDRESS } from '@/lib/constants'; // Renamed for clarity
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -41,8 +43,8 @@ const shipmentFormSchema = z.object({
   sealNumber: z.string().optional().default(''),
   truckRegistration: z.string().optional().default(''),
   trailerRegistration: z.string().optional().default(''),
-  senderAddress: z.string().optional().default(DEFAULT_SENDER_ADDRESS),
-  consigneeAddress: z.string().optional().default(DEFAULT_CONSIGNEE_ADDRESS),
+  senderAddress: z.string().optional().default(FALLBACK_SENDER_ADDRESS),
+  consigneeAddress: z.string().optional().default(FALLBACK_CONSIGNEE_ADDRESS),
 }).refine(data => data.arrivalDate >= data.departureDate, {
     message: "Arrival date cannot be before departure date.",
     path: ["arrivalDate"],
@@ -61,6 +63,8 @@ interface ShipmentFormProps {
 
 const fetchCarriers = () => getDropdownOptions('carriers');
 const fetchSubcarriers = () => getDropdownOptions('subcarriers');
+const fetchInitialAppSettings = () => getAppSettings();
+
 
 export default function ShipmentForm({
   isAdmin,
@@ -73,6 +77,10 @@ export default function ShipmentForm({
   const { toast } = useToast();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // State for fetched app settings, used for default addresses
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  const [isLoadingAppSettings, setIsLoadingAppSettings] = useState(true);
+
 
   const isEffectivelyEditing = initialData ? isEditingProp ?? false : true;
 
@@ -89,26 +97,35 @@ export default function ShipmentForm({
         gcTime: 10 * 60 * 1000,
     });
 
-  const dropdownsLoading = isLoadingCarriers || isLoadingSubcarriers;
+  // Fetch app settings for default addresses if creating a new shipment
+  useEffect(() => {
+    if (!initialData) { // Only fetch for new shipments
+      setIsLoadingAppSettings(true);
+      fetchInitialAppSettings()
+        .then(settings => {
+          setAppSettings(settings);
+        })
+        .catch(err => {
+          console.error("ShipmentForm: Error fetching app settings for defaults:", err);
+          // appSettings will remain null, fallbacks will be used
+        })
+        .finally(() => setIsLoadingAppSettings(false));
+    } else {
+        setIsLoadingAppSettings(false); // Not a new shipment, no need to load app settings
+    }
+  }, [initialData]);
+
 
   const formHook = useForm<ShipmentFormValues>({
     resolver: zodResolver(shipmentFormSchema),
-    defaultValues: {
-      carrierId: initialData?.carrierId ?? '',
-      subcarrierId: initialData?.subcarrierId ?? '',
-      driverName: initialData?.driverName ?? '',
-      departureDate: initialData?.departureDate?.toDate() ?? new Date(),
-      arrivalDate: initialData?.arrivalDate?.toDate() ?? new Date(Date.now() + 24 * 60 * 60 * 1000),
-      status: initialData?.status ?? 'Pending',
-      sealNumber: initialData?.sealNumber ?? '',
-      truckRegistration: initialData?.truckRegistration ?? '',
-      trailerRegistration: initialData?.trailerRegistration ?? '',
-      senderAddress: initialData?.senderAddress ?? DEFAULT_SENDER_ADDRESS,
-      consigneeAddress: initialData?.consigneeAddress ?? DEFAULT_CONSIGNEE_ADDRESS,
-    },
+    // Default values will be set/reset by the useEffect below
   });
 
    useEffect(() => {
+     // Determine default addresses: prioritize initialData, then fetched appSettings, then constants
+     const senderAddr = initialData?.senderAddress || appSettings?.defaultSenderAddress || FALLBACK_SENDER_ADDRESS;
+     const consigneeAddr = initialData?.consigneeAddress || appSettings?.defaultConsigneeAddress || FALLBACK_CONSIGNEE_ADDRESS;
+
      if (initialData) {
         formHook.reset({
             carrierId: initialData.carrierId ?? '',
@@ -120,18 +137,19 @@ export default function ShipmentForm({
             sealNumber: initialData.sealNumber ?? '',
             truckRegistration: initialData.truckRegistration ?? '',
             trailerRegistration: initialData.trailerRegistration ?? '',
-            senderAddress: initialData.senderAddress ?? DEFAULT_SENDER_ADDRESS,
-            consigneeAddress: initialData.consigneeAddress ?? DEFAULT_CONSIGNEE_ADDRESS,
+            senderAddress: senderAddr, // Use determined senderAddr
+            consigneeAddress: consigneeAddr, // Use determined consigneeAddr
        });
-     } else {
+     } else if (!isLoadingAppSettings) { // For new forms, only reset after app settings are loaded (or failed to load)
         formHook.reset({
             carrierId: '', subcarrierId: '', driverName: '',
             departureDate: new Date(), arrivalDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
             status: 'Pending', sealNumber: '', truckRegistration: '', trailerRegistration: '',
-            senderAddress: DEFAULT_SENDER_ADDRESS, consigneeAddress: DEFAULT_CONSIGNEE_ADDRESS
+            senderAddress: senderAddr, // Use determined senderAddr
+            consigneeAddress: consigneeAddr, // Use determined consigneeAddr
         });
      }
-   }, [initialData, formHook.reset]);
+   }, [initialData, formHook.reset, appSettings, isLoadingAppSettings]);
 
   const handleFormSubmit = async (data: ShipmentFormValues) => {
     setIsSubmitting(true);
@@ -161,6 +179,7 @@ export default function ShipmentForm({
     }
   };
 
+  const dropdownsLoading = isLoadingCarriers || isLoadingSubcarriers || isLoadingAppSettings;
   const formDisabled = !isEffectivelyEditing || isSubmitting || dropdownsLoading || (initialData?.status === 'Completed' && !isAdmin);
 
   return (
@@ -217,7 +236,8 @@ export default function ShipmentForm({
                         </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                        {/* <SelectItem value="">None</SelectItem>  Removed this line */}
+                        {/* Allow clearing selection */}
+                        <SelectItem value="">None</SelectItem>
                         {subcarrierOptions?.map((option) => (
                         <SelectItem key={option.id} value={option.value}>
                             {option.label}
@@ -391,38 +411,33 @@ export default function ShipmentForm({
             )}
           />
 
-           {!isAdmin && <div className="md:col-span-1"></div>}
-
-           {isAdmin && (
-             <>
-              <FormField
-                control={formHook.control}
-                name="senderAddress"
-                render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                    <FormLabel>Sender Address (Admin Edit)</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Enter sender address" {...field} value={field.value || ''} disabled={formDisabled} rows={3} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-               <FormField
-                control={formHook.control}
-                name="consigneeAddress"
-                render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                    <FormLabel>Consignee Address (Admin Edit)</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Enter consignee address" {...field} value={field.value || ''} disabled={formDisabled} rows={3} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-             </>
-           )}
+           {/* Conditional rendering based on isAdmin for address fields */}
+            <FormField
+              control={formHook.control}
+              name="senderAddress"
+              render={({ field }) => (
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Sender Address {isAdmin ? "(Admin Edit)" : ""}</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Enter sender address" {...field} value={field.value || ''} disabled={formDisabled || !isAdmin} rows={3} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={formHook.control}
+              name="consigneeAddress"
+              render={({ field }) => (
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Consignee Address {isAdmin ? "(Admin Edit)" : ""}</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Enter consignee address" {...field} value={field.value || ''} disabled={formDisabled || !isAdmin} rows={3} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
         </div>
 
          {isEffectivelyEditing && (

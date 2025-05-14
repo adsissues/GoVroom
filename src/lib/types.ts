@@ -71,9 +71,9 @@ export interface User {
   lastLogin?: Timestamp; // Optional: track last login
 }
 
-// Placeholder for App Settings document (e.g., in /settings/app)
+// Application Settings document (stored in /app_settings/global)
 export interface AppSettings {
-  id?: string; // Usually a fixed ID like 'global'
+  id?: 'global'; // Fixed ID for the global settings document
   defaultSenderAddress: string;
   defaultConsigneeAddress: string;
   // Add other global settings as needed
