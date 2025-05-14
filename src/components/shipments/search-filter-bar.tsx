@@ -120,7 +120,7 @@ export default function SearchFilterBar({ onFilterChange }: SearchFilterBarProps
                         <SelectValue placeholder="All Statuses" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="">All Statuses</SelectItem>
+                        {/* <SelectItem value="">All Statuses</SelectItem>  Removed this line */}
                         <SelectItem value="Pending">Pending</SelectItem>
                         <SelectItem value="Completed">Completed</SelectItem>
                     </SelectContent>
@@ -136,7 +136,7 @@ export default function SearchFilterBar({ onFilterChange }: SearchFilterBarProps
                       <SelectValue placeholder="All Carriers" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Carriers</SelectItem>
+                      {/* <SelectItem value="">All Carriers</SelectItem> Removed this line */}
                       {carrierOptions?.map((option) => (
                         <SelectItem key={option.id} value={option.value}>
                           {option.label}
