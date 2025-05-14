@@ -12,7 +12,8 @@ import { DEFAULT_SENDER_ADDRESS as FALLBACK_SENDER_ADDRESS, DEFAULT_CONSIGNEE_AD
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label'; // Keep if used directly, FormLabel is preferred within FormField
+import { Label } // Keep if used directly, FormLabel is preferred within FormField
+from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -119,6 +120,19 @@ export default function ShipmentForm({
   const formHook = useForm<ShipmentFormValues>({
     resolver: zodResolver(shipmentFormSchema),
     // Default values will be set/reset by the useEffect below
+    defaultValues: { // Provide initial structure for defaultValues
+        carrierId: '',
+        subcarrierId: '',
+        driverName: '',
+        departureDate: new Date(),
+        arrivalDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        status: 'Pending',
+        sealNumber: '',
+        truckRegistration: '',
+        trailerRegistration: '',
+        senderAddress: FALLBACK_SENDER_ADDRESS,
+        consigneeAddress: FALLBACK_CONSIGNEE_ADDRESS,
+    }
   });
 
    useEffect(() => {
@@ -142,9 +156,15 @@ export default function ShipmentForm({
        });
      } else if (!isLoadingAppSettings) { // For new forms, only reset after app settings are loaded (or failed to load)
         formHook.reset({
-            carrierId: '', subcarrierId: '', driverName: '',
-            departureDate: new Date(), arrivalDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
-            status: 'Pending', sealNumber: '', truckRegistration: '', trailerRegistration: '',
+            carrierId: '',
+            subcarrierId: '',
+            driverName: '',
+            departureDate: new Date(),
+            arrivalDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            status: 'Pending',
+            sealNumber: '',
+            truckRegistration: '',
+            trailerRegistration: '',
             senderAddress: senderAddr, // Use determined senderAddr
             consigneeAddress: consigneeAddr, // Use determined consigneeAddr
         });
@@ -158,7 +178,7 @@ export default function ShipmentForm({
              ...data,
              departureDate: Timestamp.fromDate(data.departureDate),
              arrivalDate: Timestamp.fromDate(data.arrivalDate),
-             subcarrierId: data.subcarrierId || undefined,
+             subcarrierId: data.subcarrierId || undefined, // Ensure empty string becomes undefined
              sealNumber: data.sealNumber || undefined,
              truckRegistration: data.truckRegistration || undefined,
              trailerRegistration: data.trailerRegistration || undefined,
@@ -227,7 +247,7 @@ export default function ShipmentForm({
                  {isLoadingSubcarriers ? <Skeleton className="h-10 w-full" /> :
                     <Select
                         onValueChange={field.onChange}
-                        value={field.value || ""}
+                        value={field.value || ""} // Ensures field.value is never undefined for Select
                         disabled={formDisabled || !!errorSubcarriers}
                     >
                     <FormControl>
@@ -236,8 +256,7 @@ export default function ShipmentForm({
                         </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                        {/* Allow clearing selection */}
-                        <SelectItem value="">None</SelectItem>
+                        {/* Removed <SelectItem value="">None</SelectItem> to fix error */}
                         {subcarrierOptions?.map((option) => (
                         <SelectItem key={option.id} value={option.value}>
                             {option.label}
@@ -411,16 +430,16 @@ export default function ShipmentForm({
             )}
           />
 
-           {/* Conditional rendering based on isAdmin for address fields */}
             <FormField
               control={formHook.control}
               name="senderAddress"
               render={({ field }) => (
                 <FormItem className="md:col-span-2">
-                  <FormLabel>Sender Address {isAdmin ? "(Admin Edit)" : ""}</FormLabel>
+                  <FormLabel>Sender Address {isAdmin ? "" : "(View only)"}</FormLabel>
                   <FormControl>
                     <Textarea placeholder="Enter sender address" {...field} value={field.value || ''} disabled={formDisabled || !isAdmin} rows={3} />
                   </FormControl>
+                   {!isAdmin && <p className="text-xs text-muted-foreground">Default address. Only editable by Admins.</p>}
                   <FormMessage />
                 </FormItem>
               )}
@@ -430,10 +449,11 @@ export default function ShipmentForm({
               name="consigneeAddress"
               render={({ field }) => (
                 <FormItem className="md:col-span-2">
-                  <FormLabel>Consignee Address {isAdmin ? "(Admin Edit)" : ""}</FormLabel>
+                  <FormLabel>Consignee Address {isAdmin ? "" : "(View only)"}</FormLabel>
                   <FormControl>
                     <Textarea placeholder="Enter consignee address" {...field} value={field.value || ''} disabled={formDisabled || !isAdmin} rows={3} />
                   </FormControl>
+                   {!isAdmin && <p className="text-xs text-muted-foreground">Default address. Only editable by Admins.</p>}
                   <FormMessage />
                 </FormItem>
               )}
