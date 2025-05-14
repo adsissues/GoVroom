@@ -97,6 +97,10 @@ export default function ShipmentDetailForm({
       gcTime: 10 * 60 * 1000,
   });
 
+  const validFormatOptions = useMemo(() => {
+    return formatOptions.filter(option => option.value && option.value.trim() !== '');
+  }, [formatOptions]);
+
   const dropdownsLoading = isLoadingCustomers || isLoadingServices || isLoadingDoes || (showFormatDropdown && isLoadingFormats);
 
   const formHook = useForm<DetailFormValues>({
@@ -231,8 +235,8 @@ export default function ShipmentDetailForm({
                               <FormControl>
                                  <Input type="number" min="0" {...field} disabled={isSaving}
                                  onChange={e => {
-                                    field.onChange(e);
                                     const pallets = parseInt(e.target.value, 10);
+                                    field.onChange(isNaN(pallets) ? 0 : pallets); // Ensure a number is passed
                                     if (pallets === 0) {
                                         setValue('numBags', 0, { shouldValidate: true });
                                     }
@@ -251,7 +255,12 @@ export default function ShipmentDetailForm({
                                  <FormItem>
                                     <FormLabel>Number of Bags *</FormLabel>
                                     <FormControl>
-                                       <Input type="number" min="0" {...field} disabled={isSaving} />
+                                       <Input type="number" min="0" {...field} 
+                                        onChange={e => {
+                                            const bags = parseInt(e.target.value, 10);
+                                            field.onChange(isNaN(bags) ? 0 : bags); // Ensure a number is passed
+                                        }}
+                                       disabled={isSaving} />
                                     </FormControl>
                                     <FormMessage />
                                  </FormItem>
@@ -271,7 +280,7 @@ export default function ShipmentDetailForm({
                                     </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                    {customerOptions.map((option) => (
+                                    {customerOptions.filter(opt => opt.value && opt.value.trim() !== '').map((option) => (
                                         <SelectItem key={option.id} value={option.value}>
                                         {option.label}
                                         </SelectItem>
@@ -291,8 +300,6 @@ export default function ShipmentDetailForm({
                                 <Select
                                     onValueChange={(value) => {
                                         field.onChange(value);
-                                        // setCurrentServiceId(value); // Already handled by useEffect watching serviceId
-                                        // setValue('formatId', '', { shouldValidate: true }); // Reset format on service change
                                     }}
                                     value={field.value}
                                     disabled={isSaving || isLoadingServices}
@@ -303,7 +310,7 @@ export default function ShipmentDetailForm({
                                     </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                    {serviceOptions.map((option) => (
+                                    {serviceOptions.filter(opt => opt.value && opt.value.trim() !== '').map((option) => (
                                         <SelectItem key={option.id} value={option.value}>
                                         {option.label}
                                         </SelectItem>
@@ -323,7 +330,7 @@ export default function ShipmentDetailForm({
                                     <FormLabel>Format *</FormLabel>
                                     <Select
                                         onValueChange={field.onChange}
-                                        value={field.value || ""} // Ensure value is not undefined
+                                        value={field.value || ""} 
                                         disabled={isSaving || isLoadingFormats}
                                     >
                                     <FormControl>
@@ -332,9 +339,9 @@ export default function ShipmentDetailForm({
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        {isLoadingFormats && <SelectItem value="loading_formats" disabled>Loading formats...</SelectItem>}
-                                        {!isLoadingFormats && formatOptions.length === 0 && <SelectItem value="no_formats" disabled>No formats for this service</SelectItem>}
-                                        {formatOptions.map((option) => (
+                                        {isLoadingFormats && <SelectItem value="loading_formats_placeholder" disabled>Loading formats...</SelectItem>}
+                                        {!isLoadingFormats && validFormatOptions.length === 0 && <SelectItem value="no_formats_placeholder" disabled>No formats for this service</SelectItem>}
+                                        {validFormatOptions.map((option) => (
                                         <SelectItem key={option.id} value={option.value}>
                                             {option.label}
                                         </SelectItem>
@@ -355,7 +362,11 @@ export default function ShipmentDetailForm({
                                  <FormLabel>Tare Weight (kg) *</FormLabel>
                                  <FormControl>
                                     <Input type="number" step="0.001" min="0" {...field}
-                                           disabled={isSaving || (numPallets > 0 && numBags > 0)} // Disabled if auto-calculated from bags
+                                           onChange={e => {
+                                            const weight = parseFloat(e.target.value);
+                                            field.onChange(isNaN(weight) ? 0 : weight); // Ensure a number is passed
+                                           }}
+                                           disabled={isSaving || (numPallets > 0 && numBags > 0)} 
                                            title={(numPallets > 0 && numBags > 0) ? "Auto-calculated based on number of bags" : "Enter tare weight"}
                                     />
                                  </FormControl>
@@ -374,7 +385,12 @@ export default function ShipmentDetailForm({
                            <FormItem>
                               <FormLabel>Gross Weight (kg) *</FormLabel>
                               <FormControl>
-                                 <Input type="number" step="0.001" min="0" {...field} disabled={isSaving} />
+                                 <Input type="number" step="0.001" min="0" {...field} 
+                                    onChange={e => {
+                                        const weight = parseFloat(e.target.value);
+                                        field.onChange(isNaN(weight) ? 0 : weight); // Ensure a number is passed
+                                    }}
+                                 disabled={isSaving} />
                               </FormControl>
                               <FormMessage />
                            </FormItem>
@@ -406,7 +422,7 @@ export default function ShipmentDetailForm({
                                        </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                       {doeOptions.map((option) => (
+                                       {doeOptions.filter(opt => opt.value && opt.value.trim() !== '').map((option) => (
                                           <SelectItem key={option.id} value={option.value}>
                                              {option.label}
                                           </SelectItem>
