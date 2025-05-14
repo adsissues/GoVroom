@@ -17,7 +17,6 @@ import { DEFAULT_SENDER_ADDRESS, DEFAULT_CONSIGNEE_ADDRESS } from '@/lib/constan
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-
 const settingsFormSchema = z.object({
   defaultSenderAddress: z.string().min(10, "Sender address must be at least 10 characters."),
   defaultConsigneeAddress: z.string().min(10, "Consignee address must be at least 10 characters."),
@@ -34,36 +33,42 @@ export default function AdminSettingsPage() {
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsFormSchema),
     defaultValues: {
-      defaultSenderAddress: '', // Will be populated from Firestore or constants
+      defaultSenderAddress: '',
       defaultConsigneeAddress: '',
     },
   });
 
-  // Fetch current settings on mount
   useEffect(() => {
+    let isMounted = true;
     const fetchSettings = async () => {
       setIsLoading(true);
       setError(null);
       try {
         const settings = await getAppSettings();
-        form.reset({
-          defaultSenderAddress: settings?.defaultSenderAddress || DEFAULT_SENDER_ADDRESS,
-          defaultConsigneeAddress: settings?.defaultConsigneeAddress || DEFAULT_CONSIGNEE_ADDRESS,
-        });
+        if (isMounted) {
+          form.reset({
+            defaultSenderAddress: settings?.defaultSenderAddress || DEFAULT_SENDER_ADDRESS,
+            defaultConsigneeAddress: settings?.defaultConsigneeAddress || DEFAULT_CONSIGNEE_ADDRESS,
+          });
+        }
       } catch (err) {
         console.error("Error fetching settings:", err);
-        setError(err instanceof Error ? err.message : "Failed to load settings.");
-        // Fallback to constants if fetch fails
-        form.reset({
-          defaultSenderAddress: DEFAULT_SENDER_ADDRESS,
-          defaultConsigneeAddress: DEFAULT_CONSIGNEE_ADDRESS,
-        });
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : "Failed to load settings.");
+          form.reset({ // Fallback to constants on error
+            defaultSenderAddress: DEFAULT_SENDER_ADDRESS,
+            defaultConsigneeAddress: DEFAULT_CONSIGNEE_ADDRESS,
+          });
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
     fetchSettings();
-  }, [form.reset]); // form.reset is stable, so this runs once
+    return () => { isMounted = false; };
+  }, [form]); // form is stable, form.reset is also stable
 
   const onSubmit = async (data: SettingsFormValues) => {
     setIsSaving(true);
@@ -76,12 +81,13 @@ export default function AdminSettingsPage() {
       });
     } catch (err) {
       console.error("Error saving settings:", err);
+      const errorMessage = err instanceof Error ? err.message : "Could not save settings.";
       toast({
         variant: "destructive",
         title: "Save Failed",
-        description: err instanceof Error ? err.message : "Could not save settings.",
+        description: errorMessage,
       });
-      setError(err instanceof Error ? err.message : "Could not save settings.");
+      setError(errorMessage);
     } finally {
       setIsSaving(false);
     }
@@ -106,7 +112,7 @@ export default function AdminSettingsPage() {
               <Skeleton className="h-20 w-full" />
               <Skeleton className="h-10 w-24 mt-4" />
             </div>
-          ) : error && !isSaving ? ( // Only show main error if not in saving process error
+          ) : error && !isSaving ? (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Error Loading Settings</AlertTitle>
@@ -154,7 +160,7 @@ export default function AdminSettingsPage() {
                   )}
                 />
                 <div className="flex justify-end">
-                  <Button type="submit" disabled={isSaving || isLoading}>
+                  <Button type="submit" disabled={isSaving || isLoading || !form.formState.isDirty}>
                     {isSaving ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
@@ -166,13 +172,13 @@ export default function AdminSettingsPage() {
                     )}
                   </Button>
                 </div>
-                 {error && isSaving && ( // Show error specific to saving process
-                     <Alert variant="destructive" className="mt-4">
-                         <AlertTriangle className="h-4 w-4" />
-                         <AlertTitle>Save Error</AlertTitle>
-                         <AlertDescription>{error}</AlertDescription>
-                     </Alert>
-                 )}
+                {error && isSaving && (
+                  <Alert variant="destructive" className="mt-4">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Save Error</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
               </form>
             </Form>
           )}

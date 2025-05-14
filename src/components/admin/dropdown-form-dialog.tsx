@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -10,7 +10,6 @@ import { addDropdownItem, updateDropdownItem } from '@/lib/firebase/dropdownServ
 import type { DropdownItem } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
@@ -21,13 +20,12 @@ interface DropdownFormDialogProps {
   onClose: () => void;
   collectionId: string;
   collectionName: string;
-  item?: DropdownItem | null; // Item to edit, null/undefined for adding
+  item?: DropdownItem | null;
 }
 
-// Zod schema for the form
 const formSchema = z.object({
   label: z.string().min(1, "Label cannot be empty."),
-  value: z.string().min(1, "Value cannot be empty.").regex(/^[a-z0-9_.-]+$/i, "Value can only contain letters, numbers, underscores, hyphens, and periods."),
+  value: z.string().min(1, "Value cannot be empty.").regex(/^[a-zA-Z0-9_.-]+$/, "Value can only contain letters, numbers, underscores, hyphens, and periods."),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -45,13 +43,12 @@ export default function DropdownFormDialog({
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      label: '',
-      value: '',
-    },
+    defaultValues: useMemo(() => ({ // Use useMemo for stable defaultValues
+      label: item?.label ?? '',
+      value: item?.value ?? '',
+    }), [item]), // Recalculate only when item changes
   });
 
-  // Reset form when the dialog opens or the item changes
   useEffect(() => {
     if (isOpen) {
       form.reset({
@@ -59,41 +56,37 @@ export default function DropdownFormDialog({
         value: item?.value ?? '',
       });
     }
-  }, [isOpen, item, form.reset]); // form.reset is stable
+  }, [isOpen, item, form]); // form is stable from useForm
 
-
-  // Mutation hook for adding/updating
   const mutation = useMutation({
     mutationFn: async (data: FormValues) => {
       if (isEditing && item) {
-         // Only include fields that changed? For simplicity, update both.
-         const updates: Partial<DropdownItem> = {};
-         if (data.label !== item.label) updates.label = data.label;
-         if (data.value !== item.value) updates.value = data.value;
+        const updates: Partial<DropdownItem> = {};
+        if (data.label !== item.label) updates.label = data.label;
+        if (data.value !== item.value) updates.value = data.value;
 
-         if (Object.keys(updates).length > 0) {
-            await updateDropdownItem(collectionId, item.id, updates);
-         } else {
-            // No changes detected
-            return { noChanges: true };
-         }
+        if (Object.keys(updates).length > 0) {
+          await updateDropdownItem(collectionId, item.id, updates);
+        } else {
+          return { noChanges: true };
+        }
       } else {
         await addDropdownItem(collectionId, data);
       }
-      return {}; // Return empty object for success case without noChanges
+      return {};
     },
     onSuccess: (result) => {
-        if (result?.noChanges) {
-            toast({ title: "No Changes", description: "No changes were made to the item." });
-        } else {
-             toast({
-                 title: isEditing ? "Item Updated" : "Item Added",
-                 description: `Item successfully ${isEditing ? 'updated in' : 'added to'} ${collectionName}.`,
-             });
-        }
+      if (result?.noChanges) {
+        toast({ title: "No Changes", description: "No changes were made to the item." });
+      } else {
+        toast({
+          title: isEditing ? "Item Updated" : "Item Added",
+          description: `Item successfully ${isEditing ? 'updated in' : 'added to'} ${collectionName}.`,
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ['dropdownOptions', collectionId] });
       queryClient.invalidateQueries({ queryKey: ['dropdownMaps'] });
-      queryClient.invalidateQueries({ queryKey: [`${collectionId}FilterList`] }); // Invalidate specific filter list cache
+      queryClient.invalidateQueries({ queryKey: [`${collectionId}FilterList`] });
       onClose();
     },
     onError: (error: Error) => {
@@ -105,13 +98,12 @@ export default function DropdownFormDialog({
     },
   });
 
-
   const onSubmit = (data: FormValues) => {
     mutation.mutate(data);
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle>{isEditing ? `Edit Item in ${collectionName}` : `Add New Item to ${collectionName}`}</DialogTitle>
@@ -141,26 +133,26 @@ export default function DropdownFormDialog({
                 <FormItem>
                   <FormLabel>Value (Internal ID)</FormLabel>
                   <FormControl>
-                    <Input placeholder="E.g., ups_express (no spaces)" {...field} disabled={mutation.isPending} />
+                    <Input placeholder="E.g., ups_express (no spaces)" {...field} disabled={mutation.isPending || isEditing} />
                   </FormControl>
-                   <p className="text-xs text-muted-foreground">Use lowercase letters, numbers, underscores, hyphens, periods.</p>
+                  <p className="text-xs text-muted-foreground">Use letters, numbers, underscores, hyphens, periods. {isEditing && "Value cannot be changed after creation."}</p>
                   <FormMessage />
                 </FormItem>
               )}
             />
-             <DialogFooter>
-                <DialogClose asChild>
-                    <Button type="button" variant="outline" onClick={onClose} disabled={mutation.isPending}>
-                        Cancel
-                    </Button>
-                </DialogClose>
-                <Button type="submit" disabled={mutation.isPending}>
-                    {mutation.isPending ? (
-                        <>
-                           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
-                        </>
-                    ) : (isEditing ? 'Update Item' : 'Add Item')}
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline" onClick={onClose} disabled={mutation.isPending}>
+                  Cancel
                 </Button>
+              </DialogClose>
+              <Button type="submit" disabled={mutation.isPending || (isEditing && Object.keys(form.formState.dirtyFields).length === 0)}>
+                {mutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
+                  </>
+                ) : (isEditing ? 'Update Item' : 'Add Item')}
+              </Button>
             </DialogFooter>
           </form>
         </Form>
@@ -168,4 +160,3 @@ export default function DropdownFormDialog({
     </Dialog>
   );
 }
-

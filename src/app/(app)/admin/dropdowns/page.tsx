@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { MANAGED_DROPDOWN_COLLECTIONS, type DropdownCollectionConfig } from '@/lib/constants';
-import DropdownTable from '@/components/admin/dropdown-table'; // Component to display/manage items
+import DropdownTable from '@/components/admin/dropdown-table';
 import { List } from 'lucide-react';
 
 export default function DropdownAdminPage() {
@@ -46,7 +46,6 @@ export default function DropdownAdminPage() {
             </Select>
           </div>
 
-          {/* Conditionally render the table/management component */}
           {selectedCollection && (
             <div className="mt-6 border-t pt-6">
               <h2 className="text-xl font-semibold mb-4">
@@ -54,6 +53,7 @@ export default function DropdownAdminPage() {
               </h2>
               <p className="text-sm text-muted-foreground mb-4">{selectedCollection.description}</p>
               <DropdownTable
+                key={selectedCollection.id} // Ensure re-mount when collection changes
                 collectionId={selectedCollection.id}
                 collectionName={selectedCollection.name}
               />
