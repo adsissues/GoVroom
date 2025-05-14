@@ -189,7 +189,7 @@ export default function DropdownTable({ collectionId, collectionName }: Dropdown
              )}
          </div>
         <div className="flex gap-2">
-            {/* Placeholder for CSV Actions */}
+            {/* Placeholder for CSV Actions - To be implemented */}
             {/* <Button variant="outline" size="sm"><Download className="mr-2 h-4 w-4" /> Export CSV</Button> */}
             {/* <Button variant="outline" size="sm"><Upload className="mr-2 h-4 w-4" /> Import CSV</Button> */}
             <Button size="sm" onClick={handleAddItem}>
@@ -242,7 +242,7 @@ export default function DropdownTable({ collectionId, collectionName }: Dropdown
               {items.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                    No items found in this list.
+                    No items found in this list. Add items using the button above.
                   </TableCell>
                 </TableRow>
               ) : (

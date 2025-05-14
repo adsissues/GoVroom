@@ -27,7 +27,7 @@ interface DropdownFormDialogProps {
 // Zod schema for the form
 const formSchema = z.object({
   label: z.string().min(1, "Label cannot be empty."),
-  value: z.string().min(1, "Value cannot be empty.").regex(/^[a-z0-9_]+$/i, "Value can only contain letters, numbers, and underscores."), // Basic validation for value
+  value: z.string().min(1, "Value cannot be empty.").regex(/^[a-z0-9_.-]+$/i, "Value can only contain letters, numbers, underscores, hyphens, and periods."),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -59,7 +59,7 @@ export default function DropdownFormDialog({
         value: item?.value ?? '',
       });
     }
-  }, [isOpen, item, form.reset]);
+  }, [isOpen, item, form.reset]); // form.reset is stable
 
 
   // Mutation hook for adding/updating
@@ -91,9 +91,10 @@ export default function DropdownFormDialog({
                  description: `Item successfully ${isEditing ? 'updated in' : 'added to'} ${collectionName}.`,
              });
         }
-      queryClient.invalidateQueries({ queryKey: ['dropdownOptions', collectionId] }); // Invalidate cache to refetch
-      queryClient.invalidateQueries({ queryKey: ['dropdownMaps'] }); // Invalidate maps too
-      onClose(); // Close dialog on success
+      queryClient.invalidateQueries({ queryKey: ['dropdownOptions', collectionId] });
+      queryClient.invalidateQueries({ queryKey: ['dropdownMaps'] });
+      queryClient.invalidateQueries({ queryKey: [`${collectionId}FilterList`] }); // Invalidate specific filter list cache
+      onClose();
     },
     onError: (error: Error) => {
       toast({
@@ -140,9 +141,9 @@ export default function DropdownFormDialog({
                 <FormItem>
                   <FormLabel>Value (Internal ID)</FormLabel>
                   <FormControl>
-                    <Input placeholder="E.g., ups (no spaces/special chars)" {...field} disabled={mutation.isPending} />
+                    <Input placeholder="E.g., ups_express (no spaces)" {...field} disabled={mutation.isPending} />
                   </FormControl>
-                   <p className="text-xs text-muted-foreground">Use lowercase letters, numbers, and underscores only.</p>
+                   <p className="text-xs text-muted-foreground">Use lowercase letters, numbers, underscores, hyphens, periods.</p>
                   <FormMessage />
                 </FormItem>
               )}
@@ -167,3 +168,4 @@ export default function DropdownFormDialog({
     </Dialog>
   );
 }
+
