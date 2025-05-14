@@ -1,12 +1,13 @@
 
 "use client";
-import { Bell, UserCircle, Search, LogOut } from 'lucide-react';
+import { Bell, UserCircle, Search, LogOut, Sun, Moon } from 'lucide-react'; // Added Sun, Moon
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { APP_NAME, SIDEBAR_NAV_ITEMS } from '@/lib/constants';
 import type { NavItem } from '@/lib/constants';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext'; // Import useTheme
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +15,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from '../ui/skeleton'; // For loading state
 
@@ -61,7 +64,8 @@ const getPageTitle = (pathname: string): string => {
 export default function AppHeader() {
   const pathname = usePathname();
   const pageTitle = getPageTitle(pathname);
-  const { currentUser, signOut, loading } = useAuth(); // Get loading state
+  const { currentUser, signOut, loading: authLoading } = useAuth();
+  const { theme, setTheme, resolvedTheme } = useTheme(); // Get theme context
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b bg-card px-4 md:px-6 shadow-sm sticky top-0 z-30">
@@ -74,17 +78,26 @@ export default function AppHeader() {
 
       {/* Right Side Actions */}
       <div className="flex items-center gap-2 md:gap-4">
-        {/* Global Search (Optional - Placeholder) */}
-        {/* <form className="ml-auto flex-1 sm:flex-initial">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search..."
-              className="pl-8 sm:w-[300px] md:w-[200px] lg:w-[300px]"
-            />
-          </div>
-        </form> */}
+        {/* Theme Toggle Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full" aria-label="Toggle theme">
+              <Sun className="h-5 w-5 rotate-0 scale-100 text-muted-foreground transition-all dark:-rotate-90 dark:scale-0" />
+              <Moon className="absolute h-5 w-5 rotate-90 text-muted-foreground scale-0 transition-all dark:rotate-0 dark:scale-100" />
+              <span className="sr-only">Toggle theme</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Appearance</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
+              <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="system">System</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
 
         {/* Notification Bell */}
         <Button variant="ghost" size="icon" className="rounded-full" aria-label="Notifications">
@@ -93,7 +106,7 @@ export default function AppHeader() {
         </Button>
 
         {/* User Profile Dropdown */}
-        {loading ? (
+        {authLoading ? (
              <Skeleton className="h-8 w-8 rounded-full" />
         ) : currentUser ? (
           <DropdownMenu>
@@ -116,10 +129,6 @@ export default function AppHeader() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {/* Add more items like Profile, Settings if needed */}
-              {/* <DropdownMenuItem>Profile</DropdownMenuItem> */}
-              {/* <DropdownMenuItem>Settings</DropdownMenuItem> */}
-              {/* <DropdownMenuSeparator /> */}
               <DropdownMenuItem onClick={signOut} className="cursor-pointer">
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Log out</span>
@@ -127,7 +136,6 @@ export default function AppHeader() {
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-             // Render something if loading is done but user is still null (shouldn't happen in protected layout)
              <UserCircle className="h-6 w-6 text-muted-foreground" />
         )}
       </div>

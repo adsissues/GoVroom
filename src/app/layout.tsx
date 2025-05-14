@@ -8,6 +8,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext'; // Import AuthProvider
+import { ThemeProvider } from '@/contexts/ThemeContext'; // Import ThemeProvider
 
 const inter = Inter({
   subsets: ['latin'],
@@ -42,15 +43,20 @@ export default function RootLayout({
          {/* <link rel="icon" href="/favicon.ico" sizes="any" /> */}
       </head>
       <body className={cn("font-sans antialiased", inter.variable)}>
-        {/* Provide TanStack Query client to the app */}
-        <QueryClientProvider client={queryClient}>
-          {/* Provide Auth context to the app */}
-          <AuthProvider>
-            {children}
-            {/* Toaster for displaying notifications */}
-            <Toaster />
-          </AuthProvider>
-        </QueryClientProvider>
+        <ThemeProvider
+          defaultTheme="system"
+          storageKey="govroom-theme"
+        >
+          {/* Provide TanStack Query client to the app */}
+          <QueryClientProvider client={queryClient}>
+            {/* Provide Auth context to the app */}
+            <AuthProvider>
+              {children}
+              {/* Toaster for displaying notifications */}
+              <Toaster />
+            </AuthProvider>
+          </QueryClientProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
