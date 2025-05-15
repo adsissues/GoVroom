@@ -106,11 +106,11 @@ export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
 export const SERVICE_FORMAT_MAPPING: { [serviceValue: string]: string | null } = {
   // Replace these with your ACTUAL service values (as lowercase strings) from Firestore
   // and the corresponding format collection ID from MANAGED_DROPDOWN_COLLECTIONS.
-  'priority': 'formats_prior',       // If a service has value "priority" (or "Priority")
-  'priority_service': 'formats_prior', // If a service has value "priority_service"
-  'eco': 'formats_eco',              // If a service has value "eco" (or "Eco")
-  'economy': 'formats_eco',          // If a service has value "economy"
-  's3c': 'formats_s3c',              // If a service has value "s3c" (or "S3C")
+  'prior': 'formats_prior',          // Example for a service with value "prior" or "Prior"
+  'priority': 'formats_prior',       // Example for a service with value "priority"
+  'eco': 'formats_eco',              // Example for a service with value "eco" or "Eco"
+  'economy': 'formats_eco',          // Example for a service with value "economy"
+  's3c': 'formats_s3c',              // Example for a service with value "s3c" or "S3C"
 
   // Add more mappings as needed for ALL your services that have distinct format dropdowns.
   // If a service does NOT have a specific format dropdown, you can either omit its key
@@ -140,3 +140,4 @@ export const DASHBOARD_STATS_MAP: { [key: string]: { title: string; icon: React.
   totalGrossWeight: { title: "Total Gross Weight", icon: Weight, unit: "kg", bgColorClass: "bg-blue-100", textColorClass: "text-blue-600" },
   lastUpdated: { title: "Last Updated", icon: CalendarDays, unit: "", bgColorClass: "bg-gray-100", textColorClass: "text-gray-600" },
 };
+
