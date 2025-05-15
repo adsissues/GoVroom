@@ -25,20 +25,22 @@ const detailFormSchema = z.object({
   numBags: z.coerce.number().min(0, "Bags cannot be negative").default(0),
   customerId: z.string().min(1, "Customer is required"),
   serviceId: z.string().min(1, "Service is required"),
-  formatId: z.string().optional(), // Optional at schema level, required conditionally by refine
+  formatId: z.string().optional(),
   tareWeight: z.coerce.number().min(0, "Tare weight cannot be negative"),
   grossWeight: z.coerce.number().min(0, "Gross weight cannot be negative"),
   dispatchNumber: z.string().optional(),
-  doeId: z.string().optional().default(''), // Default to empty string for optional select
+  doeId: z.string().optional().default(''),
 }).refine(data => {
-    // Check if the selected service requires a format by looking it up in SERVICE_FORMAT_MAPPING
-    const serviceKey = data.serviceId ? data.serviceId.toLowerCase() : ''; // Normalize to lowercase for lookup
-    const requiresFormat = !!SERVICE_FORMAT_MAPPING[serviceKey];
-    // If it requires a format, then formatId must be present and not an empty string
-    return !requiresFormat || (requiresFormat && !!data.formatId && data.formatId.trim() !== '');
+    const serviceKey = data.serviceId ? data.serviceId.toLowerCase() : '';
+    const serviceRequiresFormat = SERVICE_FORMAT_MAPPING[serviceKey]; // This will be a string (collectionId) or null/undefined
+
+    if (serviceRequiresFormat) { // If mapping exists and is not null/empty, format is required
+        return data.formatId !== undefined && data.formatId !== null && data.formatId.trim() !== '';
+    }
+    return true; // If no mapping or mapping is null/empty, format is not required
 }, {
     message: "Format is required for the selected service.",
-    path: ["formatId"], // Apply error to formatId field
+    path: ["formatId"],
 }).refine(data => data.grossWeight >= data.tareWeight, {
     message: "Gross weight cannot be less than tare weight.",
     path: ["grossWeight"],
@@ -54,12 +56,11 @@ interface ShipmentDetailFormProps {
   onSave: (data: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated'>) => Promise<void>;
 }
 
-// Fetch functions for TanStack Query
 const fetchCustomers = () => getDropdownOptions('customers');
 const fetchServices = () => getDropdownOptions('services');
 const fetchDoes = () => getDropdownOptions('doe');
 const fetchFormats = (formatCollectionId: string | null) => {
-    if (!formatCollectionId) return Promise.resolve([]); // Return empty if no collection ID
+    if (!formatCollectionId) return Promise.resolve([]);
     return getDropdownOptions(formatCollectionId);
 };
 
@@ -74,15 +75,13 @@ export default function ShipmentDetailForm({
   const [isSaving, setIsSaving] = useState(false);
   const [currentServiceId, setCurrentServiceId] = useState<string>(detail?.serviceId ?? '');
 
-  // Determine the format collection based on the current service ID
   const formatCollectionId = useMemo(() => {
-    const serviceKey = currentServiceId ? currentServiceId.toLowerCase() : ''; // Normalize to lowercase
+    const serviceKey = currentServiceId ? currentServiceId.toLowerCase() : '';
     return serviceKey ? SERVICE_FORMAT_MAPPING[serviceKey] || null : null;
   }, [currentServiceId]);
 
-  const showFormatDropdown = !!formatCollectionId; // Show format dropdown if a collection ID is determined
+  const showFormatDropdown = !!formatCollectionId;
 
-  // Fetch dropdown options using TanStack Query
   const { data: customerOptions = [], isLoading: isLoadingCustomers } = useQuery<DropdownItem[]>({
       queryKey: ['customers'], queryFn: fetchCustomers, staleTime: 5 * 60 * 1000, gcTime: 10 * 60 * 1000 });
   const { data: serviceOptions = [], isLoading: isLoadingServices } = useQuery<DropdownItem[]>({
@@ -90,11 +89,10 @@ export default function ShipmentDetailForm({
   const { data: doeOptions = [], isLoading: isLoadingDoes } = useQuery<DropdownItem[]>({
       queryKey: ['doe'], queryFn: fetchDoes, staleTime: 5 * 60 * 1000, gcTime: 10 * 60 * 1000 });
 
-  // Fetch format options dynamically based on formatCollectionId
   const { data: formatOptions = [], isLoading: isLoadingFormats } = useQuery<DropdownItem[]>({
-      queryKey: ['formats', formatCollectionId], // Key changes when formatCollectionId changes
+      queryKey: ['formats', formatCollectionId],
       queryFn: () => fetchFormats(formatCollectionId),
-      enabled: !!formatCollectionId && isOpen, // Only run query if there's a collection ID and dialog is open
+      enabled: !!formatCollectionId && isOpen,
       staleTime: 5 * 60 * 1000,
       gcTime: 10 * 60 * 1000,
   });
@@ -107,7 +105,7 @@ export default function ShipmentDetailForm({
 
   const formHook = useForm<DetailFormValues>({
     resolver: zodResolver(detailFormSchema),
-    defaultValues: { // Set sensible defaults
+    defaultValues: {
         numPallets: 1,
         numBags: 0,
         customerId: '',
@@ -123,9 +121,8 @@ export default function ShipmentDetailForm({
 
   const numPallets = watch('numPallets');
   const numBags = watch('numBags');
-  const watchedServiceId = watch('serviceId'); // Watch serviceId for changes
+  const watchedServiceId = watch('serviceId');
 
-  // Effect to reset form when dialog opens or detail changes
   useEffect(() => {
     if (isOpen) {
       const initialValues = {
@@ -140,53 +137,45 @@ export default function ShipmentDetailForm({
         doeId: detail?.doeId ?? '',
       };
       reset(initialValues);
-      setCurrentServiceId(initialValues.serviceId); // Sync currentServiceId with form's serviceId
-      // If numPallets is 0, ensure numBags is also 0
+      setCurrentServiceId(initialValues.serviceId);
       if (initialValues.numPallets === 0) {
         setValue('numBags', 0, { shouldValidate: true });
       }
     }
   }, [isOpen, detail, reset, setValue]);
 
-
-  // Effect to handle service change: update currentServiceId and reset formatId
   useEffect(() => {
     if (watchedServiceId !== currentServiceId) {
         setCurrentServiceId(watchedServiceId);
-        setValue('formatId', '', { shouldValidate: true }); // Reset formatId when service changes
+        setValue('formatId', '', { shouldValidate: true });
     }
   }, [watchedServiceId, currentServiceId, setValue]);
 
-  // Effect to auto-calculate tare weight based on number of bags or pallets
   useEffect(() => {
     let newTareWeight;
-    if (numPallets === 0) { // If no pallets, no bags, tare weight should be 0 or a minimal default
-        newTareWeight = 0; // Or some other logic for no pallets
-        if (getValues('numBags') !== 0) { // Ensure numBags is also 0
+    if (numPallets === 0) {
+        newTareWeight = 0;
+        if (getValues('numBags') !== 0) {
             setValue('numBags', 0, { shouldValidate: true });
         }
-    } else if (numBags > 0) { // If bags are specified, calculate based on bags
+    } else if (numBags > 0) {
         newTareWeight = parseFloat((numBags * BAG_WEIGHT_MULTIPLIER).toFixed(3));
-    } else { // If pallets > 0 but no bags specified, use default pallet tare weight
+    } else {
         newTareWeight = TARE_WEIGHT_DEFAULT;
     }
 
     if (newTareWeight !== getValues('tareWeight')) {
         setValue('tareWeight', newTareWeight, { shouldValidate: true });
-        trigger("grossWeight"); // Re-validate grossWeight as tareWeight changed
+        trigger("grossWeight");
     }
   }, [numPallets, numBags, setValue, getValues, trigger]);
-
 
   const onSubmit = async (data: DetailFormValues) => {
     setIsSaving(true);
     try {
-       // Ensure numBags is 0 if numPallets is 0
        const finalNumBags = data.numPallets === 0 ? 0 : data.numBags;
-       // Ensure formatId is empty if the format dropdown is not shown (i.e., service doesn't require it)
        const serviceKeyForSubmit = data.serviceId ? data.serviceId.toLowerCase() : '';
        const finalFormatId = SERVICE_FORMAT_MAPPING[serviceKeyForSubmit] ? (data.formatId || '') : '';
-
 
        const saveData: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated' | 'netWeight'> = {
          numPallets: data.numPallets,
@@ -196,11 +185,11 @@ export default function ShipmentDetailForm({
          formatId: finalFormatId,
          tareWeight: data.tareWeight,
          grossWeight: data.grossWeight,
-         dispatchNumber: data.dispatchNumber || undefined, // Store as undefined if empty
-         doeId: data.doeId || undefined, // Store as undefined if empty
+         dispatchNumber: data.dispatchNumber || undefined,
+         doeId: data.doeId || undefined,
        };
       await onSave(saveData);
-      onClose(); // Close dialog on successful save
+      onClose();
     } catch (error) {
       console.error("Error saving shipment detail:", error);
       toast({
@@ -208,7 +197,6 @@ export default function ShipmentDetailForm({
         title: "Save Failed",
         description: error instanceof Error ? error.message : "Could not save item.",
       });
-      // Optionally, do not close dialog on error: // onClose(); 
     } finally {
       setIsSaving(false);
     }
@@ -242,7 +230,7 @@ export default function ShipmentDetailForm({
                                  <Input type="number" min="0" {...field} disabled={isSaving}
                                  onChange={e => {
                                     const pallets = parseInt(e.target.value, 10);
-                                    field.onChange(isNaN(pallets) ? 0 : pallets); // Ensure a number is passed
+                                    field.onChange(isNaN(pallets) ? 0 : pallets);
                                     if (pallets === 0) {
                                         setValue('numBags', 0, { shouldValidate: true });
                                     }
@@ -253,7 +241,7 @@ export default function ShipmentDetailForm({
                            </FormItem>
                            )}
                         />
-                         {numPallets > 0 && ( // Conditionally render numBags
+                         {numPallets > 0 && (
                            <FormField
                               control={control}
                               name="numBags"
@@ -261,10 +249,10 @@ export default function ShipmentDetailForm({
                                  <FormItem>
                                     <FormLabel>Number of Bags *</FormLabel>
                                     <FormControl>
-                                       <Input type="number" min="0" {...field} 
+                                       <Input type="number" min="0" {...field}
                                         onChange={e => {
                                             const bags = parseInt(e.target.value, 10);
-                                            field.onChange(isNaN(bags) ? 0 : bags); // Ensure a number is passed
+                                            field.onChange(isNaN(bags) ? 0 : bags);
                                         }}
                                        disabled={isSaving} />
                                     </FormControl>
@@ -335,8 +323,9 @@ export default function ShipmentDetailForm({
                                 <FormItem>
                                     <FormLabel>Format *</FormLabel>
                                     <Select
+                                        key={formatCollectionId || 'no-format-collection'} // Add key here
                                         onValueChange={field.onChange}
-                                        value={field.value || ""} 
+                                        value={field.value || ""}
                                         disabled={isSaving || isLoadingFormats}
                                     >
                                     <FormControl>
@@ -370,9 +359,9 @@ export default function ShipmentDetailForm({
                                     <Input type="number" step="0.001" min="0" {...field}
                                            onChange={e => {
                                             const weight = parseFloat(e.target.value);
-                                            field.onChange(isNaN(weight) ? 0 : weight); // Ensure a number is passed
+                                            field.onChange(isNaN(weight) ? 0 : weight);
                                            }}
-                                           disabled={isSaving || (numPallets > 0 && numBags > 0)} 
+                                           disabled={isSaving || (numPallets > 0 && numBags > 0)}
                                            title={(numPallets > 0 && numBags > 0) ? "Auto-calculated based on number of bags" : "Enter tare weight"}
                                     />
                                  </FormControl>
@@ -391,10 +380,10 @@ export default function ShipmentDetailForm({
                            <FormItem>
                               <FormLabel>Gross Weight (kg) *</FormLabel>
                               <FormControl>
-                                 <Input type="number" step="0.001" min="0" {...field} 
+                                 <Input type="number" step="0.001" min="0" {...field}
                                     onChange={e => {
                                         const weight = parseFloat(e.target.value);
-                                        field.onChange(isNaN(weight) ? 0 : weight); // Ensure a number is passed
+                                        field.onChange(isNaN(weight) ? 0 : weight);
                                     }}
                                  disabled={isSaving} />
                               </FormControl>
@@ -461,3 +450,4 @@ export default function ShipmentDetailForm({
     </Dialog>
   );
 }
+
