@@ -4,10 +4,9 @@ import {
   LayoutDashboard,
   Settings,
   PackageSearch, // For App Logo
-  Ship, // Placeholder for Shipments Nav Item
+  Truck, // Placeholder for Shipments Nav Item
   List, // Placeholder for Dropdown Management
   Users, // Placeholder for Customers
-  Truck, // Placeholder for Carriers/Subcarriers
   Wrench, // Placeholder for Services
   Boxes, // Placeholder for Formats
   CalendarDays, // Placeholder for DOE
@@ -91,27 +90,29 @@ export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
  *
  * Example:
  * If a service document in your '/services' Firestore collection has:
- *   { label: "Priority Express Mail", value: "priority_express_mail" }
+ *   { label: "Priority Express Mail", value: "priority_express_mail" } // value field
  *
  * Then the mapping here MUST include:
- *   'priority_express_mail': 'formats_prior'  // or whatever collection stores formats for this service
+ *   'priority_express_mail': 'formats_prior' // key is the lowercase version of the value field
  *
  * If a service document in your '/services' Firestore collection has:
- *   { label: "Economy Ground", value: "ECONOMY_GROUND_SERVICE" } // Note: Uppercase
+ *   { label: "Prior", value: "E" } // As per your screenshot
  *
  * Then the mapping here MUST include:
- *   'economy_ground_service': 'formats_eco' // Key is lowercase
- * (The application logic will convert "ECONOMY_GROUND_SERVICE" to "economy_ground_service" before lookup)
+ *   'e': 'formats_prior' // key is 'e' (lowercase of "E")
  */
-export const SERVICE_FORMAT_MAPPING: { [serviceValue: string]: string | null } = {
-  // Replace these with your ACTUAL service values (as lowercase strings) from Firestore
-  // and the corresponding format collection ID from MANAGED_DROPDOWN_COLLECTIONS.
-  'prior': 'formats_prior',          // Example for a service with value "prior" or "Prior"
-  'priority': 'formats_prior',       // Example for a service with value "priority"
-  'eco': 'formats_eco',              // Example for a service with value "eco" or "Eco"
-  'economy': 'formats_eco',          // Example for a service with value "economy"
-  's3c': 'formats_s3c',              // Example for a service with value "s3c" or "S3C"
+export const SERVICE_FORMAT_MAPPING: { [serviceValueKey: string]: string | null } = {
+  // --- IMPORTANT: Update these keys to match your Firestore /services `value` fields (in lowercase) ---
+  'e': 'formats_prior',              // For service "Prior" which has value: "E" in Firestore
+  'priority': 'formats_prior',       // Keep for flexibility if you change "E" to "priority"
+  'prior': 'formats_prior',          // Keep for flexibility
 
+  'c': 'formats_eco',                // Assuming "Eco" service might have value: "C" (add your actual value)
+  'economy': 'formats_eco',          // Keep for flexibility
+  'eco': 'formats_eco',              // Keep for flexibility
+
+  's': 'formats_s3c',                // Assuming "S3C" service might have value: "S" (add your actual value)
+  's3c': 'formats_s3c',              // Keep for flexibility
   // Add more mappings as needed for ALL your services that have distinct format dropdowns.
   // If a service does NOT have a specific format dropdown, you can either omit its key
   // or map it to `null` (the ShipmentDetailForm will not show a format dropdown if the mapping is null or not found).
@@ -140,4 +141,3 @@ export const DASHBOARD_STATS_MAP: { [key: string]: { title: string; icon: React.
   totalGrossWeight: { title: "Total Gross Weight", icon: Weight, unit: "kg", bgColorClass: "bg-blue-100", textColorClass: "text-blue-600" },
   lastUpdated: { title: "Last Updated", icon: CalendarDays, unit: "", bgColorClass: "bg-gray-100", textColorClass: "text-gray-600" },
 };
-
