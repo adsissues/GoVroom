@@ -1,4 +1,4 @@
-# GoVroom - Shipment Management Application
+npm install # GoVroom - Shipment Management Application
 
 This is a Next.js application built with Firebase for managing shipments, designed for both web and potentially mobile platforms.
 
