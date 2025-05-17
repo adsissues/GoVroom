@@ -7,12 +7,7 @@ import {
   query,
   orderBy,
   onSnapshot,
-  deleteDoc,
-  doc,
   Timestamp,
-  writeBatch,
-  getDoc,
-  where,
   QueryDocumentSnapshot,
   DocumentData,
 } from 'firebase/firestore';
@@ -21,15 +16,14 @@ import {
     addShipmentDetail,
     updateShipmentDetail,
     deleteShipmentDetail,
-    detailFromFirestore, // Use helper for conversion
-    recalculateShipmentTotals // Ensure this is called appropriately
+    detailFromFirestore,
 } from '@/lib/firebase/shipmentsService';
 import type { ShipmentDetail, ShipmentStatus, DropdownItem } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PlusCircle, Edit, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
-import ShipmentDetailForm from './shipment-detail-form'; // Import the form modal
+import ShipmentDetailForm from './shipment-detail-form';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -43,20 +37,18 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from '@/components/ui/skeleton';
-import { getDropdownOptionsMap } from '@/lib/firebase/dropdownService'; // Helper to get maps
+import { getDropdownOptionsMap } from '@/lib/firebase/dropdownService';
 import { SERVICE_FORMAT_MAPPING } from '@/lib/constants';
-import { useQuery } from '@tanstack/react-query'; // For caching dropdown labels
+import { useQuery } from '@tanstack/react-query';
 
 
 interface ShipmentDetailsListProps {
   shipmentId: string;
-  parentStatus: ShipmentStatus; // To disable adding/editing when parent is Completed
+  parentStatus: ShipmentStatus;
 }
 
-// Fetch function for TanStack Query
 const fetchAllDropdownMaps = async () => {
     const allFormatCollections = Object.values(SERVICE_FORMAT_MAPPING).filter(Boolean) as string[];
-    // Ensure no duplicate collection names are passed
     const uniqueCollectionNames = [...new Set(['customers', 'services', 'doe', ...allFormatCollections])];
     return getDropdownOptionsMap(uniqueCollectionNames);
 };
@@ -74,11 +66,10 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
   console.log(`[ShipmentDetailsList DEBUG] Component Render/Re-render. shipmentId: ${shipmentId}, parentStatus: ${parentStatus}, isParentCompleted: ${isParentCompleted}, current details.length: ${details.length}`);
 
 
-   // Fetch Dropdown Labels for Display using TanStack Query
    const { data: dropdownMaps = {}, isLoading: isLoadingLabels, error: errorLabels } = useQuery({
-       queryKey: ['dropdownMaps'], // Unique key for all maps
+       queryKey: ['dropdownMaps'],
        queryFn: fetchAllDropdownMaps,
-       staleTime: 15 * 60 * 1000, // Cache for 15 minutes
+       staleTime: 15 * 60 * 1000,
        gcTime: 30 * 60 * 1000,
    });
 
@@ -94,7 +85,6 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
   }, [errorLabels, toast]);
 
 
-  // Fetch Shipment Details in Real-time
   useEffect(() => {
     if (!shipmentId) {
         setError("Shipment ID not provided.");
@@ -107,7 +97,6 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
     setError(null);
 
     const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
-    // Order by creation time by default
     const q = query(detailsCollectionRef, orderBy('createdAt', 'asc'));
 
     const unsubscribe = onSnapshot(q,
@@ -116,7 +105,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
         const fetchedDetails: ShipmentDetail[] = snapshot.docs.map(doc => detailFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
         setDetails(fetchedDetails);
         setIsLoading(false);
-        setError(null); // Clear previous errors on successful fetch
+        setError(null);
       },
       (err) => {
         console.error(`Error fetching shipment details for ${shipmentId}:`, err);
@@ -125,14 +114,12 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
       }
     );
 
-    // Cleanup listener on component unmount or when shipmentId changes
     return () => {
         console.log(`[ShipmentDetailsList] Effect Cleanup: Cleaning up listener for shipment ${shipmentId}`);
         unsubscribe();
     };
-  }, [shipmentId]); // Re-run effect if shipmentId changes
+  }, [shipmentId]);
 
-  // --- Event Handlers ---
 
   const handleAddDetail = () => {
     console.log(`[ShipmentDetailsList] handleAddDetail called. isParentCompleted: ${isParentCompleted}`);
@@ -140,7 +127,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
          toast({ variant: "destructive", title: "Action Denied", description: "Cannot add items to a completed shipment." });
          return;
      }
-    setEditingDetail(null); // Ensure we are in "add" mode
+    setEditingDetail(null);
     setIsFormOpen(true);
   };
 
@@ -158,7 +145,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
     console.log(`[ShipmentDetailsList] handleSaveDetail called. isParentCompleted: ${isParentCompleted}. Editing detail ID: ${editingDetail?.id}`);
     if (isParentCompleted) {
         toast({ variant: "destructive", title: "Cannot Save", description: "Shipment is already completed." });
-        setIsFormOpen(false); 
+        setIsFormOpen(false);
         return;
     }
 
@@ -172,10 +159,10 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
             action = addShipmentDetail(shipmentId, data);
         }
 
-         await action; 
+         await action;
 
          toast({ title: editingDetail ? "Detail Updated" : "Detail Added", description: "Shipment item saved successfully." });
-         setIsFormOpen(false); 
+         setIsFormOpen(false);
 
     } catch (error) {
         console.error("[ShipmentDetailsList] Error saving shipment detail:", error);
@@ -190,10 +177,11 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
         return;
      }
 
-     if (details.length <= 1) {
-        toast({ variant: "destructive", title: "Deletion Prevented", description: "Cannot delete the last item of a shipment." });
-        return;
-     }
+     // Removed the check that prevents deleting the last item
+     // if (details.length <= 1) {
+     //    toast({ variant: "destructive", title: "Deletion Prevented", description: "Cannot delete the last item of a shipment." });
+     //    return;
+     // }
 
      console.log(`[ShipmentDetailsList] Attempting to delete detail ${detailId} from shipment ${shipmentId}`);
      try {
@@ -205,23 +193,22 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
      }
   };
 
-  // --- Helper Functions for Display ---
+
   const getLabel = (collectionId: string, value: string | undefined): string => {
       if (!value) return 'N/A';
-      if (isLoadingLabels) return 'Loading...'; 
-      return dropdownMaps[collectionId]?.[value] || value; 
+      if (isLoadingLabels) return 'Loading...';
+      return dropdownMaps[collectionId]?.[value] || value;
   };
 
    const getFormatLabel = (serviceId: string | undefined, formatId: string | undefined): string => {
        if (!serviceId || !formatId) return 'N/A';
        const serviceKey = serviceId.toLowerCase();
        const formatCollectionId = SERVICE_FORMAT_MAPPING[serviceKey];
-       if (!formatCollectionId) return formatId; 
+       if (!formatCollectionId) return formatId;
        return getLabel(formatCollectionId, formatId);
    };
 
 
-  // --- Render Logic ---
   return (
     <Card className="shadow-lg rounded-xl border">
       <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
@@ -277,8 +264,9 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
               </TableHeader>
               <TableBody>
                 {details.map((detail) => {
-                  const isDeleteDisabled = isParentCompleted || details.length <= 1;
-                  console.log(`[ShipmentDetailsList DEBUG] Rendering detail ID: ${detail.id}. isParentCompleted: ${isParentCompleted}, details.length: ${details.length}, isDeleteDisabled: ${isDeleteDisabled}`);
+                  // Only disable delete if parent shipment is completed
+                  const isDeleteDisabled = isParentCompleted;
+                  console.log(`[ShipmentDetailsList DEBUG] Rendering detail ID: ${detail.id}. parentStatus: ${parentStatus}, isParentCompleted: ${isParentCompleted}, details.length: ${details.length}, isDeleteDisabled: ${isDeleteDisabled}`);
                   return (
                     <TableRow key={detail.id} className="hover:bg-muted/50">
                       <TableCell>{getLabel('customers', detail.customerId)}</TableCell>
@@ -303,7 +291,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
                                           size="icon"
                                           className="text-destructive hover:text-destructive hover:bg-destructive/10"
                                           title="Delete Item"
-                                          disabled={isDeleteDisabled} 
+                                          disabled={isDeleteDisabled}
                                       >
                                           <Trash2 className="h-4 w-4" />
                                           <span className="sr-only">Delete</span>
@@ -343,13 +331,12 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
       </CardContent>
 
       <ShipmentDetailForm
-            shipmentId={shipmentId} 
-            detail={editingDetail} 
+            shipmentId={shipmentId}
+            detail={editingDetail}
             isOpen={isFormOpen}
-            onClose={() => setIsFormOpen(false)} 
-            onSave={handleSaveDetail} 
+            onClose={() => setIsFormOpen(false)}
+            onSave={handleSaveDetail}
        />
     </Card>
   );
 }
-
