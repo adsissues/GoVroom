@@ -2,7 +2,7 @@
 "use client";
 
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import autoTable from 'jspdf-autotable'; // Import autoTable correctly
 import type { Shipment, ShipmentDetail } from '@/lib/types';
 import { db } from '@/lib/firebase/config';
 import {
@@ -24,17 +24,16 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
   console.log(`[PDFService] ${pdfType}: triggerDownload CALLED for: ${filename}`);
   try {
     console.log(`[PDFService] ${pdfType}: Attempting to generate data URI for ${filename}...`);
-    const pdfDataUri = doc.output('datauristring'); // Standard output, should not include filename parameter by default
+    const pdfDataUri = doc.output('datauristring');
     const pdfDataUriType = typeof pdfDataUri;
     const pdfDataUriLength = pdfDataUri?.length || 0;
 
     console.log(`[PDFService] ${pdfType}: Data URI generated. Type: ${pdfDataUriType}, Length: ${pdfDataUriLength}`);
     console.log(`[PDFService] ${pdfType}: Data URI Preview (first 100 chars): ${pdfDataUri?.substring(0, 100)}`);
 
-    // More robust check for a valid base64 encoded PDF Data URI
     const isValidBase64PdfDataUri =
       pdfDataUriType === 'string' &&
-      pdfDataUriLength > 100 && // Check for a reasonable length
+      pdfDataUriLength > 100 &&
       pdfDataUri.startsWith('data:application/pdf;') && // Check for PDF MIME type
       pdfDataUri.includes(';base64,'); // Check for base64 encoding marker
 
@@ -49,7 +48,7 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
     console.log(`[PDFService] ${pdfType}: Creating anchor element for ${filename}...`);
     const link = document.createElement('a');
     link.href = pdfDataUri;
-    link.download = filename; // This sets the filename for the download
+    link.download = filename;
     console.log(`[PDFService] ${pdfType}: Anchor element created. Href (first 50 chars): ${link.href.substring(0,50)}..., Download: ${link.download}`);
 
     document.body.appendChild(link);
@@ -66,7 +65,6 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
   }
 };
 
-
 const formatDateForPdf = (timestamp?: Timestamp): string => {
   if (!timestamp) return 'N/A';
   try {
@@ -79,36 +77,34 @@ const formatDateForPdf = (timestamp?: Timestamp): string => {
 
 const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
   if (!value) return defaultValueIfNotFoundOrValueMissing;
-  if (!map) return value; // Return the value itself if the map is not available
-  return map[value] || value; // Return the value itself if not found in map
+  if (!map) return value;
+  return map[value] || value;
 };
 
 const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
-    const logoWidth = 35;
-    const logoHeight = 10;
+    const logoWidth = 35; // mm
+    const logoHeight = 10; // mm
     const text = "asendia";
-    const textFontSize = 9; // Slightly larger for better visibility relative to the box
+    const textFontSize = 9;
 
     // Draw the teal box
-    doc.setFillColor(0, 90, 106); // Dark Teal (Asendia's primary color)
-    doc.rect(x, y, logoWidth, logoHeight, 'F'); // Filled rectangle
+    doc.setFillColor(0, 90, 106); // Dark Teal
+    doc.rect(x, y, logoWidth, logoHeight, 'F');
 
     // Set text properties for "asendia"
     doc.setFontSize(textFontSize);
-    doc.setFont('helvetica', 'normal'); // Using normal weight as 'bold' might be too thick
+    doc.setFont('helvetica', 'normal');
     doc.setTextColor(255, 255, 255); // White text
 
     // Calculate text position for centering within the box
-    // For centering, jsPDF's text command with { align: 'center', baseline: 'middle' } is best
     const textX = x + logoWidth / 2;
     const textY = y + logoHeight / 2; // Vertically center the baseline
 
     doc.text(text, textX, textY, { align: 'center', baseline: 'middle' });
 
-    // Reset text color to black for subsequent text elements (important)
+    // Reset text color to black for subsequent text elements
     doc.setTextColor(0, 0, 0);
 };
-
 
 const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]> => {
   console.log(`[PDFService] getShipmentDetails CALLED for shipmentId: ${shipmentId}`);
@@ -117,7 +113,7 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
     return [];
   }
   const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
-  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc')); // Assuming you want details ordered
+  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc'));
   try {
     const snapshot = await getDocs(q);
     const details = snapshot.docs.map(doc => detailFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
@@ -125,14 +121,13 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
     return details;
   } catch (error) {
     console.error(`[PDFService] getShipmentDetails: Error fetching details for shipment ${shipmentId}:`, error);
-    return []; // Return empty array on error to prevent breaking PDF generation
+    return [];
   }
 };
 
-
 export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => {
   const pdfType = "Pre-Alert";
-  const filename = `pre-alert-${shipment.id || 'shipment'}.pdf`;
+  const filename = `pre-alert-${shipment.id || 'unknown'}.pdf`;
   console.log(`[PDFService] ${pdfType}: generatePreAlertPdf CALLED. Attempting to generate: ${filename}`);
   console.log(`[PDFService] ${pdfType} PDF: Full shipment data:`, JSON.stringify(shipment, null, 2));
 
@@ -153,23 +148,19 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     const pageWidth = doc.internal.pageSize.getWidth();
     let currentY = pageMargin;
 
-    // Add Logo
     addAsendiaStyleLogo(doc, pageMargin, currentY);
     currentY += 10 + 5; // Space after logo
 
-    // Main Title
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.text("Shipment Completion Report", pageWidth / 2, currentY, { align: 'center' });
     currentY += 15;
 
-    // Main Shipment Details Section Title
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.text("Main Shipment Details:", pageMargin, currentY);
     currentY += 7;
 
-    // Main Shipment Details - Two Column Layout
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     const labelValuePairs = [
@@ -204,8 +195,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     });
     currentY += 5;
 
-    // Shipment Details Section Title (check for page break)
-    if (currentY > doc.internal.pageSize.getHeight() - 50) { // Approximate height for title + table header
+    if (currentY > doc.internal.pageSize.getHeight() - 50) {
         doc.addPage();
         currentY = pageMargin;
         addAsendiaStyleLogo(doc, pageMargin, currentY);
@@ -216,7 +206,6 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     doc.text("Shipment Details:", pageMargin, currentY);
     currentY += 7;
 
-    // Shipment Details Table
     const tableHead = [['Customer', 'Service', 'Format', 'Tare Weight', 'Gross Weight', 'Net Weight', 'Dispatch No.', 'DOE']];
     const tableBody = details.map(detail => {
       const serviceKey = detail.serviceId?.toLowerCase();
@@ -238,8 +227,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
       ];
     });
 
-    // Use autoTable correctly
-    autoTable(doc, {
+    autoTable(doc, { // Correctly call autoTable
       head: tableHead,
       body: tableBody,
       startY: currentY,
@@ -250,7 +238,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
         overflow: 'linebreak'
       },
       headStyles: {
-        fillColor: [22, 78, 99], // Dark teal
+        fillColor: [22, 78, 99],
         textColor: [255, 255, 255],
         fontStyle: 'bold',
         halign: 'center'
@@ -265,7 +253,6 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     });
 
     console.log(`[PDFService] ${pdfType}: Content added to PDF.`);
-    console.log(`[PDFService] ${pdfType}: Attempting to trigger download for ${filename}...`);
     triggerDownload(doc, filename, pdfType);
     console.log(`[PDFService] ${pdfType}: triggerDownload completed for ${filename}.`);
 
@@ -276,10 +263,9 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
   }
 };
 
-
 export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
   const pdfType = "CMR";
-  const filename = `cmr-${shipment.id || 'shipment'}.pdf`;
+  const filename = `cmr-${shipment.id || 'unknown'}.pdf`;
   console.log(`[PDFService] ${pdfType}: generateCmrPdf CALLED. Attempting to generate: ${filename}`);
   console.log(`[PDFService] ${pdfType} PDF: Full shipment data:`, JSON.stringify(shipment, null, 2));
 
@@ -289,38 +275,38 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     console.log(`[PDFService] ${pdfType}: jsPDF instance created successfully.`);
 
     const pageMargin = 15;
-    const pageWidth = doc.internal.pageSize.getWidth();
-    let currentY = pageMargin;
+    let currentY;
 
-    // 1. Add Asendia-style logo
-    addAsendiaStyleLogo(doc, pageMargin, currentY);
-    currentY += 10 + 10; // Space after logo
+    // 1. Add Asendia-style logo (top-left)
+    addAsendiaStyleLogo(doc, pageMargin, pageMargin);
 
-    // 2. Add title "CMR Document - Placeholder"
+    // 2. Add title "CMR Document - Placeholder" (to the right of the logo)
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text("CMR Document - Placeholder", pageWidth / 2, currentY, { align: 'center' });
-    currentY += 10;
+    // Position title: X starts after logo + a gap, Y is vertically aligned with logo's visual center or slightly below its top.
+    // Logo width 35mm, pageMargin 15mm. Start title at X = 15 (margin) + 35 (logo) + 10 (gap) = 60mm.
+    // Logo Y is 15, height 10. Center Y of logo is 20. Title baseline can be around 20-22mm.
+    doc.text("CMR Document - Placeholder", 60, 22); // Adjusted X and Y
 
-    // 3. Display Shipment ID
+    // 3. Display Shipment ID and placeholder text (below logo/title area, left-aligned)
+    // Start Y for this block well below the logo (height 10mm at Y=15) and title area.
+    currentY = pageMargin + 10 + 10 + 5; // Approx. 15(margin) + 10(logo_h) + 10(space) + 5(extra_space) = 40mm
+    
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
     doc.text(`Shipment ID: ${shipment.id || 'N/A'}`, pageMargin, currentY);
-    currentY += 10;
+    currentY += 7; // Space after shipment ID
 
-    // 4. Add placeholder text lines
     doc.text("This is a placeholder for the CMR document content.", pageMargin, currentY);
     currentY += 7;
     doc.text("Detailed CMR fields will be added here based on specific requirements.", pageMargin, currentY);
 
     console.log(`[PDFService] ${pdfType}: Content added to PDF for placeholder CMR.`);
-    console.log(`[PDFService] ${pdfType}: Attempting to trigger download for ${filename}...`);
     triggerDownload(doc, filename, pdfType);
-    console.log(`[PDFService] ${pdfType}: triggerDownload completed for ${filename}.`);
-
   } catch (error) {
     const errorMsg = `Error in generateCmrPdf function for ${filename}: ${error instanceof Error ? error.message : String(error)}`;
     console.error(`[PDFService] ${pdfType}: ${errorMsg}`, error);
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
 };
+
