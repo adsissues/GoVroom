@@ -9,9 +9,9 @@ import {
     collection,
     getDocs,
     query,
-    orderBy,
-    QueryDocumentSnapshot,
-    DocumentData,
+    orderBy, // Ensure orderBy is imported
+    type QueryDocumentSnapshot,
+    type DocumentData,
     Timestamp
 } from 'firebase/firestore';
 import { detailFromFirestore } from '@/lib/firebase/shipmentsService';
@@ -24,18 +24,19 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
   console.log(`[PDFService] ${pdfType}: triggerDownload CALLED for: ${filename}`);
   try {
     console.log(`[PDFService] ${pdfType}: Attempting to generate data URI for ${filename}...`);
-    const pdfDataUri = doc.output('datauristring');
+    const pdfDataUri = doc.output('datauristring'); // Use default: "datauristring"
     const pdfDataUriType = typeof pdfDataUri;
     const pdfDataUriLength = pdfDataUri?.length || 0;
 
     console.log(`[PDFService] ${pdfType}: Data URI generated. Type: ${pdfDataUriType}, Length: ${pdfDataUriLength}`);
     console.log(`[PDFService] ${pdfType}: Data URI Preview (first 100 chars): ${pdfDataUri?.substring(0, 100)}`);
 
+    // Updated validation: Check it starts with 'data:application/pdf;' and contains ';base64,'
     const isValidBase64PdfDataUri =
       pdfDataUriType === 'string' &&
-      pdfDataUriLength > 100 &&
-      pdfDataUri.startsWith('data:application/pdf;') &&
-      pdfDataUri.includes(';base64,');
+      pdfDataUriLength > 100 && // Basic check for non-trivial length
+      pdfDataUri.startsWith('data:application/pdf;') && // Standard start
+      pdfDataUri.includes(';base64,'); // Indicates base64 encoding
 
     if (!isValidBase64PdfDataUri) {
       const errorMsg = `CRITICAL ERROR - pdfDataUri for ${filename} is invalid or too short. Length: ${pdfDataUriLength}. Starts with: ${pdfDataUri?.substring(0, 50)}. Contains ';base64,': ${pdfDataUri?.includes(';base64,')}`;
@@ -47,7 +48,8 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
 
     console.log(`[PDFService] ${pdfType}: Creating anchor element for ${filename}...`);
     const link = document.createElement('a');
-    link.href = pdfDataUri;
+    // Use a simple data URI for the href, filename is handled by link.download
+    link.href = `data:application/pdf;base64,${pdfDataUri.substring(pdfDataUri.indexOf(';base64,') + ';base64,'.length)}`;
     link.download = filename;
     console.log(`[PDFService] ${pdfType}: Anchor element created. Href (first 50 chars): ${link.href.substring(0,50)}..., Download: ${link.download}`);
 
@@ -78,8 +80,8 @@ const formatDateForPdf = (timestamp?: Timestamp): string => {
 
 const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
   if (!value) return defaultValueIfNotFoundOrValueMissing;
-  if (!map) return value;
-  return map[value] || value;
+  if (!map) return value; // If map is not available, return the value itself
+  return map[value] || value; // If value not in map, return the value itself
 };
 
 
@@ -90,7 +92,7 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
     return [];
   }
   const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
-  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc'));
+  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc')); // Assuming you want details ordered
   try {
     const snapshot = await getDocs(q);
     const details = snapshot.docs.map(doc => detailFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
@@ -102,25 +104,49 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
   }
 };
 
-const addSimulatedLogo = (doc: jsPDF, x: number, y: number) => {
-  const logoWidth = 30;
-  const logoHeight = 10;
-  const appName = "GoVroom";
+const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
+  const logoWidth = 35; // mm
+  const logoHeight = 10; // mm
+  const text = "asendia";
+  const textFontSize = 8; // Approximate font size
+  const dotRadius = 0.8; // mm
+  const dotOffsetX = 22.6; // Approximate X offset for the dot on 'i' relative to start of "asendia" text
+                       // This needs fine-tuning based on font and exact text rendering
+  const dotOffsetY = -0.9; // Approximate Y offset for the dot relative to text baseline
 
-  // Background rectangle
-  doc.setFillColor(0, 123, 255); // A blue color similar to #007BFF
+  // Teal background rectangle (Asendia-like color: #005A6A or RGB 0, 90, 106)
+  doc.setFillColor(0, 90, 106);
   doc.rect(x, y, logoWidth, logoHeight, 'F');
 
-  // Text
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
+  // White text "asendia"
+  doc.setFontSize(textFontSize);
+  doc.setFont('helvetica', 'bold'); // Using bold for better visibility
   doc.setTextColor(255, 255, 255); // White text
-  doc.text(appName, x + logoWidth / 2, y + logoHeight / 2 + 1, { // +1 for better vertical alignment
-    align: 'center',
-    baseline: 'middle'
-  });
-   // Reset text color for subsequent text
-   doc.setTextColor(0, 0, 0); // Black text
+
+  // Calculate text width to center it (optional, for this specific text it's simpler to estimate)
+  // const textWidth = doc.getTextWidth(text);
+  // const textX = x + (logoWidth - textWidth) / 2; // For precise centering
+  const textX = x + 3; // Approximate padding from left
+  const textY = y + logoHeight / 2 + (textFontSize / 3.5); // Center text vertically (approx)
+
+  doc.text(text, textX, textY, { baseline: 'middle' });
+
+  // Yellow dot on 'i' (Asendia yellow: #FFCD00 or RGB 255, 205, 0)
+  doc.setFillColor(255, 205, 0);
+  // Estimate position of the 'i's dot
+  // The text "asendia" - 'i' is the 5th character.
+  // This is a rough estimation and will depend heavily on the font metrics.
+  // We need the x-coordinate of where the 'i' is rendered.
+  // Let's assume `textX` is the start of "asendia".
+  // We need to find the x position of the 'i'.
+  // For "asendia", the dot of 'i' is roughly above the stem.
+  const iDotX = textX + dotOffsetX;
+  const iDotY = textY + dotOffsetY; // Adjust baseline for dot
+
+  doc.circle(iDotX, iDotY, dotRadius, 'F');
+
+  // Reset text color for subsequent text
+  doc.setTextColor(0, 0, 0); // Black text
 };
 
 
@@ -144,19 +170,21 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     console.log(`[PDFService] ${pdfType}: Fetched dropdown maps for labels.`);
 
     // --- PDF Content ---
-    const pageMargin = 15;
+    const pageMargin = 15; // mm
     const pageWidth = doc.internal.pageSize.getWidth();
-    let currentY = 20;
+    let currentY = pageMargin + 10; // Start Y position, leaving space for logo
 
-    // Add Simulated Logo (top-right)
-    const logoX = pageWidth - pageMargin - 30; // 30 is logo width
-    const logoY = currentY - 5; // A bit above the title
-    addSimulatedLogo(doc, logoX, logoY);
+    // Add Asendia Style Logo (top-left)
+    addAsendiaStyleLogo(doc, pageMargin, pageMargin);
 
-    // Title - adjust Y if logo is present and shift title down or ensure it doesn't overlap
+    // Title
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    currentY += 5; // Adjust Y to make space for logo or align title properly
+    // Adjust title Y if logo is present and takes space, or center title relative to remaining space
+    // For top-left logo, title can start further down or be aligned differently.
+    // Let's place the title below the logo.
+    currentY = pageMargin + 10 + 15; // Start below logo height + some padding
+
     doc.text("Shipment Completion Report", pageWidth / 2, currentY, { align: 'center' });
     currentY += 15;
 
@@ -184,24 +212,29 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     ];
 
     const firstColX = pageMargin;
-    const secondColX = pageMargin + 45;
+    const secondColX = pageMargin + 45; // X for value column
     const lineHeight = 6;
 
     labelValuePairs.forEach(pair => {
       doc.text(pair.label, firstColX, currentY);
       doc.text(pair.value, secondColX, currentY);
       currentY += lineHeight;
-      if (currentY > doc.internal.pageSize.getHeight() - 30) {
+      if (currentY > doc.internal.pageSize.getHeight() - 30) { // Check for page overflow
         doc.addPage();
-        currentY = 20; // Reset Y for new page
+        currentY = pageMargin; // Reset Y for new page
+        addAsendiaStyleLogo(doc, pageMargin, pageMargin); // Re-add logo on new page
+        currentY += 25; // Space for logo
       }
     });
-    currentY += 5;
+    currentY += 5; // Extra space before details table
 
 
-    if (currentY > doc.internal.pageSize.getHeight() - 50) {
+    // Check for page overflow before drawing table
+    if (currentY > doc.internal.pageSize.getHeight() - 50) { // Arbitrary threshold for table header + some rows
         doc.addPage();
-        currentY = 20;
+        currentY = pageMargin;
+        addAsendiaStyleLogo(doc, pageMargin, pageMargin); // Re-add logo on new page
+        currentY += 25; // Space for logo
     }
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
@@ -212,7 +245,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     const tableHead = [['Customer', 'Service', 'Format', 'Tare Weight', 'Gross Weight', 'Net Weight', 'Dispatch No.', 'DOE']];
     const tableBody = details.map(detail => {
       const serviceKey = detail.serviceId?.toLowerCase();
-      const formatCollectionId = serviceKey ? SERVICE_FORMAT_MAPPING[serviceKey] : null;
+      const formatCollectionId = serviceKey && SERVICE_FORMAT_MAPPING[serviceKey] ? SERVICE_FORMAT_MAPPING[serviceKey] : null;
       let formatDisplay = detail.formatId || 'N/A';
       if (formatCollectionId && detail.formatId) {
         formatDisplay = getLabelFromMap(dropdownMaps[formatCollectionId], detail.formatId, detail.formatId);
@@ -241,15 +274,18 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
         overflow: 'linebreak'
       },
       headStyles: {
-        fillColor: [22, 78, 99],
+        fillColor: [0, 90, 106], // Asendia-like teal
         textColor: [255, 255, 255],
         fontStyle: 'bold',
         halign: 'center'
       },
-      tableLineColor: [189, 195, 199],
+      tableLineColor: [180, 180, 180], // Lighter gray for table lines
       tableLineWidth: 0.1,
       didDrawPage: (data) => {
-        // You can add headers/footers to each page here if needed
+        // Add logo to each new page created by autoTable
+        if (data.pageNumber > 1) {
+             addAsendiaStyleLogo(doc, pageMargin, pageMargin);
+        }
       }
     });
 
@@ -277,30 +313,28 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     console.log(`[PDFService] ${pdfType}: Creating new jsPDF instance...`);
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
     console.log(`[PDFService] ${pdfType}: jsPDF instance created successfully.`);
-
+    
     const pageMargin = 15;
     const pageWidth = doc.internal.pageSize.getWidth();
-    let currentY = 20;
+    let currentY = pageMargin + 10;
 
-    // Add Simulated Logo (top-right)
-    const logoX = pageWidth - pageMargin - 30; // 30 is logo width
-    const logoY = currentY - 5;
-    addSimulatedLogo(doc, logoX, logoY);
-    currentY += 5;
+    // Add Asendia Style Logo (top-left)
+    addAsendiaStyleLogo(doc, pageMargin, pageMargin);
+    currentY = pageMargin + 10 + 15; // Start below logo
 
     console.log(`[PDFService] ${pdfType}: Setting font size and adding simplified text...`);
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text("CMR - Placeholder", pageWidth / 2, currentY, { align: 'center' });
+    doc.text("CMR Document - Placeholder", pageWidth / 2, currentY, { align: 'center' });
     currentY += 10;
 
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
     doc.text(`Shipment ID: ${shipment.id || 'N/A'}`, pageMargin, currentY);
     currentY += 10;
-    doc.text("This is a placeholder for the CMR document.", pageMargin, currentY);
+    doc.text("This is a placeholder for the CMR document content.", pageMargin, currentY);
     currentY += 10;
-    doc.text("More detailed content will be added based on CMR standards.", pageMargin, currentY);
+    doc.text("Detailed CMR fields will be added here based on specific requirements.", pageMargin, currentY);
     console.log(`[PDFService] ${pdfType}: Simplified text added to PDF.`);
 
     console.log(`[PDFService] ${pdfType}: Attempting to trigger download for ${filename}...`);
@@ -313,5 +347,3 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
 };
-
-
