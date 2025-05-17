@@ -9,7 +9,7 @@ import {
     collection,
     getDocs,
     query,
-    orderBy,
+    orderBy, // Ensure orderBy is imported
     type QueryDocumentSnapshot,
     type DocumentData,
     Timestamp
@@ -24,7 +24,7 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
   console.log(`[PDFService] ${pdfType}: triggerDownload CALLED for: ${filename}`);
   try {
     console.log(`[PDFService] ${pdfType}: Attempting to generate data URI for ${filename}...`);
-    const pdfDataUri = doc.output('datauristring');
+    const pdfDataUri = doc.output('datauristring'); // For Pre-Alert and simpler CMR
     const pdfDataUriType = typeof pdfDataUri;
     const pdfDataUriLength = pdfDataUri?.length || 0;
 
@@ -33,9 +33,9 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
 
     const isValidBase64PdfDataUri =
       pdfDataUriType === 'string' &&
-      pdfDataUriLength > 100 && // Check if it's reasonably long
-      pdfDataUri.startsWith('data:application/pdf;') && // Check for PDF mime type start
-      pdfDataUri.includes(';base64,'); // Ensure it's base64 encoded
+      pdfDataUriLength > 100 && 
+      pdfDataUri.startsWith('data:application/pdf;') && 
+      pdfDataUri.includes(';base64,');
 
     if (!isValidBase64PdfDataUri) {
       const errorMsg = `CRITICAL ERROR - pdfDataUri for ${filename} is invalid or too short. Length: ${pdfDataUriLength}. Starts with: ${pdfDataUri?.substring(0, 50)}. Contains ';base64,': ${pdfDataUri?.includes(';base64,')}`;
@@ -106,24 +106,21 @@ const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
   const logoWidth = 35; 
   const logoHeight = 10; 
   const text = "asendia";
-  const textFontSize = 9; // Adjusted from 12 for better fit
+  const textFontSize = 9; 
 
-  // Teal background rectangle
-  doc.setFillColor(0, 90, 106); // Asendia Teal color
+  doc.setFillColor(0, 90, 106); 
   doc.rect(x, y, logoWidth, logoHeight, 'F');
 
-  // White text "asendia"
   doc.setFontSize(textFontSize);
-  doc.setFont('helvetica', 'normal'); // Changed from 'bold' to 'normal'
+  doc.setFont('helvetica', 'normal'); 
   doc.setTextColor(255, 255, 255);
 
-  // Center the text within the box
   const textX = x + logoWidth / 2;
   const textY = y + logoHeight / 2;
 
   doc.text(text, textX, textY, { align: 'center', baseline: 'middle' });
 
-  doc.setTextColor(0, 0, 0); // Reset text color to black
+  doc.setTextColor(0, 0, 0); 
 };
 
 
@@ -146,7 +143,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     const dropdownMaps = await getDropdownOptionsMap(dropdownCollectionNames);
     console.log(`[PDFService] ${pdfType}: Fetched dropdown maps for labels.`);
 
-    const pageMargin = 15; // mm
+    const pageMargin = 15; 
     const pageWidth = doc.internal.pageSize.getWidth();
     let currentY = pageMargin;
 
@@ -285,24 +282,28 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     const pageWidth = doc.internal.pageSize.getWidth();
     let currentY = pageMargin;
 
+    // 1. Add Asendia-style logo
     addAsendiaStyleLogo(doc, pageMargin, currentY);
-    currentY += 10 + 5; 
+    currentY += 10 + 10; // Space after logo
 
-    console.log(`[PDFService] ${pdfType}: Setting font size and adding simplified text...`);
+    // 2. Add title "CMR Document - Placeholder"
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.text("CMR Document - Placeholder", pageWidth / 2, currentY, { align: 'center' });
     currentY += 10;
 
+    // 3. Display Shipment ID
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
     doc.text(`Shipment ID: ${shipment.id || 'N/A'}`, pageMargin, currentY);
     currentY += 10;
-    doc.text("This is a placeholder for the CMR document content.", pageMargin, currentY);
-    currentY += 10;
-    doc.text("Detailed CMR fields will be added here based on specific requirements.", pageMargin, currentY);
-    console.log(`[PDFService] ${pdfType}: Simplified text added to PDF.`);
 
+    // 4. Add placeholder text lines
+    doc.text("This is a placeholder for the CMR document content.", pageMargin, currentY);
+    currentY += 7;
+    doc.text("Detailed CMR fields will be added here based on specific requirements.", pageMargin, currentY);
+    
+    console.log(`[PDFService] ${pdfType}: Content added to PDF for placeholder CMR.`);
     console.log(`[PDFService] ${pdfType}: Attempting to trigger download for ${filename}...`);
     triggerDownload(doc, filename, pdfType);
     console.log(`[PDFService] ${pdfType}: triggerDownload completed for ${filename}.`);
@@ -313,5 +314,3 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
 };
-
-    
