@@ -58,7 +58,7 @@ export default function ShipmentDetailPage() {
     try {
       const fetchedShipmentData = await getShipmentById(shipmentId);
       if (fetchedShipmentData) {
-        console.log("[ShipmentDetailPage] fetchShipment: Successfully fetched shipment data:", JSON.stringify(fetchedShipmentData));
+        console.log("[ShipmentDetailPage] fetchShipment: Successfully fetched shipment data:", JSON.stringify(fetchedShipmentData).substring(0, 300) + "..."); // Log snippet
         setShipment(fetchedShipmentData);
         if (showLoadingIndicator) setIsLoading(false);
         return fetchedShipmentData;
@@ -78,8 +78,14 @@ export default function ShipmentDetailPage() {
 
   useEffect(() => {
     console.log("[ShipmentDetailPage] Initial data fetch useEffect triggered.");
-    fetchShipment();
-  }, [fetchShipment]);
+    if (shipmentId) { // Only fetch if shipmentId is valid
+        fetchShipment();
+    } else {
+        console.log("[ShipmentDetailPage] Initial data fetch: shipmentId is invalid, skipping fetch.");
+        setError("No Shipment ID provided in URL.");
+        setIsLoading(false);
+    }
+  }, [fetchShipment, shipmentId]); // Add shipmentId here
 
   const handleUpdateShipment = async (data: Partial<Shipment>) => {
     if (!shipment || !shipmentId) {
@@ -89,16 +95,15 @@ export default function ShipmentDetailPage() {
     }
 
     console.log('[ShipmentDetailPage] handleUpdateShipment: Initiated. Data to save:', JSON.stringify(data));
-    console.log('[ShipmentDetailPage] handleUpdateShipment: Current shipment status (before this update):', shipment.status, 'Data status being saved:', data.status);
     
+    // Explicitly set statusBeforeUpdate only if the status is part of the update and is different
     if (data.status && data.status !== shipment.status) {
+      console.log(`[ShipmentDetailPage] handleUpdateShipment: Status change detected. FROM ${shipment.status} TO ${data.status}. Setting statusBeforeUpdate to: ${shipment.status}`);
       setStatusBeforeUpdate(shipment.status); 
-      console.log(`[ShipmentDetailPage] handleUpdateShipment: Status change detected. StatusBeforeUpdate set to: ${shipment.status}`);
     } else {
-      setStatusBeforeUpdate(undefined);
-      console.log(`[ShipmentDetailPage] handleUpdateShipment: No status change in this update. StatusBeforeUpdate set to undefined.`);
+      console.log(`[ShipmentDetailPage] handleUpdateShipment: No status change in this update OR status field not present in update. Current: ${shipment.status}, Update data.status: ${data.status}. statusBeforeUpdate will be undefined.`);
+      setStatusBeforeUpdate(undefined); // Ensure it's undefined if no relevant status change
     }
-
 
     try {
       await updateShipment(shipmentId, data);
@@ -107,13 +112,14 @@ export default function ShipmentDetailPage() {
       
       console.log('[ShipmentDetailPage] handleUpdateShipment: Update successful. Refetching shipment...');
       const updatedShipmentData = await fetchShipment(false); 
-      console.log('[ShipmentDetailPage] handleUpdateShipment: Refetched shipment data after update:', JSON.stringify(updatedShipmentData));
+      console.log('[ShipmentDetailPage] handleUpdateShipment: Refetched shipment data after update:', JSON.stringify(updatedShipmentData).substring(0, 300) + "...");
 
     } catch (err) {
       console.error("[ShipmentDetailPage] handleUpdateShipment: Error updating shipment:", err);
       toast({ variant: "destructive", title: "Update Failed", description: err instanceof Error ? err.message : "Could not save shipment changes." });
+      // If update fails, ensure statusBeforeUpdate is cleared to prevent incorrect PDF trigger on next effect run
+      console.log(`[ShipmentDetailPage] handleUpdateShipment: Error during update. Resetting statusBeforeUpdate to undefined.`);
       setStatusBeforeUpdate(undefined);
-      console.log(`[ShipmentDetailPage] handleUpdateShipment: Error during update. StatusBeforeUpdate reset to undefined.`);
     }
   };
 
@@ -130,13 +136,13 @@ export default function ShipmentDetailPage() {
       
       (async () => {
         try {
-          console.log('[ShipmentDetailPage] PDF Effect: Calling generatePreAlertPdf with shipment data:', JSON.stringify(shipment));
+          console.log('[ShipmentDetailPage] PDF Effect: Calling generatePreAlertPdf with shipment data (first 200 chars):', JSON.stringify(shipment).substring(0,200)+"...");
           generatePreAlertPdf(shipment);
           
           console.log('[ShipmentDetailPage] PDF Effect: Waiting 1000ms before generating CMR PDF...');
           await delay(1000); 
 
-          console.log('[ShipmentDetailPage] PDF Effect: Calling generateCmrPdf with shipment data:', JSON.stringify(shipment));
+          console.log('[ShipmentDetailPage] PDF Effect: Calling generateCmrPdf with shipment data (first 200 chars):', JSON.stringify(shipment).substring(0,200)+"...");
           generateCmrPdf(shipment);
           
           console.log('[ShipmentDetailPage] PDF Effect: PDF generation calls ostensibly complete.');
@@ -148,10 +154,9 @@ export default function ShipmentDetailPage() {
             description: pdfError instanceof Error ? pdfError.message : "Could not generate PDFs."
           });
         } finally {
-          if (statusBeforeUpdate !== undefined) {
-              console.log('[ShipmentDetailPage] PDF Effect: Resetting statusBeforeUpdate from', statusBeforeUpdate, 'to undefined.');
-              setStatusBeforeUpdate(undefined);
-          }
+            // Always reset statusBeforeUpdate after attempting PDF generation or if condition wasn't met
+            console.log('[ShipmentDetailPage] PDF Effect (async IIFE finally): Resetting statusBeforeUpdate from', statusBeforeUpdate, 'to undefined.');
+            setStatusBeforeUpdate(undefined);
         }
       })();
     } else {
@@ -160,13 +165,15 @@ export default function ShipmentDetailPage() {
         } else {
             console.log(`[ShipmentDetailPage] PDF Effect: Condition NOT MET. Shipment is null. Status Before Update was: ${statusBeforeUpdate}`);
         }
+        // If condition was not met, and statusBeforeUpdate was set, it means it was set by a previous update
+        // that didn't result in PDF generation. Reset it here too.
         if (statusBeforeUpdate !== undefined) {
-            console.log('[ShipmentDetailPage] PDF Effect (Condition NOT MET): Resetting statusBeforeUpdate from', statusBeforeUpdate, 'to undefined.');
-            setStatusBeforeUpdate(undefined);
+             console.log('[ShipmentDetailPage] PDF Effect (Condition NOT MET branch): Resetting statusBeforeUpdate from', statusBeforeUpdate, 'to undefined.');
+             setStatusBeforeUpdate(undefined);
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shipment, statusBeforeUpdate, toast]); 
+  }, [shipment, statusBeforeUpdate]); // toast removed as it's stable and causes re-runs
 
 
   if (isLoading) {
@@ -189,17 +196,19 @@ export default function ShipmentDetailPage() {
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Error Loading Shipment</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-          <Button variant="outline" size="sm" onClick={() => fetchShipment()} className="mt-4">
-            Retry
-          </Button>
+          <AlertDescription>
+            {error}
+            <Button variant="outline" size="sm" onClick={() => fetchShipment()} className="mt-4 ml-2">
+             Retry
+            </Button>
+          </AlertDescription>
         </Alert>
       </div>
     );
   }
 
   if (!shipment) {
-    console.log("[ShipmentDetailPage] Rendering: No shipment data (after loading and no error). This usually means notFound() was or should have been called.");
+    console.log("[ShipmentDetailPage] Rendering: No shipment data (after loading and no error). This usually means notFound() was or should have been called, or ID was invalid.");
     return (
       <div className="space-y-6 p-4 md:p-6 lg:p-8">
         <Button variant="outline" onClick={() => router.back()} className="mb-4">
@@ -207,16 +216,16 @@ export default function ShipmentDetailPage() {
         </Button>
         <Alert variant="default" className="border-yellow-500 bg-yellow-50">
           <AlertTriangle className="h-4 w-4 text-yellow-700" />
-          <AlertTitle className="text-yellow-800">Shipment Information</AlertTitle>
+          <AlertTitle className="text-yellow-800">Shipment Not Found</AlertTitle>
           <AlertDescription className="text-yellow-700">
-            Shipment data is not available or could not be displayed. If you navigated here directly, the ID might be invalid.
+            The shipment you are looking for could not be found or the ID is invalid.
           </AlertDescription>
         </Alert>
       </div>
     );
   }
 
-  console.log("[ShipmentDetailPage] Rendering: Main content with shipment data.");
+  console.log("[ShipmentDetailPage] Rendering: Main content with shipment data. isEditing:", isEditing);
   return (
     <div className="space-y-6 md:space-y-8">
       <Button variant="outline" onClick={() => router.push('/shipments')} className="mb-0">
@@ -268,4 +277,3 @@ export default function ShipmentDetailPage() {
     </div>
   );
 }
-
