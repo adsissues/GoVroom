@@ -2,14 +2,14 @@
 "use client";
 
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable'; // Keep for Pre-Alert
+import autoTable from 'jspdf-autotable';
 import type { Shipment, ShipmentDetail } from '@/lib/types';
 import { db } from '@/lib/firebase/config';
 import {
     collection,
     getDocs,
     query,
-    orderBy,
+    orderBy, // Ensure orderBy is imported
     type QueryDocumentSnapshot,
     type DocumentData,
     Timestamp
@@ -24,13 +24,14 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
   console.log(`[PDFService] ${pdfType}: triggerDownload CALLED for: ${filename}`);
   try {
     console.log(`[PDFService] ${pdfType}: Attempting to generate data URI for ${filename}...`);
-    const pdfDataUri = doc.output('datauristring');
+    const pdfDataUri = doc.output('datauristring'); // Standard output, should not include filename parameter by default
     const pdfDataUriType = typeof pdfDataUri;
     const pdfDataUriLength = pdfDataUri?.length || 0;
 
     console.log(`[PDFService] ${pdfType}: Data URI generated. Type: ${pdfDataUriType}, Length: ${pdfDataUriLength}`);
     console.log(`[PDFService] ${pdfType}: Data URI Preview (first 100 chars): ${pdfDataUri?.substring(0, 100)}`);
 
+    // More robust check for a valid base64 encoded PDF Data URI
     const isValidBase64PdfDataUri =
       pdfDataUriType === 'string' &&
       pdfDataUriLength > 100 && // Check for a reasonable length
@@ -48,7 +49,7 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
     console.log(`[PDFService] ${pdfType}: Creating anchor element for ${filename}...`);
     const link = document.createElement('a');
     link.href = pdfDataUri;
-    link.download = filename;
+    link.download = filename; // This sets the filename for the download
     console.log(`[PDFService] ${pdfType}: Anchor element created. Href (first 50 chars): ${link.href.substring(0,50)}..., Download: ${link.download}`);
 
     document.body.appendChild(link);
@@ -78,8 +79,34 @@ const formatDateForPdf = (timestamp?: Timestamp): string => {
 
 const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
   if (!value) return defaultValueIfNotFoundOrValueMissing;
-  if (!map) return value;
-  return map[value] || value;
+  if (!map) return value; // Return the value itself if the map is not available
+  return map[value] || value; // Return the value itself if not found in map
+};
+
+const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
+    const logoWidth = 35;
+    const logoHeight = 10;
+    const text = "asendia";
+    const textFontSize = 9; // Slightly larger for better visibility relative to the box
+
+    // Draw the teal box
+    doc.setFillColor(0, 90, 106); // Dark Teal (Asendia's primary color)
+    doc.rect(x, y, logoWidth, logoHeight, 'F'); // Filled rectangle
+
+    // Set text properties for "asendia"
+    doc.setFontSize(textFontSize);
+    doc.setFont('helvetica', 'normal'); // Using normal weight as 'bold' might be too thick
+    doc.setTextColor(255, 255, 255); // White text
+
+    // Calculate text position for centering within the box
+    // For centering, jsPDF's text command with { align: 'center', baseline: 'middle' } is best
+    const textX = x + logoWidth / 2;
+    const textY = y + logoHeight / 2; // Vertically center the baseline
+
+    doc.text(text, textX, textY, { align: 'center', baseline: 'middle' });
+
+    // Reset text color to black for subsequent text elements (important)
+    doc.setTextColor(0, 0, 0);
 };
 
 
@@ -90,7 +117,7 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
     return [];
   }
   const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
-  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc'));
+  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc')); // Assuming you want details ordered
   try {
     const snapshot = await getDocs(q);
     const details = snapshot.docs.map(doc => detailFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
@@ -98,31 +125,8 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
     return details;
   } catch (error) {
     console.error(`[PDFService] getShipmentDetails: Error fetching details for shipment ${shipmentId}:`, error);
-    return [];
+    return []; // Return empty array on error to prevent breaking PDF generation
   }
-};
-
-const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
-  const logoWidth = 35;
-  const logoHeight = 10;
-  const text = "asendia";
-  const textFontSize = 9;
-
-  doc.setFillColor(0, 90, 106); // Dark Teal
-  doc.rect(x, y, logoWidth, logoHeight, 'F'); // Filled rectangle
-
-  doc.setFontSize(textFontSize);
-  doc.setFont('helvetica', 'normal'); // Changed to normal from bold for closer match
-  doc.setTextColor(255, 255, 255); // White text
-
-  // Calculate text position for centering
-  const textX = x + logoWidth / 2;
-  const textY = y + logoHeight / 2;
-
-  doc.text(text, textX, textY, { align: 'center', baseline: 'middle' });
-
-  // Reset text color to black for subsequent text
-  doc.setTextColor(0, 0, 0);
 };
 
 
@@ -149,26 +153,30 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     const pageWidth = doc.internal.pageSize.getWidth();
     let currentY = pageMargin;
 
+    // Add Logo
     addAsendiaStyleLogo(doc, pageMargin, currentY);
     currentY += 10 + 5; // Space after logo
 
+    // Main Title
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.text("Shipment Completion Report", pageWidth / 2, currentY, { align: 'center' });
     currentY += 15;
 
+    // Main Shipment Details Section Title
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.text("Main Shipment Details:", pageMargin, currentY);
     currentY += 7;
 
+    // Main Shipment Details - Two Column Layout
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     const labelValuePairs = [
       { label: "Date Departure:", value: formatDateForPdf(shipment.departureDate) },
       { label: "Arrival Date:", value: formatDateForPdf(shipment.arrivalDate) },
-      { label: "Carrier:", value: getLabelFromMap(dropdownMaps['carriers'], shipment.carrierId, shipment.carrierId || 'N/A') },
-      { label: "Subcarrier:", value: getLabelFromMap(dropdownMaps['subcarriers'], shipment.subcarrierId, shipment.subcarrierId || 'N/A') },
+      { label: "Carrier:", value: getLabelFromMap(dropdownMaps['carriers'], shipment.carrierId, shipment.carrierId) },
+      { label: "Subcarrier:", value: getLabelFromMap(dropdownMaps['subcarriers'], shipment.subcarrierId, shipment.subcarrierId) },
       { label: "Driver Name:", value: shipment.driverName || 'N/A' },
       { label: "Truck Reg No:", value: shipment.truckRegistration || 'N/A' },
       { label: "Trailer Reg No:", value: shipment.trailerRegistration || 'N/A' },
@@ -180,35 +188,35 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     ];
 
     const firstColX = pageMargin;
-    const secondColX = pageMargin + 45; // Adjusted for potentially longer labels/values
+    const secondColX = pageMargin + 45;
     const lineHeight = 6;
 
     labelValuePairs.forEach(pair => {
-      if (currentY > doc.internal.pageSize.getHeight() - pageMargin - lineHeight) { // Check for page break
+      if (currentY > doc.internal.pageSize.getHeight() - pageMargin - lineHeight) {
         doc.addPage();
         currentY = pageMargin;
-        addAsendiaStyleLogo(doc, pageMargin, currentY); // Add logo to new page
-        currentY += 10 + 5; // Space after logo
+        addAsendiaStyleLogo(doc, pageMargin, currentY);
+        currentY += 10 + 5;
       }
       doc.text(pair.label, firstColX, currentY);
       doc.text(pair.value, secondColX, currentY);
       currentY += lineHeight;
     });
-    currentY += 5; // Extra space before table
+    currentY += 5;
 
-    // Check for page break before adding "Shipment Details" title
+    // Shipment Details Section Title (check for page break)
     if (currentY > doc.internal.pageSize.getHeight() - 50) { // Approximate height for title + table header
         doc.addPage();
         currentY = pageMargin;
-        addAsendiaStyleLogo(doc, pageMargin, currentY); // Add logo to new page
-        currentY += 10 + 5; // Space after logo
+        addAsendiaStyleLogo(doc, pageMargin, currentY);
+        currentY += 10 + 5;
     }
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.text("Shipment Details:", pageMargin, currentY);
     currentY += 7;
 
-
+    // Shipment Details Table
     const tableHead = [['Customer', 'Service', 'Format', 'Tare Weight', 'Gross Weight', 'Net Weight', 'Dispatch No.', 'DOE']];
     const tableBody = details.map(detail => {
       const serviceKey = detail.serviceId?.toLowerCase();
@@ -219,18 +227,19 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
       }
 
       return [
-        getLabelFromMap(dropdownMaps['customers'], detail.customerId, detail.customerId || 'N/A'),
-        getLabelFromMap(dropdownMaps['services'], detail.serviceId, detail.serviceId || 'N/A'),
+        getLabelFromMap(dropdownMaps['customers'], detail.customerId, detail.customerId),
+        getLabelFromMap(dropdownMaps['services'], detail.serviceId, detail.serviceId),
         formatDisplay,
         `${(detail.tareWeight || 0).toFixed(2)} kg`,
         `${(detail.grossWeight || 0).toFixed(2)} kg`,
         `${(detail.netWeight || 0).toFixed(2)} kg`,
         detail.dispatchNumber || 'N/A',
-        getLabelFromMap(dropdownMaps['doe'], detail.doeId, detail.doeId || 'N/A'),
+        getLabelFromMap(dropdownMaps['doe'], detail.doeId, detail.doeId),
       ];
     });
 
-    (doc as any).autoTable({ // Use (doc as any) to bypass potential type mismatch with autoTable
+    // Use autoTable correctly
+    autoTable(doc, {
       head: tableHead,
       body: tableBody,
       startY: currentY,
@@ -248,14 +257,12 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
       },
       tableLineColor: [180, 180, 180],
       tableLineWidth: 0.1,
-      didDrawPage: (data: any) => { // Add type for data
-        // Add logo to subsequent pages if table spans multiple pages
-        if (data.pageNumber > 1 || data.pageNumber === 1 && data.cursor?.y && data.cursor.y < 40) { // Check if cursor is high to avoid overlap
+      didDrawPage: (data: any) => {
+        if (data.pageNumber > 1 || (data.pageNumber === 1 && data.cursor?.y && data.cursor.y < 40)) {
              addAsendiaStyleLogo(doc, pageMargin, pageMargin);
         }
       }
     });
-
 
     console.log(`[PDFService] ${pdfType}: Content added to PDF.`);
     console.log(`[PDFService] ${pdfType}: Attempting to trigger download for ${filename}...`);
