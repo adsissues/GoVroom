@@ -55,7 +55,7 @@ interface ShipmentDetailsListProps {
 
 // Fetch function for TanStack Query
 const fetchAllDropdownMaps = async () => {
-    const allFormatCollections = Object.values(SERVICE_FORMAT_MAPPING);
+    const allFormatCollections = Object.values(SERVICE_FORMAT_MAPPING).filter(Boolean) as string[];
     // Ensure no duplicate collection names are passed
     const uniqueCollectionNames = [...new Set(['customers', 'services', 'doe', ...allFormatCollections])];
     return getDropdownOptionsMap(uniqueCollectionNames);
@@ -71,6 +71,8 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
   const { toast } = useToast();
 
   const isParentCompleted = parentStatus === 'Completed';
+  console.log(`[ShipmentDetailsList DEBUG] Component Render/Re-render. shipmentId: ${shipmentId}, parentStatus: ${parentStatus}, isParentCompleted: ${isParentCompleted}, current details.length: ${details.length}`);
+
 
    // Fetch Dropdown Labels for Display using TanStack Query
    const { data: dropdownMaps = {}, isLoading: isLoadingLabels, error: errorLabels } = useQuery({
@@ -100,7 +102,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
         console.error("ShipmentDetailsList: shipmentId is missing.");
         return;
     }
-    console.log(`ShipmentDetailsList: Setting up listener for shipment ${shipmentId}`);
+    console.log(`[ShipmentDetailsList] Effect: Setting up listener for shipment ${shipmentId}`);
     setIsLoading(true);
     setError(null);
 
@@ -110,7 +112,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
 
     const unsubscribe = onSnapshot(q,
       (snapshot) => {
-        console.log(`ShipmentDetailsList: Received ${snapshot.docs.length} details for shipment ${shipmentId}`);
+        console.log(`[ShipmentDetailsList] Snapshot received: ${snapshot.docs.length} details for shipment ${shipmentId}`);
         const fetchedDetails: ShipmentDetail[] = snapshot.docs.map(doc => detailFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
         setDetails(fetchedDetails);
         setIsLoading(false);
@@ -125,7 +127,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
 
     // Cleanup listener on component unmount or when shipmentId changes
     return () => {
-        console.log(`ShipmentDetailsList: Cleaning up listener for shipment ${shipmentId}`);
+        console.log(`[ShipmentDetailsList] Effect Cleanup: Cleaning up listener for shipment ${shipmentId}`);
         unsubscribe();
     };
   }, [shipmentId]); // Re-run effect if shipmentId changes
@@ -133,6 +135,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
   // --- Event Handlers ---
 
   const handleAddDetail = () => {
+    console.log(`[ShipmentDetailsList] handleAddDetail called. isParentCompleted: ${isParentCompleted}`);
     if (isParentCompleted) {
          toast({ variant: "destructive", title: "Action Denied", description: "Cannot add items to a completed shipment." });
          return;
@@ -142,6 +145,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
   };
 
   const handleEditDetail = (detail: ShipmentDetail) => {
+    console.log(`[ShipmentDetailsList] handleEditDetail called for detail ID: ${detail.id}. isParentCompleted: ${isParentCompleted}`);
      if (isParentCompleted) {
           toast({ variant: "destructive", title: "Action Denied", description: "Cannot edit items in a completed shipment." });
          return;
@@ -151,63 +155,52 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
   };
 
   const handleSaveDetail = async (data: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated'>) => {
-    // Double-check completion status before saving
+    console.log(`[ShipmentDetailsList] handleSaveDetail called. isParentCompleted: ${isParentCompleted}. Editing detail ID: ${editingDetail?.id}`);
     if (isParentCompleted) {
         toast({ variant: "destructive", title: "Cannot Save", description: "Shipment is already completed." });
-        setIsFormOpen(false); // Close form even if save fails due to status
+        setIsFormOpen(false); 
         return;
     }
-
-    // The netWeight calculation is handled within the service functions (add/update)
-    // or by the detailFromFirestore helper, no need to recalculate here unless specifically overriding.
 
     try {
         let action: Promise<any>;
         if (editingDetail) {
-            console.log(`Saving existing detail ${editingDetail.id} for shipment ${shipmentId}`);
-            // Update existing detail
+            console.log(`[ShipmentDetailsList] Saving existing detail ${editingDetail.id} for shipment ${shipmentId}`);
             action = updateShipmentDetail(shipmentId, editingDetail.id, data);
         } else {
-            console.log(`Adding new detail for shipment ${shipmentId}`);
-            // Add new detail
+            console.log(`[ShipmentDetailsList] Adding new detail for shipment ${shipmentId}`);
             action = addShipmentDetail(shipmentId, data);
         }
 
-         await action; // Wait for add or update to complete
+         await action; 
 
          toast({ title: editingDetail ? "Detail Updated" : "Detail Added", description: "Shipment item saved successfully." });
-         setIsFormOpen(false); // Close the form modal
-         // No need to call recalculateShipmentTotals here, it's called within add/updateShipmentDetail
+         setIsFormOpen(false); 
 
     } catch (error) {
-        console.error("Error saving shipment detail:", error);
+        console.error("[ShipmentDetailsList] Error saving shipment detail:", error);
         toast({ variant: "destructive", title: "Save Failed", description: error instanceof Error ? error.message : "Could not save item." });
-        // Keep the form open on error? Or close? Decide based on UX preference.
-        // setIsFormOpen(false);
     }
-    // No finally block needed here, loading state is handled by the form itself
   };
 
   const handleDeleteDetail = async (detailId: string) => {
-     // Double-check completion status
+     console.log(`[ShipmentDetailsList] handleDeleteDetail called for detail ID: ${detailId}. isParentCompleted: ${isParentCompleted}, details.length: ${details.length}`);
      if (isParentCompleted) {
         toast({ variant: "destructive", title: "Cannot Delete", description: "Cannot delete items from a completed shipment." });
         return;
      }
 
-     // Prevent deletion of the last item (Business Rule)
      if (details.length <= 1) {
         toast({ variant: "destructive", title: "Deletion Prevented", description: "Cannot delete the last item of a shipment." });
         return;
      }
 
-     console.log(`Attempting to delete detail ${detailId} from shipment ${shipmentId}`);
+     console.log(`[ShipmentDetailsList] Attempting to delete detail ${detailId} from shipment ${shipmentId}`);
      try {
          await deleteShipmentDetail(shipmentId, detailId);
          toast({ title: "Detail Deleted", description: "Shipment item removed successfully." });
-         // No need to call recalculateShipmentTotals here, it's called within deleteShipmentDetail
      } catch (error) {
-         console.error("Error deleting shipment detail:", error);
+         console.error("[ShipmentDetailsList] Error deleting shipment detail:", error);
          toast({ variant: "destructive", title: "Deletion Failed", description: error instanceof Error ? error.message : "Could not remove item." });
      }
   };
@@ -215,14 +208,15 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
   // --- Helper Functions for Display ---
   const getLabel = (collectionId: string, value: string | undefined): string => {
       if (!value) return 'N/A';
-      if (isLoadingLabels) return 'Loading...'; // Show loading state for labels
-      return dropdownMaps[collectionId]?.[value] || value; // Return value itself if label not found
+      if (isLoadingLabels) return 'Loading...'; 
+      return dropdownMaps[collectionId]?.[value] || value; 
   };
 
    const getFormatLabel = (serviceId: string | undefined, formatId: string | undefined): string => {
        if (!serviceId || !formatId) return 'N/A';
-       const formatCollectionId = SERVICE_FORMAT_MAPPING[serviceId];
-       if (!formatCollectionId) return formatId; // Return raw value if no mapping
+       const serviceKey = serviceId.toLowerCase();
+       const formatCollectionId = SERVICE_FORMAT_MAPPING[serviceKey];
+       if (!formatCollectionId) return formatId; 
        return getLabel(formatCollectionId, formatId);
    };
 
@@ -235,7 +229,6 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
             <CardTitle>Shipment Items</CardTitle>
             <CardDescription>Items included in this shipment.</CardDescription>
         </div>
-        {/* Add Item Button */}
         {!isParentCompleted && (
           <Button onClick={handleAddDetail} size="sm" disabled={isParentCompleted || isLoading}>
             <PlusCircle className="mr-2 h-4 w-4" /> Add Item
@@ -246,7 +239,6 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
          )}
       </CardHeader>
       <CardContent>
-        {/* Loading State */}
         {isLoading && (
            <div className="space-y-2 py-4">
                <Skeleton className="h-10 w-full rounded" />
@@ -255,7 +247,6 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
            </div>
         )}
 
-        {/* Error State */}
         {error && !isLoading && (
           <Alert variant="destructive" className="my-4">
             <AlertTriangle className="h-4 w-4" />
@@ -264,12 +255,10 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
           </Alert>
         )}
 
-        {/* Empty State */}
         {!isLoading && !error && details.length === 0 && (
           <p className="text-center text-muted-foreground py-6">No items have been added to this shipment yet.</p>
         )}
 
-        {/* Table Display */}
         {!isLoading && !error && details.length > 0 && (
           <div className="overflow-x-auto">
             <Table>
@@ -287,80 +276,80 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {details.map((detail) => (
-                  <TableRow key={detail.id} className="hover:bg-muted/50">
-                    <TableCell>{getLabel('customers', detail.customerId)}</TableCell>
-                    <TableCell>{getLabel('services', detail.serviceId)}</TableCell>
-                    <TableCell>{getFormatLabel(detail.serviceId, detail.formatId)}</TableCell>
-                    <TableCell className="text-center">{detail.numPallets}</TableCell>
-                    <TableCell className="text-center">{detail.numBags}</TableCell>
-                    <TableCell className="text-right font-mono">{detail.grossWeight?.toFixed(3) ?? '0.000'}</TableCell>
-                    <TableCell className="text-right font-mono">{detail.tareWeight?.toFixed(3) ?? '0.000'}</TableCell>
-                    <TableCell className="text-right font-mono font-semibold">{detail.netWeight?.toFixed(3) ?? '0.000'}</TableCell>
-                    <TableCell className="text-right">
-                      {!isParentCompleted && (
-                         <div className="flex justify-end space-x-1">
-                           {/* Edit Button */}
-                           <Button variant="ghost" size="icon" onClick={() => handleEditDetail(detail)} title="Edit Item" disabled={isParentCompleted}>
-                             <Edit className="h-4 w-4" />
-                             <span className="sr-only">Edit</span>
-                           </Button>
-                           {/* Delete Button */}
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                        title="Delete Item"
-                                        disabled={isParentCompleted || details.length <= 1} // Disable delete if completed or last item
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                        <span className="sr-only">Delete</span>
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This action cannot be undone. This will permanently delete this shipment item.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction
-                                            onClick={() => handleDeleteDetail(detail.id)}
-                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                        >
-                                            Delete Item
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                         </div>
-                      )}
-                       {/* Show 'Locked' text if completed */}
-                      {isParentCompleted && (
-                          <span className="text-xs text-muted-foreground italic flex justify-end items-center h-full pr-2">Locked</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {details.map((detail) => {
+                  const isDeleteDisabled = isParentCompleted || details.length <= 1;
+                  console.log(`[ShipmentDetailsList DEBUG] Rendering detail ID: ${detail.id}. isParentCompleted: ${isParentCompleted}, details.length: ${details.length}, isDeleteDisabled: ${isDeleteDisabled}`);
+                  return (
+                    <TableRow key={detail.id} className="hover:bg-muted/50">
+                      <TableCell>{getLabel('customers', detail.customerId)}</TableCell>
+                      <TableCell>{getLabel('services', detail.serviceId)}</TableCell>
+                      <TableCell>{getFormatLabel(detail.serviceId, detail.formatId)}</TableCell>
+                      <TableCell className="text-center">{detail.numPallets}</TableCell>
+                      <TableCell className="text-center">{detail.numBags}</TableCell>
+                      <TableCell className="text-right font-mono">{detail.grossWeight?.toFixed(3) ?? '0.000'}</TableCell>
+                      <TableCell className="text-right font-mono">{detail.tareWeight?.toFixed(3) ?? '0.000'}</TableCell>
+                      <TableCell className="text-right font-mono font-semibold">{detail.netWeight?.toFixed(3) ?? '0.000'}</TableCell>
+                      <TableCell className="text-right">
+                        {!isParentCompleted && (
+                           <div className="flex justify-end space-x-1">
+                             <Button variant="ghost" size="icon" onClick={() => handleEditDetail(detail)} title="Edit Item" disabled={isParentCompleted}>
+                               <Edit className="h-4 w-4" />
+                               <span className="sr-only">Edit</span>
+                             </Button>
+                              <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                      <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                          title="Delete Item"
+                                          disabled={isDeleteDisabled} 
+                                      >
+                                          <Trash2 className="h-4 w-4" />
+                                          <span className="sr-only">Delete</span>
+                                      </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                              This action cannot be undone. This will permanently delete this shipment item.
+                                          </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                          <AlertDialogAction
+                                              onClick={() => handleDeleteDetail(detail.id)}
+                                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                          >
+                                              Delete Item
+                                          </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                  </AlertDialogContent>
+                              </AlertDialog>
+                           </div>
+                        )}
+                        {isParentCompleted && (
+                            <span className="text-xs text-muted-foreground italic flex justify-end items-center h-full pr-2">Locked</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
         )}
       </CardContent>
 
-      {/* Form Modal */}
-      {/* Render the modal conditionally using its isOpen prop */}
       <ShipmentDetailForm
-            shipmentId={shipmentId} // Always pass shipmentId
-            detail={editingDetail} // Pass detail being edited, or null for adding
+            shipmentId={shipmentId} 
+            detail={editingDetail} 
             isOpen={isFormOpen}
-            onClose={() => setIsFormOpen(false)} // Handler to close the modal
-            onSave={handleSaveDetail} // Handler for saving data
+            onClose={() => setIsFormOpen(false)} 
+            onSave={handleSaveDetail} 
        />
     </Card>
   );
 }
+
