@@ -5,7 +5,15 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Shipment, ShipmentDetail } from '@/lib/types';
 import { db } from '@/lib/firebase/config';
-import { collection, getDocs, query, QueryDocumentSnapshot, DocumentData, Timestamp } from 'firebase/firestore';
+import { 
+    collection, 
+    getDocs, 
+    query, 
+    orderBy, // Added orderBy import
+    QueryDocumentSnapshot, 
+    DocumentData, 
+    Timestamp 
+} from 'firebase/firestore';
 import { detailFromFirestore } from '@/lib/firebase/shipmentsService';
 import { getDropdownOptionsMap } from '@/lib/firebase/dropdownService';
 import { SERVICE_FORMAT_MAPPING } from '@/lib/constants';
@@ -26,9 +34,9 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
     // Validate if it's a string, starts with 'data:application/pdf;', and contains ';base64,'
     const isValidBase64PdfDataUri =
       pdfDataUriType === 'string' &&
-      pdfDataUriLength > 100 && // A very minimal PDF will still be larger than this
-      pdfDataUri.startsWith('data:application/pdf;') && // Check for PDF mime type
-      pdfDataUri.includes(';base64,'); // Crucially, check for base64 encoding marker
+      pdfDataUriLength > 100 && 
+      pdfDataUri.startsWith('data:application/pdf;') && 
+      pdfDataUri.includes(';base64,'); 
 
     if (!isValidBase64PdfDataUri) {
       const errorMsg = `CRITICAL ERROR - pdfDataUri for ${filename} is not a valid base64 PDF Data URI. Length: ${pdfDataUriLength}. Starts with: ${pdfDataUri?.substring(0, 50)}. Contains ';base64,': ${pdfDataUri?.includes(';base64,')}`;
@@ -70,9 +78,9 @@ const formatDateForPdf = (timestamp?: Timestamp): string => {
 };
 
 const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
-  if (!value) return defaultValueIfNotFoundOrValueMissing; // If value itself is missing, return default
-  if (!map) return value; // If map is missing, return the value/ID itself
-  return map[value] || value; // If label not in map, return the value/ID itself
+  if (!value) return defaultValueIfNotFoundOrValueMissing; 
+  if (!map) return value; 
+  return map[value] || value; 
 };
 
 
@@ -91,7 +99,7 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
     return details;
   } catch (error) {
     console.error(`[PDFService] getShipmentDetails: Error fetching details for shipment ${shipmentId}:`, error);
-    return []; // Return empty array on error
+    return []; 
   }
 };
 
@@ -117,7 +125,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
 
     // --- PDF Content ---
     const pageMargin = 15;
-    const contentWidth = doc.internal.pageSize.getWidth() - 2 * pageMargin;
+    // const contentWidth = doc.internal.pageSize.getWidth() - 2 * pageMargin; // Not directly used but good for reference
     let currentY = 20;
 
     // Title
@@ -138,7 +146,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     const labelValuePairs = [
       { label: "Date Departure:", value: formatDateForPdf(shipment.departureDate) },
       { label: "Arrival Date:", value: formatDateForPdf(shipment.arrivalDate) },
-      { label: "Carrier:", value: getLabelFromMap(dropdownMaps['carriers'], shipment.carrierId, 'N/A') }, // Explicitly N/A if carrierId is undefined or not found
+      { label: "Carrier:", value: getLabelFromMap(dropdownMaps['carriers'], shipment.carrierId, shipment.carrierId || 'N/A') }, 
       { label: "Subcarrier:", value: getLabelFromMap(dropdownMaps['subcarriers'], shipment.subcarrierId, shipment.subcarrierId || 'N/A') },
       { label: "Driver Name:", value: shipment.driverName || 'N/A' },
       { label: "Truck Reg No:", value: shipment.truckRegistration || 'N/A' },
@@ -151,22 +159,22 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     ];
 
     const firstColX = pageMargin;
-    const secondColX = pageMargin + 45; // Adjusted for potentially longer labels
+    const secondColX = pageMargin + 45; 
     const lineHeight = 6;
 
     labelValuePairs.forEach(pair => {
       doc.text(pair.label, firstColX, currentY);
       doc.text(pair.value, secondColX, currentY);
       currentY += lineHeight;
-      if (currentY > doc.internal.pageSize.getHeight() - 30) { // Basic page break
+      if (currentY > doc.internal.pageSize.getHeight() - 30) { 
         doc.addPage();
         currentY = 20;
       }
     });
-    currentY += 5; // Extra space before next section
+    currentY += 5; 
 
-    // Shipment Details Section Title
-    if (currentY > doc.internal.pageSize.getHeight() - 50) { // Check if enough space for title + some table
+    
+    if (currentY > doc.internal.pageSize.getHeight() - 50) { 
         doc.addPage();
         currentY = 20;
     }
@@ -175,7 +183,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     doc.text("Shipment Details:", pageMargin, currentY);
     currentY += 7;
 
-    // Shipment Details Table
+    
     const tableHead = [['Customer', 'Service', 'Format', 'Tare Weight', 'Gross Weight', 'Net Weight', 'Dispatch No.', 'DOE']];
     const tableBody = details.map(detail => {
       const serviceKey = detail.serviceId?.toLowerCase();
@@ -208,28 +216,21 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
         overflow: 'linebreak'
       },
       headStyles: {
-        fillColor: [22, 78, 99], // Dark blue
-        textColor: [255, 255, 255], // White
+        fillColor: [22, 78, 99], 
+        textColor: [255, 255, 255], 
         fontStyle: 'bold',
         halign: 'center'
       },
-      columnStyles: { // Example: Center specific columns
-        // 0: { halign: 'left' }, // Customer
-        // 3: { halign: 'right' }, // Tare Weight
-        // 4: { halign: 'right' }, // Gross Weight
-        // 5: { halign: 'right' }, // Net Weight
-      },
       tableLineColor: [189, 195, 199], 
       tableLineWidth: 0.1,
-      didDrawPage: (data) => { // For multi-page tables, re-draw headers etc. if needed
-        // You can add headers/footers on each page here if autoTable spans multiple pages
+      didDrawPage: (data) => { 
+       
       }
     });
-    // currentY = (doc as any).lastAutoTable.finalY + 10; // Not strictly needed if it's the last element
-
+    
 
     console.log(`[PDFService] ${pdfType}: Content added to PDF.`);
-    console.log(`[PDFService] ${pdfType}: Attempting to save ${filename}...`);
+    console.log(`[PDFService] ${pdfType}: Attempting to trigger download for ${filename}...`);
     triggerDownload(doc, filename, pdfType);
     console.log(`[PDFService] ${pdfType}: triggerDownload completed for ${filename}.`);
 
@@ -249,23 +250,27 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
   
   try {
     console.log(`[PDFService] ${pdfType}: Creating new jsPDF instance...`);
-    const doc = new jsPDF();
+    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
     console.log(`[PDFService] ${pdfType}: jsPDF instance created successfully.`);
 
     console.log(`[PDFService] ${pdfType}: Setting font size and adding simplified text...`);
     doc.setFontSize(18);
-    doc.text("CMR PDF - Placeholder", 10, 20);
+    doc.setFont('helvetica', 'bold');
+    doc.text("CMR - Placeholder", doc.internal.pageSize.getWidth() / 2, 20, { align: 'center' });
+    
     doc.setFontSize(12);
-    doc.text(`Shipment ID: ${shipment.id || 'N/A'}`, 10, 30);
-    doc.text("This is a placeholder for the CMR document.", 10, 40);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Shipment ID: ${shipment.id || 'N/A'}`, 15, 30);
+    doc.text("This is a placeholder for the CMR document.", 15, 40);
+    doc.text("More detailed content will be added based on CMR standards.", 15, 50);
     console.log(`[PDFService] ${pdfType}: Simplified text added to PDF.`);
     
-    console.log(`[PDFService] ${pdfType}: Attempting to save ${filename}...`);
+    console.log(`[PDFService] ${pdfType}: Attempting to trigger download for ${filename}...`);
     triggerDownload(doc, filename, pdfType);
     console.log(`[PDFService] ${pdfType}: triggerDownload completed for ${filename}.`);
 
   } catch (error) {
-    const errorMsg = `Error directly in generateCmrPdf function for ${filename}: ${error instanceof Error ? error.message : String(error)}`;
+    const errorMsg = `Error in generateCmrPdf function for ${filename}: ${error instanceof Error ? error.message : String(error)}`;
     console.error(`[PDFService] ${pdfType}: ${errorMsg}`, error);
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
