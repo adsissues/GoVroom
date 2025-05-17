@@ -9,7 +9,7 @@ import {
     collection,
     getDocs,
     query,
-    orderBy, // Ensure orderBy is imported
+    orderBy,
     type QueryDocumentSnapshot,
     type DocumentData,
     Timestamp
@@ -24,7 +24,8 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
   console.log(`[PDFService] ${pdfType}: triggerDownload CALLED for: ${filename}`);
   try {
     console.log(`[PDFService] ${pdfType}: Attempting to generate data URI for ${filename}...`);
-    const pdfDataUri = doc.output('datauristring'); // Use default: "datauristring"
+    // Use a simple data URI, filename in doc.output is not standard for data URIs.
+    const pdfDataUri = doc.output('datauristring'); // Filename parameter here is not standard for data URIs
     const pdfDataUriType = typeof pdfDataUri;
     const pdfDataUriLength = pdfDataUri?.length || 0;
 
@@ -48,8 +49,7 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
 
     console.log(`[PDFService] ${pdfType}: Creating anchor element for ${filename}...`);
     const link = document.createElement('a');
-    // Use a simple data URI for the href, filename is handled by link.download
-    link.href = `data:application/pdf;base64,${pdfDataUri.substring(pdfDataUri.indexOf(';base64,') + ';base64,'.length)}`;
+    link.href = pdfDataUri; // Use the full data URI here
     link.download = filename;
     console.log(`[PDFService] ${pdfType}: Anchor element created. Href (first 50 chars): ${link.href.substring(0,50)}..., Download: ${link.download}`);
 
@@ -80,8 +80,8 @@ const formatDateForPdf = (timestamp?: Timestamp): string => {
 
 const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
   if (!value) return defaultValueIfNotFoundOrValueMissing;
-  if (!map) return value; // If map is not available, return the value itself
-  return map[value] || value; // If value not in map, return the value itself
+  if (!map) return value;
+  return map[value] || value;
 };
 
 
@@ -92,7 +92,7 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
     return [];
   }
   const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
-  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc')); // Assuming you want details ordered
+  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc'));
   try {
     const snapshot = await getDocs(q);
     const details = snapshot.docs.map(doc => detailFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
@@ -105,48 +105,40 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
 };
 
 const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
-  const logoWidth = 35; // mm
-  const logoHeight = 10; // mm
+  const logoWidth = 35; // mm - Width of the teal box
+  const logoHeight = 10; // mm - Height of the teal box
   const text = "asendia";
-  const textFontSize = 8; // Approximate font size
-  const dotRadius = 0.8; // mm
-  const dotOffsetX = 22.6; // Approximate X offset for the dot on 'i' relative to start of "asendia" text
-                       // This needs fine-tuning based on font and exact text rendering
-  const dotOffsetY = -0.9; // Approximate Y offset for the dot relative to text baseline
+  const textFontSize = 9; // Adjusted for better proportion to a 10mm high box
+  const dotRadius = 1.4;  // Adjusted for visibility
+  const textLeftPadding = 4; // Padding from the left edge of the teal box to the start of "asendia"
 
-  // Teal background rectangle (Asendia-like color: #005A6A or RGB 0, 90, 106)
-  doc.setFillColor(0, 90, 106);
-  doc.rect(x, y, logoWidth, logoHeight, 'F');
+  // Teal background rectangle
+  doc.setFillColor(0, 90, 106); // Asendia Teal color
+  doc.rect(x, y, logoWidth, logoHeight, 'F'); // 'F' for fill
 
   // White text "asendia"
   doc.setFontSize(textFontSize);
-  doc.setFont('helvetica', 'bold'); // Using bold for better visibility
-  doc.setTextColor(255, 255, 255); // White text
+  doc.setFont('helvetica', 'normal'); // Sample image text does not look overly bold
+  doc.setTextColor(255, 255, 255); // White
 
-  // Calculate text width to center it (optional, for this specific text it's simpler to estimate)
-  // const textWidth = doc.getTextWidth(text);
-  // const textX = x + (logoWidth - textWidth) / 2; // For precise centering
-  const textX = x + 3; // Approximate padding from left
-  const textY = y + logoHeight / 2 + (textFontSize / 3.5); // Center text vertically (approx)
+  // Position text: x + padding, y centered
+  const textX = x + textLeftPadding;
+  const textY = y + logoHeight / 2; // jsPDF's `text` with `baseline: 'middle'` will handle vertical centering
 
   doc.text(text, textX, textY, { baseline: 'middle' });
 
-  // Yellow dot on 'i' (Asendia yellow: #FFCD00 or RGB 255, 205, 0)
-  doc.setFillColor(255, 205, 0);
-  // Estimate position of the 'i's dot
-  // The text "asendia" - 'i' is the 5th character.
-  // This is a rough estimation and will depend heavily on the font metrics.
-  // We need the x-coordinate of where the 'i' is rendered.
-  // Let's assume `textX` is the start of "asendia".
-  // We need to find the x position of the 'i'.
-  // For "asendia", the dot of 'i' is roughly above the stem.
-  const iDotX = textX + dotOffsetX;
-  const iDotY = textY + dotOffsetY; // Adjust baseline for dot
+  // Yellow dot
+  doc.setFillColor(255, 205, 0); // Asendia Yellow color
 
-  doc.circle(iDotX, iDotY, dotRadius, 'F');
+  // Position the dot's center. In the sample image, it's to the right of the text,
+  // roughly 3/4 or a bit more across the logo's width.
+  const dotX = x + logoWidth * 0.82; // Position dot center at 82% of the logo's width from the left
+  const dotY = y + logoHeight / 2;   // Vertically centered with the text
 
-  // Reset text color for subsequent text
-  doc.setTextColor(0, 0, 0); // Black text
+  doc.circle(dotX, dotY, dotRadius, 'F'); // 'F' for fill
+
+  // Reset text color for subsequent text elements in the PDF
+  doc.setTextColor(0, 0, 0); // Black
 };
 
 
@@ -169,26 +161,19 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     const dropdownMaps = await getDropdownOptionsMap(dropdownCollectionNames);
     console.log(`[PDFService] ${pdfType}: Fetched dropdown maps for labels.`);
 
-    // --- PDF Content ---
     const pageMargin = 15; // mm
     const pageWidth = doc.internal.pageSize.getWidth();
-    let currentY = pageMargin + 10; // Start Y position, leaving space for logo
+    let currentY = pageMargin;
 
     // Add Asendia Style Logo (top-left)
-    addAsendiaStyleLogo(doc, pageMargin, pageMargin);
+    addAsendiaStyleLogo(doc, pageMargin, currentY);
+    currentY += 10 + 5; // Adjust currentY to be below the logo (logoHeight + some padding)
 
-    // Title
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    // Adjust title Y if logo is present and takes space, or center title relative to remaining space
-    // For top-left logo, title can start further down or be aligned differently.
-    // Let's place the title below the logo.
-    currentY = pageMargin + 10 + 15; // Start below logo height + some padding
-
     doc.text("Shipment Completion Report", pageWidth / 2, currentY, { align: 'center' });
     currentY += 15;
 
-    // Main Shipment Details Section Title
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.text("Main Shipment Details:", pageMargin, currentY);
@@ -212,29 +197,27 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     ];
 
     const firstColX = pageMargin;
-    const secondColX = pageMargin + 45; // X for value column
+    const secondColX = pageMargin + 45;
     const lineHeight = 6;
 
     labelValuePairs.forEach(pair => {
+      if (currentY > doc.internal.pageSize.getHeight() - pageMargin - lineHeight) {
+        doc.addPage();
+        currentY = pageMargin;
+        addAsendiaStyleLogo(doc, pageMargin, currentY);
+        currentY += 10 + 5;
+      }
       doc.text(pair.label, firstColX, currentY);
       doc.text(pair.value, secondColX, currentY);
       currentY += lineHeight;
-      if (currentY > doc.internal.pageSize.getHeight() - 30) { // Check for page overflow
-        doc.addPage();
-        currentY = pageMargin; // Reset Y for new page
-        addAsendiaStyleLogo(doc, pageMargin, pageMargin); // Re-add logo on new page
-        currentY += 25; // Space for logo
-      }
     });
-    currentY += 5; // Extra space before details table
+    currentY += 5;
 
-
-    // Check for page overflow before drawing table
-    if (currentY > doc.internal.pageSize.getHeight() - 50) { // Arbitrary threshold for table header + some rows
+    if (currentY > doc.internal.pageSize.getHeight() - 50) {
         doc.addPage();
         currentY = pageMargin;
-        addAsendiaStyleLogo(doc, pageMargin, pageMargin); // Re-add logo on new page
-        currentY += 25; // Space for logo
+        addAsendiaStyleLogo(doc, pageMargin, currentY);
+        currentY += 10 + 5;
     }
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
@@ -274,15 +257,14 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
         overflow: 'linebreak'
       },
       headStyles: {
-        fillColor: [0, 90, 106], // Asendia-like teal
+        fillColor: [0, 90, 106], // Asendia Teal
         textColor: [255, 255, 255],
         fontStyle: 'bold',
         halign: 'center'
       },
-      tableLineColor: [180, 180, 180], // Lighter gray for table lines
+      tableLineColor: [180, 180, 180],
       tableLineWidth: 0.1,
       didDrawPage: (data) => {
-        // Add logo to each new page created by autoTable
         if (data.pageNumber > 1) {
              addAsendiaStyleLogo(doc, pageMargin, pageMargin);
         }
@@ -316,11 +298,10 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     
     const pageMargin = 15;
     const pageWidth = doc.internal.pageSize.getWidth();
-    let currentY = pageMargin + 10;
+    let currentY = pageMargin;
 
-    // Add Asendia Style Logo (top-left)
-    addAsendiaStyleLogo(doc, pageMargin, pageMargin);
-    currentY = pageMargin + 10 + 15; // Start below logo
+    addAsendiaStyleLogo(doc, pageMargin, currentY);
+    currentY += 10 + 5; // Adjust currentY to be below the logo (logoHeight + some padding)
 
     console.log(`[PDFService] ${pdfType}: Setting font size and adding simplified text...`);
     doc.setFontSize(18);
@@ -347,3 +328,4 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
 };
+
