@@ -65,7 +65,7 @@ export default function ShipmentDetailPage() {
       } else {
         console.log(`[ShipmentDetailPage] fetchShipment: No shipment found for ID ${shipmentId}. Calling notFound().`);
         if (showLoadingIndicator) setIsLoading(false);
-        notFound();
+        notFound(); // This will trigger Next.js 404 page
         return null;
       }
     } catch (err) {
@@ -74,18 +74,19 @@ export default function ShipmentDetailPage() {
       if (showLoadingIndicator) setIsLoading(false);
       return null;
     }
-  }, [shipmentId]);
+  }, [shipmentId]); // Removed notFound from dependencies as it's stable
 
   useEffect(() => {
     console.log("[ShipmentDetailPage] Initial data fetch useEffect triggered.");
-    if (shipmentId) { // Only fetch if shipmentId is valid
+    if (shipmentId) { 
         fetchShipment();
     } else {
         console.log("[ShipmentDetailPage] Initial data fetch: shipmentId is invalid, skipping fetch.");
         setError("No Shipment ID provided in URL.");
         setIsLoading(false);
     }
-  }, [fetchShipment, shipmentId]); // Add shipmentId here
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shipmentId]); // fetchShipment is memoized, shipmentId is the key dependency.
 
   const handleUpdateShipment = async (data: Partial<Shipment>) => {
     if (!shipment || !shipmentId) {
@@ -95,15 +96,21 @@ export default function ShipmentDetailPage() {
     }
 
     console.log('[ShipmentDetailPage] handleUpdateShipment: Initiated. Data to save:', JSON.parse(JSON.stringify(data)));
-    console.log(`[ShipmentDetailPage] handleUpdateShipment: Current shipment status (before this update): ${shipment.status}`);
+    console.log(`[ShipmentDetailPage] handleUpdateShipment: Current shipment status (before this update attempt): ${shipment.status}`);
     
     // Explicitly set statusBeforeUpdate only if the status is part of the update and is different
     if (data.status && data.status !== shipment.status) {
       console.log(`[ShipmentDetailPage] handleUpdateShipment: Status change detected. FROM ${shipment.status} TO ${data.status}. Setting statusBeforeUpdate to: ${shipment.status}`);
       setStatusBeforeUpdate(shipment.status); 
     } else {
-      console.log(`[ShipmentDetailPage] handleUpdateShipment: No status change in this update OR status field not present in update. Current: ${shipment.status}, Update data.status: ${data.status}. statusBeforeUpdate will be undefined.`);
-      setStatusBeforeUpdate(undefined); // Ensure it's undefined if no relevant status change
+      console.log(`[ShipmentDetailPage] handleUpdateShipment: No status change in this update OR status field not present in update. Current: ${shipment.status}, Update data.status: ${data.status}. statusBeforeUpdate will remain: ${statusBeforeUpdate} (or undefined if not previously set).`);
+      // If no status change, we might want to ensure statusBeforeUpdate is cleared if it was from a previous, unrelated action.
+      // However, the PDF effect depends on statusBeforeUpdate being set *right before* the PENDING->COMPLETED update.
+      // So, if there's NO status change here, we should ideally clear it to prevent accidental PDF generation on a non-status update.
+      if (statusBeforeUpdate !== undefined) { // only clear if it was previously set
+          console.log(`[ShipmentDetailPage] handleUpdateShipment: No status change in this update, clearing previous statusBeforeUpdate ('${statusBeforeUpdate}') to undefined.`);
+          setStatusBeforeUpdate(undefined);
+      }
     }
 
     try {
@@ -113,7 +120,7 @@ export default function ShipmentDetailPage() {
       
       console.log('[ShipmentDetailPage] handleUpdateShipment: Update successful. Refetching shipment...');
       const updatedShipmentData = await fetchShipment(false); // Refetch without full page loading indicator
-      console.log('[ShipmentDetailPage] handleUpdateShipment: Refetched shipment data after update:', JSON.stringify(updatedShipmentData).substring(0, 300) + "...");
+      console.log('[ShipmentDetailPage] handleUpdateShipment: Refetched shipment data after update:', updatedShipmentData ? JSON.stringify(updatedShipmentData).substring(0, 300) + "..." : "null/undefined");
 
     } catch (err) {
       console.error("[ShipmentDetailPage] handleUpdateShipment: Error updating shipment:", err);
@@ -127,7 +134,11 @@ export default function ShipmentDetailPage() {
   useEffect(() => {
     console.log('[ShipmentDetailPage] PDF Effect triggered. Current shipment:', shipment ? `ID: ${shipment.id}, Status: ${shipment.status}` : 'null', 'Status before update was:', statusBeforeUpdate);
 
-    if (shipment && statusBeforeUpdate === 'Pending' && shipment.status === 'Completed') {
+    const shouldGeneratePdfs = shipment && statusBeforeUpdate === 'Pending' && shipment.status === 'Completed';
+    
+    console.log(`[ShipmentDetailPage] PDF Effect: Checking condition: (shipment exists: ${!!shipment}) AND (statusBeforeUpdate === 'Pending': ${statusBeforeUpdate === 'Pending'}) AND (shipment.status === 'Completed': ${shipment?.status === 'Completed'}). Overall: ${shouldGeneratePdfs}`);
+
+    if (shouldGeneratePdfs) {
       console.log('[ShipmentDetailPage] PDF Effect: Condition MET for PDF generation. Shipment ID:', shipment.id);
       toast({
         title: 'Generating PDFs',
@@ -135,17 +146,18 @@ export default function ShipmentDetailPage() {
         duration: 7000,
       });
       
-      // Using an IIFE to handle async operations within useEffect
       (async () => {
         try {
           console.log('[ShipmentDetailPage] PDF Effect: Calling generatePreAlertPdf with shipment data...');
-          generatePreAlertPdf(shipment); // generatePreAlertPdf is synchronous
+          console.log('[PDFService] Pre-Alert PDF: Full shipment data:', JSON.stringify(shipment, null, 2));
+          generatePreAlertPdf(shipment); 
           
           console.log('[ShipmentDetailPage] PDF Effect: Waiting 1000ms before generating CMR PDF...');
-          await delay(1000); // Delay between PDF generations
+          await delay(1000); 
 
           console.log('[ShipmentDetailPage] PDF Effect: Calling generateCmrPdf with shipment data...');
-          generateCmrPdf(shipment); // generateCmrPdf is synchronous
+          console.log('[PDFService] CMR PDF: Full shipment data:', JSON.stringify(shipment, null, 2));
+          generateCmrPdf(shipment); 
           
           console.log('[ShipmentDetailPage] PDF Effect: PDF generation calls ostensibly complete.');
         } catch(pdfError) {
@@ -156,7 +168,6 @@ export default function ShipmentDetailPage() {
             description: pdfError instanceof Error ? pdfError.message : "Could not generate PDFs."
           });
         } finally {
-            // Always reset statusBeforeUpdate after attempting PDF generation
             console.log('[ShipmentDetailPage] PDF Effect (async IIFE finally): Resetting statusBeforeUpdate from', statusBeforeUpdate, 'to undefined.');
             setStatusBeforeUpdate(undefined);
         }
@@ -167,15 +178,15 @@ export default function ShipmentDetailPage() {
         } else {
             console.log(`[ShipmentDetailPage] PDF Effect: Condition NOT MET. Shipment is null. Status Before Update was: ${statusBeforeUpdate}`);
         }
-        // If condition was not met, and statusBeforeUpdate was set by a previous relevant update, reset it.
-        // This ensures it doesn't persist if the PDF generation didn't run for some reason (e.g., an error before the IIFE).
+        // If condition was not met, and statusBeforeUpdate was set from a relevant update, reset it.
+        // This ensures it doesn't persist if the PDF generation didn't run.
         if (statusBeforeUpdate !== undefined) {
              console.log('[ShipmentDetailPage] PDF Effect (Condition NOT MET branch): Resetting statusBeforeUpdate from', statusBeforeUpdate, 'to undefined.');
              setStatusBeforeUpdate(undefined);
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shipment, statusBeforeUpdate]); // toast removed as it's stable and causes re-runs
+  }, [shipment, statusBeforeUpdate]); // toast removed as it's stable and causes re-runs. fetchShipment is memoized.
 
 
   if (isLoading) {
@@ -210,7 +221,9 @@ export default function ShipmentDetailPage() {
   }
 
   if (!shipment) {
-    console.log("[ShipmentDetailPage] Rendering: No shipment data (after loading and no error). This usually means notFound() was or should have been called, or ID was invalid.");
+    // This case should ideally be handled by notFound() inside fetchShipment if ID is invalid.
+    // If fetchShipment returns null for other reasons, this fallback is hit.
+    console.log("[ShipmentDetailPage] Rendering: No shipment data (after loading and no error). This might mean notFound() was called or should have been, or an issue with fetchShipment returning null.");
     return (
       <div className="space-y-6 p-4 md:p-6 lg:p-8">
         <Button variant="outline" onClick={() => router.back()} className="mb-4">
@@ -218,9 +231,10 @@ export default function ShipmentDetailPage() {
         </Button>
         <Alert variant="default" className="border-yellow-500 bg-yellow-50">
           <AlertTriangle className="h-4 w-4 text-yellow-700" />
-          <AlertTitle className="text-yellow-800">Shipment Not Found</AlertTitle>
+          <AlertTitle className="text-yellow-800">Shipment Information Unavailable</AlertTitle>
           <AlertDescription className="text-yellow-700">
-            The shipment you are looking for could not be found or the ID is invalid.
+            The shipment data could not be loaded. This might be due to an invalid ID or a temporary issue.
+            If you navigated here from a link, please ensure the shipment ID is correct.
           </AlertDescription>
         </Alert>
       </div>
@@ -279,5 +293,6 @@ export default function ShipmentDetailPage() {
     </div>
   );
 }
+    
 
     
