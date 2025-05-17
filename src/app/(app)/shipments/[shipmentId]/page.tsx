@@ -17,7 +17,11 @@ import { Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { generatePreAlertPdf, generateCmrPdf } from '@/lib/pdfService'; // Import PDF functions
 
+// Helper function to introduce a delay
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export default function ShipmentDetailPage() {
+  console.log("[ShipmentDetailPage] Component rendering or re-rendering...");
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
@@ -25,6 +29,8 @@ export default function ShipmentDetailPage() {
 
   const pathShipmentId = params?.shipmentId;
   const shipmentId = typeof pathShipmentId === 'string' && pathShipmentId.trim() !== '' ? pathShipmentId.trim() : undefined;
+  console.log(`[ShipmentDetailPage] shipmentId from params: ${shipmentId}`);
+
 
   const [shipment, setShipment] = useState<Shipment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,6 +76,7 @@ export default function ShipmentDetailPage() {
   }, [shipmentId]); // Removed notFound from dependencies as it's stable
 
   useEffect(() => {
+    console.log("[ShipmentDetailPage] Initial data fetch useEffect triggered.");
     fetchShipment();
   }, [fetchShipment]);
 
@@ -109,39 +116,56 @@ export default function ShipmentDetailPage() {
       toast({
         title: 'Generating PDFs',
         description: 'Shipment completed. PDFs will be downloaded shortly.',
-        duration: 5000,
+        duration: 7000, // Increased duration
       });
-      try {
-        console.log('[ShipmentDetailPage] PDF Effect: Calling generatePreAlertPdf with shipment data:', JSON.stringify(shipment));
-        generatePreAlertPdf(shipment);
-        console.log('[ShipmentDetailPage] PDF Effect: Calling generateCmrPdf with shipment data:', JSON.stringify(shipment));
-        generateCmrPdf(shipment);
-        console.log('[ShipmentDetailPage] PDF Effect: PDF generation calls ostensibly complete.');
-      } catch(pdfError) {
-        console.error("[ShipmentDetailPage] PDF Effect: Error during PDF generation functions:", pdfError);
-        toast({
-          variant: "destructive",
-          title: "PDF Generation Failed",
-          description: pdfError instanceof Error ? pdfError.message : "Could not generate PDFs."
-        });
-      }
+      
+      // Use an async IIFE to handle the delays
+      (async () => {
+        try {
+          console.log('[ShipmentDetailPage] PDF Effect: Calling generatePreAlertPdf with shipment data:', JSON.stringify(shipment));
+          generatePreAlertPdf(shipment);
+          
+          console.log('[ShipmentDetailPage] PDF Effect: Waiting 500ms before generating CMR PDF...');
+          await delay(500); // Wait for half a second
+
+          console.log('[ShipmentDetailPage] PDF Effect: Calling generateCmrPdf with shipment data:', JSON.stringify(shipment));
+          generateCmrPdf(shipment);
+          
+          console.log('[ShipmentDetailPage] PDF Effect: PDF generation calls ostensibly complete.');
+        } catch(pdfError) {
+          console.error("[ShipmentDetailPage] PDF Effect: Error during PDF generation functions:", pdfError);
+          toast({
+            variant: "destructive",
+            title: "PDF Generation Failed",
+            description: pdfError instanceof Error ? pdfError.message : "Could not generate PDFs."
+          });
+        } finally {
+           // Reset statusBeforeUpdate after the check, regardless of PDF generation outcome
+          // This ensures it's ready for the next potential update.
+          if (statusBeforeUpdate !== undefined) {
+              console.log('[ShipmentDetailPage] PDF Effect: Resetting statusBeforeUpdate from', statusBeforeUpdate, 'to undefined.');
+              setStatusBeforeUpdate(undefined); // Reset for next potential update
+          }
+        }
+      })();
     } else {
         if (shipment) {
             console.log(`[ShipmentDetailPage] PDF Effect: Condition NOT MET. Shipment ID: ${shipment.id}, Current Status: ${shipment.status}, Status Before Update was: ${statusBeforeUpdate}`);
         } else {
             console.log(`[ShipmentDetailPage] PDF Effect: Condition NOT MET. Shipment is null. Status Before Update was: ${statusBeforeUpdate}`);
         }
+         // Reset statusBeforeUpdate if the condition wasn't met but it was set
+        if (statusBeforeUpdate !== undefined) {
+            console.log('[ShipmentDetailPage] PDF Effect (Condition NOT MET): Resetting statusBeforeUpdate from', statusBeforeUpdate, 'to undefined.');
+            setStatusBeforeUpdate(undefined);
+        }
     }
-    // Reset statusBeforeUpdate after the check, regardless of PDF generation outcome
-    // This ensures it's ready for the next potential update.
-    if (statusBeforeUpdate !== undefined) {
-        // console.log('[ShipmentDetailPage] PDF Effect: Resetting statusBeforeUpdate from', statusBeforeUpdate, 'to undefined.');
-        setStatusBeforeUpdate(undefined); // Reset for next potential update
-    }
-  }, [shipment, statusBeforeUpdate, toast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shipment, statusBeforeUpdate, toast]); // shipmentId is indirectly handled via fetchShipment which updates `shipment`
 
 
   if (isLoading) {
+    console.log("[ShipmentDetailPage] Rendering: Loading state.");
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] space-y-4 p-4 md:p-6 lg:p-8">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -154,6 +178,7 @@ export default function ShipmentDetailPage() {
   }
 
   if (error) {
+     console.log("[ShipmentDetailPage] Rendering: Error state -", error);
     return (
       <div className="space-y-6 p-4 md:p-6 lg:p-8">
         <Button variant="outline" onClick={() => router.back()} className="mb-4">
@@ -172,9 +197,9 @@ export default function ShipmentDetailPage() {
   }
 
   if (!shipment) {
+    console.log("[ShipmentDetailPage] Rendering: No shipment data (after loading and no error). This usually means notFound() was or should have been called.");
     // This case should ideally be handled by the notFound() in fetchShipment or the error state.
     // Adding a fallback for robustness.
-    console.log("[ShipmentDetailPage] Render: Shipment is null after loading and no error, this might indicate an issue or initial state.");
     return (
       <div className="space-y-6 p-4 md:p-6 lg:p-8">
         <Button variant="outline" onClick={() => router.back()} className="mb-4">
@@ -191,6 +216,7 @@ export default function ShipmentDetailPage() {
     );
   }
 
+  console.log("[ShipmentDetailPage] Rendering: Main content with shipment data.");
   return (
     <div className="space-y-6 md:space-y-8">
       <Button variant="outline" onClick={() => router.push('/shipments')} className="mb-0">
@@ -211,12 +237,12 @@ export default function ShipmentDetailPage() {
           </div>
           <div className="flex gap-2">
             {canEdit && !isEditing && (
-              <Button onClick={() => setIsEditing(true)} variant="outline">
+              <Button onClick={() => { console.log("[ShipmentDetailPage] Edit Main Info button clicked."); setIsEditing(true);}} variant="outline">
                 <Edit className="mr-2 h-4 w-4" /> Edit Main Info
               </Button>
             )}
             {isEditing && (
-              <Button onClick={() => setIsEditing(false)} variant="ghost">
+              <Button onClick={() => { console.log("[ShipmentDetailPage] Cancel Edit button clicked."); setIsEditing(false);}} variant="ghost">
                 <XCircle className="mr-2 h-4 w-4" /> Cancel Edit
               </Button>
             )}
@@ -242,6 +268,3 @@ export default function ShipmentDetailPage() {
     </div>
   );
 }
-
-
-    

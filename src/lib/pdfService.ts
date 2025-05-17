@@ -18,25 +18,46 @@ const formatPdfTimestamp = (timestamp: any): string => {
 
 // Helper function to trigger download
 const triggerDownload = (doc: jsPDF, filename: string) => {
+  console.log(`[PDFService] Attempting to trigger download for: ${filename}`);
   try {
+    console.log(`[PDFService] Generating data URI for ${filename}...`);
     const pdfDataUri = doc.output('datauristring');
-    console.log(`[PDFService] Generated Data URI for ${filename}. Length: ${pdfDataUri.length}`);
+    console.log(`[PDFService] Generated Data URI for ${filename}. Length: ${pdfDataUri.length}. Preview (first 100 chars): ${pdfDataUri.substring(0,100)}`);
 
+    if (!pdfDataUri || pdfDataUri === "data:,") {
+        console.error(`[PDFService] Generated Data URI for ${filename} is empty or invalid.`);
+        alert(`Failed to generate PDF content for ${filename}. The data URI was empty.`);
+        return;
+    }
+
+    console.log(`[PDFService] Creating anchor element for ${filename}...`);
     const link = document.createElement('a');
     link.href = pdfDataUri;
     link.download = filename;
-    document.body.appendChild(link); // Required for Firefox
-    console.log(`[PDFService] Triggering click for ${filename}`);
+    
+    console.log(`[PDFService] Anchor element href: ${link.href.substring(0,100)}...`);
+    console.log(`[PDFService] Anchor element download attribute: ${link.download}`);
+
+    // Append to body, click, and remove (standard practice)
+    console.log(`[PDFService] Appending anchor to body for ${filename}...`);
+    document.body.appendChild(link);
+    
+    console.log(`[PDFService] Simulating click for ${filename}...`);
     link.click();
-    document.body.removeChild(link); // Clean up
-    console.log(`[PDFService] Download triggered for ${filename}`);
+    
+    console.log(`[PDFService] Removing anchor from body for ${filename}...`);
+    document.body.removeChild(link);
+    
+    console.log(`[PDFService] Download process initiated for ${filename}.`);
+
   } catch (error) {
     console.error(`[PDFService] Error in triggerDownload for ${filename}:`, error);
+    alert(`An error occurred while trying to download ${filename}: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
 
 export const generatePreAlertPdf = (shipment: Shipment): void => {
-  console.log("[PDFService] generatePreAlertPdf called with shipment:", JSON.stringify(shipment));
+  console.log("[PDFService] generatePreAlertPdf called with shipment ID:", shipment.id);
   try {
     const doc = new jsPDF();
     if (!doc) {
@@ -56,17 +77,19 @@ export const generatePreAlertPdf = (shipment: Shipment): void => {
     doc.text(`Status: ${shipment.status}`, 20, 90);
     doc.text(`Seal Number: ${shipment.sealNumber || 'N/A'}`, 20, 100);
 
-    console.log("[PDFService] Pre-Alert PDF: jsPDF document object before generating output:", doc);
+    console.log("[PDFService] Pre-Alert PDF: jsPDF document content defined.");
     const filename = `pre-alert-${shipment.id}.pdf`;
     triggerDownload(doc, filename);
+    console.log("[PDFService] Pre-Alert PDF: triggerDownload called.");
 
   } catch (error) {
     console.error("[PDFService] Error in generatePreAlertPdf:", error);
+    alert(`Error creating Pre-Alert PDF: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
 
 export const generateCmrPdf = (shipment: Shipment): void => {
-  console.log("[PDFService] generateCmrPdf called with shipment:", JSON.stringify(shipment));
+  console.log("[PDFService] generateCmrPdf called with shipment ID:", shipment.id);
   try {
     const doc = new jsPDF();
      if (!doc) {
@@ -99,12 +122,14 @@ export const generateCmrPdf = (shipment: Shipment): void => {
     doc.text("Carrier's Signature / Stamp:", 20, 220);
     doc.text("Sender's Signature / Stamp:", 110, 220);
 
-    console.log("[PDFService] CMR PDF: jsPDF document object before generating output:", doc);
+    console.log("[PDFService] CMR PDF: jsPDF document content defined.");
     const filename = `cmr-${shipment.id}.pdf`;
     triggerDownload(doc, filename);
+    console.log("[PDFService] CMR PDF: triggerDownload called.");
 
   } catch (error) {
     console.error("[PDFService] Error in generateCmrPdf:", error);
+    alert(`Error creating CMR PDF: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
 
