@@ -1,10 +1,10 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter, notFound } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getShipmentById, updateShipment, shipmentFromFirestore } from '@/lib/firebase/shipmentsService';
+import { getShipmentById, updateShipment } from '@/lib/firebase/shipmentsService';
 import type { Shipment, ShipmentStatus } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -32,15 +32,19 @@ export default function ShipmentDetailPage() {
   const shipmentId = typeof pathShipmentId === 'string' && pathShipmentId.trim() !== '' ? pathShipmentId.trim() : undefined;
   console.log(`[ShipmentDetailPage] shipmentId from params: ${shipmentId}`);
 
-
   const [shipment, setShipment] = useState<Shipment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [statusBeforeUpdate, setStatusBeforeUpdate] = useState<ShipmentStatus | undefined>(undefined);
+  
+  // Ref to store the status of the shipment *before* an update
+  const previousShipmentStatusRef = useRef<ShipmentStatus | undefined>(undefined);
 
   const isAdmin = currentUser?.role === 'admin';
-  const canEdit = shipment?.status === 'Pending' || isAdmin;
+  // Determine if editing is allowed:
+  // - If the form is in edit mode (isEditing = true)
+  // - AND (EITHER shipment status is 'Pending' OR the user is an admin)
+  const canEdit = isEditing && (shipment?.status === 'Pending' || isAdmin);
 
   const fetchShipment = useCallback(async (showLoadingIndicator = true) => {
     console.log(`[ShipmentDetailPage] fetchShipment called for ID: ${shipmentId}, showLoading: ${showLoadingIndicator}`);
@@ -58,14 +62,14 @@ export default function ShipmentDetailPage() {
     try {
       const fetchedShipmentData = await getShipmentById(shipmentId);
       if (fetchedShipmentData) {
-        console.log("[ShipmentDetailPage] fetchShipment: Successfully fetched shipment data:", JSON.stringify(fetchedShipmentData).substring(0, 300) + "..."); // Log snippet
+        console.log("[ShipmentDetailPage] fetchShipment: Successfully fetched shipment data:", JSON.stringify(fetchedShipmentData).substring(0, 300) + "...");
         setShipment(fetchedShipmentData);
         if (showLoadingIndicator) setIsLoading(false);
         return fetchedShipmentData;
       } else {
         console.log(`[ShipmentDetailPage] fetchShipment: No shipment found for ID ${shipmentId}. Calling notFound().`);
         if (showLoadingIndicator) setIsLoading(false);
-        notFound(); // This will trigger Next.js 404 page
+        notFound();
         return null;
       }
     } catch (err) {
@@ -74,7 +78,7 @@ export default function ShipmentDetailPage() {
       if (showLoadingIndicator) setIsLoading(false);
       return null;
     }
-  }, [shipmentId]); // Removed notFound from dependencies as it's stable
+  }, [shipmentId]);
 
   useEffect(() => {
     console.log("[ShipmentDetailPage] Initial data fetch useEffect triggered.");
@@ -86,7 +90,7 @@ export default function ShipmentDetailPage() {
         setIsLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shipmentId]); // fetchShipment is memoized, shipmentId is the key dependency.
+  }, [shipmentId]);
 
   const handleUpdateShipment = async (data: Partial<Shipment>) => {
     if (!shipment || !shipmentId) {
@@ -98,20 +102,9 @@ export default function ShipmentDetailPage() {
     console.log('[ShipmentDetailPage] handleUpdateShipment: Initiated. Data to save:', JSON.parse(JSON.stringify(data)));
     console.log(`[ShipmentDetailPage] handleUpdateShipment: Current shipment status (before this update attempt): ${shipment.status}`);
     
-    // Explicitly set statusBeforeUpdate only if the status is part of the update and is different
-    if (data.status && data.status !== shipment.status) {
-      console.log(`[ShipmentDetailPage] handleUpdateShipment: Status change detected. FROM ${shipment.status} TO ${data.status}. Setting statusBeforeUpdate to: ${shipment.status}`);
-      setStatusBeforeUpdate(shipment.status); 
-    } else {
-      console.log(`[ShipmentDetailPage] handleUpdateShipment: No status change in this update OR status field not present in update. Current: ${shipment.status}, Update data.status: ${data.status}. statusBeforeUpdate will remain: ${statusBeforeUpdate} (or undefined if not previously set).`);
-      // If no status change, we might want to ensure statusBeforeUpdate is cleared if it was from a previous, unrelated action.
-      // However, the PDF effect depends on statusBeforeUpdate being set *right before* the PENDING->COMPLETED update.
-      // So, if there's NO status change here, we should ideally clear it to prevent accidental PDF generation on a non-status update.
-      if (statusBeforeUpdate !== undefined) { // only clear if it was previously set
-          console.log(`[ShipmentDetailPage] handleUpdateShipment: No status change in this update, clearing previous statusBeforeUpdate ('${statusBeforeUpdate}') to undefined.`);
-          setStatusBeforeUpdate(undefined);
-      }
-    }
+    // Capture the status *before* this specific update attempt
+    previousShipmentStatusRef.current = shipment.status;
+    console.log(`[ShipmentDetailPage] handleUpdateShipment: Set previousShipmentStatusRef.current to: ${previousShipmentStatusRef.current}`);
 
     try {
       await updateShipment(shipmentId, data);
@@ -119,24 +112,27 @@ export default function ShipmentDetailPage() {
       setIsEditing(false);
       
       console.log('[ShipmentDetailPage] handleUpdateShipment: Update successful. Refetching shipment...');
-      const updatedShipmentData = await fetchShipment(false); // Refetch without full page loading indicator
+      const updatedShipmentData = await fetchShipment(false);
       console.log('[ShipmentDetailPage] handleUpdateShipment: Refetched shipment data after update:', updatedShipmentData ? JSON.stringify(updatedShipmentData).substring(0, 300) + "..." : "null/undefined");
 
     } catch (err) {
       console.error("[ShipmentDetailPage] handleUpdateShipment: Error updating shipment:", err);
       toast({ variant: "destructive", title: "Update Failed", description: err instanceof Error ? err.message : "Could not save shipment changes." });
-      // If update fails, ensure statusBeforeUpdate is cleared to prevent incorrect PDF trigger on next effect run
-      console.log(`[ShipmentDetailPage] handleUpdateShipment: Error during update. Resetting statusBeforeUpdate to undefined.`);
-      setStatusBeforeUpdate(undefined);
+      // If update fails, clear the ref to prevent incorrect PDF trigger on next effect run
+      previousShipmentStatusRef.current = undefined;
+      console.log(`[ShipmentDetailPage] handleUpdateShipment: Error during update. Resetting previousShipmentStatusRef.current to undefined.`);
     }
   };
 
   useEffect(() => {
-    console.log('[ShipmentDetailPage] PDF Effect triggered. Current shipment:', shipment ? `ID: ${shipment.id}, Status: ${shipment.status}` : 'null', 'Status before update was:', statusBeforeUpdate);
+    console.log(`[ShipmentDetailPage] PDF Effect triggered. Current shipment: ${shipment ? `ID: ${shipment.id}, Status: ${shipment.status}` : 'null'}. previousShipmentStatusRef.current was: ${previousShipmentStatusRef.current}`);
 
-    const shouldGeneratePdfs = shipment && statusBeforeUpdate === 'Pending' && shipment.status === 'Completed';
+    const shouldGeneratePdfs =
+      shipment &&
+      previousShipmentStatusRef.current === 'Pending' &&
+      shipment.status === 'Completed';
     
-    console.log(`[ShipmentDetailPage] PDF Effect: Checking condition: (shipment exists: ${!!shipment}) AND (statusBeforeUpdate === 'Pending': ${statusBeforeUpdate === 'Pending'}) AND (shipment.status === 'Completed': ${shipment?.status === 'Completed'}). Overall: ${shouldGeneratePdfs}`);
+    console.log(`[ShipmentDetailPage] PDF Effect: Checking condition: (shipment exists: ${!!shipment}) AND (previousShipmentStatusRef.current === 'Pending': ${previousShipmentStatusRef.current === 'Pending'}) AND (shipment.status === 'Completed': ${shipment?.status === 'Completed'}). Overall: ${shouldGeneratePdfs}`);
 
     if (shouldGeneratePdfs) {
       console.log('[ShipmentDetailPage] PDF Effect: Condition MET for PDF generation. Shipment ID:', shipment.id);
@@ -168,26 +164,32 @@ export default function ShipmentDetailPage() {
             description: pdfError instanceof Error ? pdfError.message : "Could not generate PDFs."
           });
         } finally {
-            console.log('[ShipmentDetailPage] PDF Effect (async IIFE finally): Resetting statusBeforeUpdate from', statusBeforeUpdate, 'to undefined.');
-            setStatusBeforeUpdate(undefined);
+            console.log('[ShipmentDetailPage] PDF Effect (async IIFE finally): Resetting previousShipmentStatusRef.current from', previousShipmentStatusRef.current, 'to undefined.');
+            previousShipmentStatusRef.current = undefined;
         }
       })();
     } else {
         if (shipment) {
-            console.log(`[ShipmentDetailPage] PDF Effect: Condition NOT MET. Shipment ID: ${shipment.id}, Current Status: ${shipment.status}, Status Before Update was: ${statusBeforeUpdate}`);
+            console.log(`[ShipmentDetailPage] PDF Effect: Condition NOT MET. Shipment ID: ${shipment.id}, Current Status: ${shipment.status}, Previous Status from Ref was: ${previousShipmentStatusRef.current}`);
         } else {
-            console.log(`[ShipmentDetailPage] PDF Effect: Condition NOT MET. Shipment is null. Status Before Update was: ${statusBeforeUpdate}`);
+            console.log(`[ShipmentDetailPage] PDF Effect: Condition NOT MET. Shipment is null. Previous Status from Ref was: ${previousShipmentStatusRef.current}`);
         }
-        // If condition was not met, and statusBeforeUpdate was set from a relevant update, reset it.
-        // This ensures it doesn't persist if the PDF generation didn't run.
-        if (statusBeforeUpdate !== undefined) {
-             console.log('[ShipmentDetailPage] PDF Effect (Condition NOT MET branch): Resetting statusBeforeUpdate from', statusBeforeUpdate, 'to undefined.');
-             setStatusBeforeUpdate(undefined);
+        // If condition was not met, and previousShipmentStatusRef.current was set from a relevant update, reset it.
+        // This ensures it doesn't persist if the PDF generation didn't run for the "Pending" to "Completed" transition.
+        if (previousShipmentStatusRef.current === 'Pending' && shipment?.status !== 'Completed') {
+             // This case means an update happened, previous was pending, but current is not completed.
+             // Or if the ref somehow holds 'Pending' but shipment is null or also 'Pending'.
+             console.log('[ShipmentDetailPage] PDF Effect (Condition NOT MET branch - specific case): Resetting previousShipmentStatusRef.current from', previousShipmentStatusRef.current, 'to undefined because it was "Pending" but current is not "Completed".');
+             previousShipmentStatusRef.current = undefined;
+        } else if (previousShipmentStatusRef.current !== undefined && shipment?.status === 'Completed') {
+            // This case means current is "Completed" but previous was not "Pending" OR ref was simply set from a non-P->C update.
+            // Essential for subsequent non-status updates on an already completed shipment.
+            console.log('[ShipmentDetailPage] PDF Effect (Condition NOT MET branch - completed): Resetting previousShipmentStatusRef.current from', previousShipmentStatusRef.current, 'to undefined as shipment is completed but previous status was not Pending.');
+            previousShipmentStatusRef.current = undefined;
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shipment, statusBeforeUpdate]); // toast removed as it's stable and causes re-runs. fetchShipment is memoized.
-
+  }, [shipment]); // Only depends on shipment state now.
 
   if (isLoading) {
     console.log("[ShipmentDetailPage] Rendering: Loading state.");
@@ -221,11 +223,9 @@ export default function ShipmentDetailPage() {
   }
 
   if (!shipment) {
-    // This case should ideally be handled by notFound() inside fetchShipment if ID is invalid.
-    // If fetchShipment returns null for other reasons, this fallback is hit.
     console.log("[ShipmentDetailPage] Rendering: No shipment data (after loading and no error). This might mean notFound() was called or should have been, or an issue with fetchShipment returning null.");
     return (
-      <div className="space-y-6 p-4 md:p-6 lg:p-8">
+       <div className="space-y-6 p-4 md:p-6 lg:p-8">
         <Button variant="outline" onClick={() => router.back()} className="mb-4">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
@@ -261,7 +261,7 @@ export default function ShipmentDetailPage() {
             )}
           </div>
           <div className="flex gap-2">
-            {canEdit && !isEditing && (
+            { (shipment.status === 'Pending' || isAdmin) && !isEditing && (
               <Button onClick={() => { console.log("[ShipmentDetailPage] Edit Main Info button clicked."); setIsEditing(true);}} variant="outline">
                 <Edit className="mr-2 h-4 w-4" /> Edit Main Info
               </Button>
