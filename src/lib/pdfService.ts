@@ -11,8 +11,8 @@ import {
     query,
     type QueryDocumentSnapshot,
     type DocumentData,
-    Timestamp,
-    orderBy 
+    Timestamp, // Ensure Timestamp is imported
+    orderBy
 } from 'firebase/firestore';
 import { detailFromFirestore } from '@/lib/firebase/shipmentsService';
 import { getDropdownOptionsMap } from '@/lib/firebase/dropdownService';
@@ -24,9 +24,7 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
   console.log(`[PDFService] ${pdfType}: triggerDownload CALLED for: ${filename}`);
   try {
     console.log(`[PDFService] ${pdfType}: Attempting to generate data URI for ${filename}...`);
-    // Use a simple data URI without filename parameter for wider compatibility.
-    // The download attribute on the anchor tag controls the filename.
-    const pdfDataUri = doc.output('datauristring'); 
+    const pdfDataUri = doc.output('datauristring');
     const pdfDataUriType = typeof pdfDataUri;
     const pdfDataUriLength = pdfDataUri?.length || 0;
 
@@ -35,9 +33,9 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
 
     const isValidBase64PdfDataUri =
       pdfDataUriType === 'string' &&
-      pdfDataUriLength > 100 && 
-      pdfDataUri.startsWith('data:application/pdf;') && 
-      pdfDataUri.includes(';base64,'); 
+      pdfDataUriLength > 100 &&
+      pdfDataUri.startsWith('data:application/pdf;') &&
+      pdfDataUri.includes(';base64,');
 
     if (!isValidBase64PdfDataUri) {
       const errorMsg = `CRITICAL ERROR - pdfDataUri for ${filename} is invalid or too short. Length: ${pdfDataUriLength}. Starts with: ${pdfDataUri?.substring(0, 50)}. Contains ';base64,': ${pdfDataUri?.includes(';base64,')}`;
@@ -50,7 +48,7 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
     console.log(`[PDFService] ${pdfType}: Creating anchor element for ${filename}...`);
     const link = document.createElement('a');
     link.href = pdfDataUri;
-    link.download = filename; // This sets the filename for the download
+    link.download = filename;
     console.log(`[PDFService] ${pdfType}: Anchor element created. Href (first 50 chars): ${link.href.substring(0,50)}..., Download: ${link.download}`);
 
     document.body.appendChild(link);
@@ -80,28 +78,28 @@ const formatDateForPdf = (timestamp?: Timestamp): string => {
 
 const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
   if (!value) return defaultValueIfNotFoundOrValueMissing;
-  if (!map) return value; // Return the value itself if map is not available
-  return map[value] || value; // Return value if not found in map
+  if (!map) return value;
+  return map[value] || value;
 };
 
 const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
     const logoWidth = 35; // mm
     const logoHeight = 10; // mm
     const text = "asendia";
-    const textFontSize = 11; 
+    const textFontSize = 11;
 
     doc.setFillColor(0, 90, 106); // Dark Teal
     doc.rect(x, y, logoWidth, logoHeight, 'F');
 
     doc.setFontSize(textFontSize);
-    doc.setFont('helvetica', 'normal'); 
+    doc.setFont('helvetica', 'normal');
     doc.setTextColor(255, 255, 255); // White text
 
     const textWidth = doc.getStringUnitWidth(text) * textFontSize / doc.internal.scaleFactor;
     const textX = x + (logoWidth - textWidth) / 2;
-    const textY = y + logoHeight / 2; 
+    const textY = y + logoHeight / 2;
 
-    doc.text(text, textX, textY, { baseline: 'middle', align: 'left' }); 
+    doc.text(text, textX, textY, { baseline: 'middle', align: 'center' });
     doc.setTextColor(0, 0, 0); // Reset text color
 };
 
@@ -113,7 +111,7 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
     return [];
   }
   const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
-  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc')); 
+  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc'));
   try {
     const snapshot = await getDocs(q);
     const details = snapshot.docs.map(doc => detailFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
@@ -182,28 +180,28 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     ];
 
     const firstColX = pageMargin;
-    const secondColX = pageMargin + 45; 
+    const secondColX = pageMargin + 45;
     const lineHeight = 6;
 
     labelValuePairs.forEach(pair => {
       if (currentY > doc.internal.pageSize.getHeight() - pageMargin - lineHeight) {
         doc.addPage();
         currentY = pageMargin;
-        addAsendiaStyleLogo(doc, pageMargin, currentY); 
-        currentY += 10 + 5; 
+        addAsendiaStyleLogo(doc, pageMargin, currentY);
+        currentY += 10 + 5;
       }
       doc.text(pair.label, firstColX, currentY);
       doc.text(pair.value, secondColX, currentY);
       currentY += lineHeight;
     });
-    currentY += 5; // Extra space before table
+    currentY += 5;
 
     // Shipment Details Table
-    if (currentY > doc.internal.pageSize.getHeight() - 50) { // Check if space for table header
+    if (currentY > doc.internal.pageSize.getHeight() - 50) {
         doc.addPage();
         currentY = pageMargin;
-        addAsendiaStyleLogo(doc, pageMargin, currentY); 
-        currentY += 10 + 5; 
+        addAsendiaStyleLogo(doc, pageMargin, currentY);
+        currentY += 10 + 5;
     }
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
@@ -223,7 +221,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
         getLabelFromMap(dropdownMaps['customers'], detail.customerId, detail.customerId),
         getLabelFromMap(dropdownMaps['services'], detail.serviceId, detail.serviceId),
         formatDisplay,
-        (detail.tareWeight || 0).toFixed(2), // Removed "kg" to match CMR sample better
+        (detail.tareWeight || 0).toFixed(2),
         (detail.grossWeight || 0).toFixed(2),
         (detail.netWeight || 0).toFixed(2),
         detail.dispatchNumber || 'N/A',
@@ -233,8 +231,8 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
 
     console.log(`[PDFService] ${pdfType}: Table head:`, JSON.stringify(tableHead));
     console.log(`[PDFService] ${pdfType}: Table body (first item if any):`, details.length > 0 ? JSON.stringify(tableBody[0]) : "No details");
-    
-    autoTable(doc, { 
+
+    autoTable(doc, {
       head: tableHead,
       body: tableBody,
       startY: currentY,
@@ -245,15 +243,15 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
         overflow: 'linebreak'
       },
       headStyles: {
-        fillColor: [22, 78, 99], 
+        fillColor: [22, 78, 99],
         textColor: [255, 255, 255],
         fontStyle: 'bold',
         halign: 'center'
       },
       tableLineColor: [180, 180, 180],
       tableLineWidth: 0.1,
-      didDrawPage: (data: any) => { // Add logo on new pages of the table
-        if (data.pageNumber > 1 || (data.pageNumber === 1 && data.cursor?.y && data.cursor.y < 40 && currentY > pageMargin + 15)) { // ensure not drawing over initial logo
+      didDrawPage: (data: any) => {
+        if (data.pageNumber > 1 || (data.pageNumber === 1 && data.cursor?.y && data.cursor.y < 40 && currentY > pageMargin + 15)) {
              addAsendiaStyleLogo(doc, pageMargin, pageMargin);
         }
       }
@@ -282,7 +280,7 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
     console.log(`[PDFService] ${pdfType}: jsPDF instance created successfully.`);
 
-    const dropdownMaps = await getDropdownOptionsMap(['carriers']); // Only carriers needed for CMR as per current fields
+    const dropdownMaps = await getDropdownOptionsMap(['carriers']);
 
     const pageMargin = 10;
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -290,64 +288,60 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     let currentY = pageMargin;
 
     const drawTextBox = (text: string | string[], x: number, y: number, width: number, height: number, options: any = {}) => {
-      doc.rect(x, y, width, height); // Draws the box
-      const defaultOptions = { align: 'left', baseline: 'top', flags: {noBOM: true, autoencode: true} }; // Ensure flags are passed
+      doc.rect(x, y, width, height);
+      const defaultOptions = { align: 'left', baseline: 'top', flags: {noBOM: true, autoencode: true} };
       const mergedOptions = {...defaultOptions, ...options};
-      
-      let textToPrint = Array.isArray(text) ? text : [text];
+
+      let textToPrint = Array.isArray(text) ? text.map(line => typeof line === 'string' ? line : '') : [typeof text === 'string' ? text : ''];
       const lines: string[] = [];
-      
+
       const originalFontSize = doc.getFontSize();
       if (options.fontSize) doc.setFontSize(options.fontSize);
-      
+
       textToPrint.forEach(line => {
-          const currentLineText = typeof line === 'string' ? line : ''; // Ensure it's a string
-          // Subtract more padding for text splitting to avoid text touching box lines
-          const splitLines = doc.splitTextToSize(currentLineText, width - 4); 
+          const splitLines = doc.splitTextToSize(line, width - 4);
           lines.push(...splitLines);
       });
 
       if (options.fontStyle) doc.setFont(doc.getFont().fontName, options.fontStyle);
       if (options.textColor) doc.setTextColor(options.textColor[0], options.textColor[1], options.textColor[2]);
 
-      // Text Y position adjustment
-      const textYOffset = options.fontSize ? options.fontSize / 3.5 : 3; // Basic offset for top alignment
-      let textX = x + 2; // Left padding
+      const textYOffset = options.fontSize ? options.fontSize / 3.5 : 3;
+      let textX = x + 2;
 
       if (mergedOptions.align === 'right') {
-        // For right alignment, provide the right edge as X and jspdf handles it
-        textX = x + width - 2; // Right edge - padding
+        textX = x + width - 2;
       } else if (mergedOptions.align === 'center') {
         textX = x + width / 2;
       }
-      
+
       doc.text(lines, textX, y + 2 + textYOffset, mergedOptions);
 
       doc.setFontSize(originalFontSize);
-      doc.setFont(doc.getFont().fontName, 'normal'); // Reset font style
-      doc.setTextColor(0,0,0); // Reset text color
+      doc.setFont(doc.getFont().fontName, 'normal');
+      doc.setTextColor(0,0,0);
     };
 
     // --- Header Section ---
     addAsendiaStyleLogo(doc, pageMargin, currentY);
-    
-    const crmLogoX = pageMargin + 35 + 2; // Positioned next to asendia logo
+
+    const crmLogoX = pageMargin + 35 + 2;
     const crmLogoRadius = 5;
-    doc.setFillColor(200, 200, 200); // Light gray fill
+    doc.setFillColor(200, 200, 200);
     doc.circle(crmLogoX + crmLogoRadius, currentY + crmLogoRadius, crmLogoRadius, 'F');
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.text("CRM", crmLogoX + crmLogoRadius, currentY + crmLogoRadius, { align: 'center', baseline: 'middle' });
-    doc.setFont('helvetica', 'normal'); // Reset font
+    doc.setFont('helvetica', 'normal');
 
-    const titleX = crmLogoX + crmLogoRadius * 2 + 5; // Titles to the right of CRM logo
+    const titleX = crmLogoX + crmLogoRadius * 2 + 5;
     doc.setFontSize(7);
     doc.text("LETTRE DE VOITURE INTERNATIONALE", titleX, currentY + 3);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.text("INTERNATIONAL CONSIGNMENT NOTE", titleX, currentY + 8);
-    doc.setFont('helvetica', 'normal'); // Reset font
-    currentY += 12; // Space after header
+    doc.setFont('helvetica', 'normal');
+    currentY += 12;
 
     // --- Grid Layout ---
     const col1Width = contentWidth * 0.5;
@@ -355,7 +349,6 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     const col1X = pageMargin;
     const col2X = pageMargin + col1Width;
 
-    // Row 1: Sender, Customs Reference, Senders Agents Reference
     let boxHeight = 30;
     const senderText = `1 Sender (Name, Address, Country) Expéditeur (Nom, Adresse, Pays)\n\n${shipment.senderAddress || 'Asendia UK\nUnit 8-12 The Heathrow Estate\nSilver Jubilee way\nHounslow\nTW4 6NF'}`;
     drawTextBox(senderText, col1X, currentY, col1Width, boxHeight, {fontSize: 7});
@@ -363,39 +356,35 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     drawTextBox("3 Senders Agents Reference Ref expéditeur de l'agent\n\nN/A", col2X, currentY + boxHeight / 2, col2Width, boxHeight / 2, {fontSize: 7});
     currentY += boxHeight;
 
-    // Row 2: Consignee, Carrier
     boxHeight = 30;
     const consigneeText = `4 Consignee, Final Delivery Point (Name, Address) Destinataire (Nom, Adresse, Pays)\n\n${shipment.consigneeAddress || 'LA POSTE ROISSY HUB\n7 Rue Du Haute de Laval\n93290 Tremblay-en-France\nFrance'}`;
     drawTextBox(consigneeText, col1X, currentY, col1Width, boxHeight, {fontSize: 7, fontStyle: 'bold'});
     const carrierName = getLabelFromMap(dropdownMaps['carriers'], shipment.carrierId, shipment.carrierId);
-    const truckTrailer = `${shipment.truckRegistration || 'N/A'} / ${shipment.trailerRegistration || 'N/A'}`; // Added space around /
+    const truckTrailer = `${shipment.truckRegistration || 'N/A'} / ${shipment.trailerRegistration || 'N/A'}`;
     const carrierText = `5 Carrier (Name, Address, Country) Transporteur (Nom, Adresse, Pays)\n\nCarrier Name: ${carrierName}\nTruck & Trailer: ${truckTrailer}`;
     drawTextBox(carrierText, col2X, currentY, col2Width, boxHeight, {fontSize: 7, textColor: [255,0,0], fontStyle: 'bold'});
     currentY += boxHeight;
-    
-    // Row 3: Senders instructions, Successive Carrier
+
     boxHeight = 20;
     drawTextBox("6 Senders instructions for customs, etc... Instructions de l'expéditeur (optionel)\n\nN/A", col1X, currentY, col1Width, boxHeight, {fontSize: 7});
     drawTextBox("7 Successive Carrier Transporteurs successifs\n\nN/A", col2X, currentY, col2Width, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
-    // Box 8: Place and date of taking over goods (increased height)
-    boxHeight = 20; 
+    boxHeight = 20;
     const dynamicTakingOverText = `${shipment.senderAddress || 'Asendia UK, Unit 5, The Hub, Solent Business Park, Fareham, PO15 7FH'}, UK ${formatDateForPdf(shipment.departureDate)}`;
     const takingOverGoodsTextLines = [
         `8 Place and date of taking over the goods (place, country, date)`,
         `Lieu et date de prise en charge des marchandises (lieu, pays, date)`,
-        ``, // Empty line for spacing
+        ``,
         dynamicTakingOverText
     ];
     drawTextBox(takingOverGoodsTextLines, col1X, currentY, contentWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
-    // Line 9-12: Goods Table Header & Data
-    const goodsCol1Width = contentWidth * 0.4; // Box 9
-    const goodsCol2Width = contentWidth * 0.2; // Box 10
-    const goodsCol3Width = contentWidth * 0.2; // Box 11
-    const goodsCol4Width = contentWidth * 0.2; // Box 12
+    const goodsCol1Width = contentWidth * 0.4;
+    const goodsCol2Width = contentWidth * 0.2;
+    const goodsCol3Width = contentWidth * 0.2;
+    const goodsCol4Width = contentWidth * 0.2;
     let goodsTableHeaderHeight = 10;
 
     drawTextBox("9 Marks & Nos; No & Kind of Packages; Description of Goods\nMarques et Nos; Nb et nature des colis; Désignation des marchandises", col1X, currentY, goodsCol1Width, goodsTableHeaderHeight, {fontSize: 6});
@@ -404,8 +393,7 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     drawTextBox("12 Volume (m³)\nCubage (m³)", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsTableHeaderHeight, {fontSize: 6});
     currentY += goodsTableHeaderHeight;
 
-    // Data for boxes 9, 10, 11, 12
-    const goodsDataHeight = 30; // Height for the data row
+    const goodsDataHeight = 30;
     let goodsDescTextLines = [
         `Pallets:        ${shipment.totalPallets || 0}`,
         `Sacks:          ${shipment.totalBags || 0}`,
@@ -416,65 +404,57 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
         `Description of Goods: cross border eCommerce B2C parcels`
     ];
     drawTextBox(goodsDescTextLines, col1X, currentY, goodsCol1Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0]});
-    
-    // Box 10 Data (No of packages - statistical) - Leaving blank as per sample image structure
-    drawTextBox("", col1X + goodsCol1Width, currentY, goodsCol2Width, goodsDataHeight); 
 
-    // Box 11 Data (Weights)
+    drawTextBox("", col1X + goodsCol1Width, currentY, goodsCol2Width, goodsDataHeight);
+
+    const grossWeightVal = shipment.totalGrossWeight || 0;
+    const tareWeightVal = shipment.totalTareWeight || 0;
+    const totalCalculatedWeight = grossWeightVal + tareWeightVal;
+
     let weightTextLines = [
-        `${(shipment.totalGrossWeight || 0).toFixed(2)} Kgs`,
-        ``, // Spacer to push the next line down
-        `${(shipment.totalTareWeight || 0).toFixed(2)} Kgs`,
-        ``, // Spacer
-        ``, // Spacer
-        `TOTAL: ${((shipment.totalGrossWeight || 0) + (shipment.totalTareWeight || 0)).toFixed(2)} Kgs`
+        `${grossWeightVal.toFixed(2)} Kgs`,
+        ``,
+        `${tareWeightVal.toFixed(2)} Kgs`, // This represents the "55.00 Kgs" from your sample
+        ``,
+        ``,
+        `TOTAL: ${totalCalculatedWeight.toFixed(2)} Kgs`
     ];
-    // Log the data for Box 11 before drawing
     console.log(`[PDFService] CMR: Box 11 - Data to draw: shipment.totalGrossWeight=${shipment.totalGrossWeight}, shipment.totalTareWeight=${shipment.totalTareWeight}`);
     console.log(`[PDFService] CMR: Box 11 - weightTextLines=`, JSON.stringify(weightTextLines));
     console.log(`[PDFService] CMR: Box 11 - Coordinates: x=${col1X + goodsCol1Width + goodsCol2Width}, y=${currentY}, width=${goodsCol3Width}, height=${goodsDataHeight}`);
-
     drawTextBox(weightTextLines, col1X + goodsCol1Width + goodsCol2Width, currentY, goodsCol3Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0], align: 'right'});
-    
-    // Box 12 Data (Volume) - Leaving blank as per sample
-    drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsDataHeight); 
+
+    drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsDataHeight);
     currentY += goodsDataHeight;
 
-    // Box 13: Carriage Charges
-    boxHeight = 7; // Slimmer box
+    boxHeight = 7;
     drawTextBox("13 Carriage Charges Prix de transport", col1X, currentY, contentWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
-    // Box 14 & 15: Reservations, Documents attached
-    const midPointXBox1415 = pageMargin + contentWidth * 0.6; // Adjust split point
+    const midPointXBox1415 = pageMargin + contentWidth * 0.6;
     const resWidth = midPointXBox1415 - pageMargin;
     const docAttachWidth = contentWidth - resWidth;
     boxHeight = 15;
     drawTextBox("14 Reservations Réserves", col1X, currentY, resWidth, boxHeight, {fontSize: 7});
     drawTextBox("15 Documents attached Documents Annexes (optional)", midPointXBox1415, currentY, docAttachWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
-    
-    // Box 16: Special agreements
+
     boxHeight = 10;
     drawTextBox("16 Special agreements Conventions particulières (optional)", col1X, currentY, contentWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
-    // Box 17, 18, 19: Signatures
     const sigBoxWidth = contentWidth / 3;
-    boxHeight = 30; 
-    // Use first line of sender address for location in Box 17
-    const goodsReceivedLocation = (shipment.senderAddress || 'Asendia UK').split('\n')[0];
-    const goodsReceivedText = `17 Goods Received/Marchandises Recues\n\n\n\nDate: ${formatDateForPdf(shipment.arrivalDate)}\n${goodsReceivedLocation}, UK`;
+    boxHeight = 30;
+    const goodsReceivedText = `17 Goods Received/Marchandises Recues\n\n\n\nDate: ${formatDateForPdf(Timestamp.now())}\n${(shipment.senderAddress || 'Asendia UK').split('\n')[0]}, UK`;
     drawTextBox(goodsReceivedText, col1X, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
     drawTextBox("18 Signature and stamp of Carrier/Signature du Transporteur", col1X + sigBoxWidth, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
     drawTextBox("19 Place and date, Signature Lieu et date, Signature", col1X + sigBoxWidth * 2, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
-    // Bottom Dates (Added small offset from the signature boxes)
-    currentY += 2; // Small vertical space before dates
+    currentY += 2;
     doc.setFontSize(7);
-    doc.text(`Date: ${formatDateForPdf(shipment.departureDate)}`, pageMargin + 5, currentY + 5); // X offset for padding
-    doc.text(`Date: ${formatDateForPdf(shipment.departureDate)}`, pageMargin + sigBoxWidth + 5, currentY + 5);
+    doc.text(`Date: ${formatDateForPdf(Timestamp.now())}`, pageMargin + 5, currentY + 5);
+    doc.text(`Date: ${formatDateForPdf(Timestamp.now())}`, pageMargin + sigBoxWidth + 5, currentY + 5);
     doc.text(`Date: __ / __ / __`, pageMargin + sigBoxWidth * 2 + 5, currentY + 5);
 
     console.log(`[PDFService] ${pdfType}: Content added to PDF.`);
