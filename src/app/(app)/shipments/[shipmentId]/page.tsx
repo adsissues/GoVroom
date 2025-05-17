@@ -94,7 +94,8 @@ export default function ShipmentDetailPage() {
       return;
     }
 
-    console.log('[ShipmentDetailPage] handleUpdateShipment: Initiated. Data to save:', JSON.stringify(data));
+    console.log('[ShipmentDetailPage] handleUpdateShipment: Initiated. Data to save:', JSON.parse(JSON.stringify(data)));
+    console.log(`[ShipmentDetailPage] handleUpdateShipment: Current shipment status (before this update): ${shipment.status}`);
     
     // Explicitly set statusBeforeUpdate only if the status is part of the update and is different
     if (data.status && data.status !== shipment.status) {
@@ -111,7 +112,7 @@ export default function ShipmentDetailPage() {
       setIsEditing(false);
       
       console.log('[ShipmentDetailPage] handleUpdateShipment: Update successful. Refetching shipment...');
-      const updatedShipmentData = await fetchShipment(false); 
+      const updatedShipmentData = await fetchShipment(false); // Refetch without full page loading indicator
       console.log('[ShipmentDetailPage] handleUpdateShipment: Refetched shipment data after update:', JSON.stringify(updatedShipmentData).substring(0, 300) + "...");
 
     } catch (err) {
@@ -134,16 +135,17 @@ export default function ShipmentDetailPage() {
         duration: 7000,
       });
       
+      // Using an IIFE to handle async operations within useEffect
       (async () => {
         try {
-          console.log('[ShipmentDetailPage] PDF Effect: Calling generatePreAlertPdf with shipment data (first 200 chars):', JSON.stringify(shipment).substring(0,200)+"...");
-          generatePreAlertPdf(shipment);
+          console.log('[ShipmentDetailPage] PDF Effect: Calling generatePreAlertPdf with shipment data...');
+          generatePreAlertPdf(shipment); // generatePreAlertPdf is synchronous
           
           console.log('[ShipmentDetailPage] PDF Effect: Waiting 1000ms before generating CMR PDF...');
-          await delay(1000); 
+          await delay(1000); // Delay between PDF generations
 
-          console.log('[ShipmentDetailPage] PDF Effect: Calling generateCmrPdf with shipment data (first 200 chars):', JSON.stringify(shipment).substring(0,200)+"...");
-          generateCmrPdf(shipment);
+          console.log('[ShipmentDetailPage] PDF Effect: Calling generateCmrPdf with shipment data...');
+          generateCmrPdf(shipment); // generateCmrPdf is synchronous
           
           console.log('[ShipmentDetailPage] PDF Effect: PDF generation calls ostensibly complete.');
         } catch(pdfError) {
@@ -154,7 +156,7 @@ export default function ShipmentDetailPage() {
             description: pdfError instanceof Error ? pdfError.message : "Could not generate PDFs."
           });
         } finally {
-            // Always reset statusBeforeUpdate after attempting PDF generation or if condition wasn't met
+            // Always reset statusBeforeUpdate after attempting PDF generation
             console.log('[ShipmentDetailPage] PDF Effect (async IIFE finally): Resetting statusBeforeUpdate from', statusBeforeUpdate, 'to undefined.');
             setStatusBeforeUpdate(undefined);
         }
@@ -165,8 +167,8 @@ export default function ShipmentDetailPage() {
         } else {
             console.log(`[ShipmentDetailPage] PDF Effect: Condition NOT MET. Shipment is null. Status Before Update was: ${statusBeforeUpdate}`);
         }
-        // If condition was not met, and statusBeforeUpdate was set, it means it was set by a previous update
-        // that didn't result in PDF generation. Reset it here too.
+        // If condition was not met, and statusBeforeUpdate was set by a previous relevant update, reset it.
+        // This ensures it doesn't persist if the PDF generation didn't run for some reason (e.g., an error before the IIFE).
         if (statusBeforeUpdate !== undefined) {
              console.log('[ShipmentDetailPage] PDF Effect (Condition NOT MET branch): Resetting statusBeforeUpdate from', statusBeforeUpdate, 'to undefined.');
              setStatusBeforeUpdate(undefined);
@@ -277,3 +279,5 @@ export default function ShipmentDetailPage() {
     </div>
   );
 }
+
+    
