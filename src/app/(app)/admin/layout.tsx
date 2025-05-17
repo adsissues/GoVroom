@@ -7,64 +7,69 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, Loader2 } from 'lucide-react'; // Added Loader2
-import { useToast } from '@/hooks/use-toast'; // Import useToast
+import { AlertTriangle, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { currentUser, loading: authLoading } = useAuth();
   const router = useRouter();
-  const { toast } = useToast(); // Initialize toast
+  const { toast } = useToast();
 
   useEffect(() => {
-    // console.log(`AdminLayout Effect: Loading: ${authLoading}, User: ${currentUser?.email}, Role: ${currentUser?.role}`);
-    // Wait until auth loading is complete
+    console.log(
+      `[AdminLayout Effect Triggered] Auth Loading: ${authLoading}, User Email: ${currentUser?.email ?? 'N/A'}, User Role: ${currentUser?.role ?? 'N/A'}`
+    );
+
     if (!authLoading) {
-      // If not loading and user is not found OR user is not admin
+      console.log('[AdminLayout Effect] Auth loading is complete. Checking user role...');
+      const isUserPresent = !!currentUser;
+      const userRole = currentUser?.role;
+      console.log(`[AdminLayout Effect] User Present: ${isUserPresent}, User Role (from context): ${userRole}`);
+
       if (!currentUser || currentUser.role !== 'admin') {
-        console.log("AdminLayout: Access denied, redirecting to dashboard.");
+        console.warn(
+          `[AdminLayout Effect] Access Denied. User: ${currentUser?.email ?? 'None'}, Role: ${currentUser?.role ?? 'None'}. Redirecting to /dashboard.`
+        );
         toast({
           title: 'Access Denied',
-          description: 'You do not have permission to access this area.',
+          description: 'You do not have permission to access this area. Redirecting.',
           variant: 'destructive',
         });
-        router.replace('/dashboard'); // Use replace to prevent back navigation to admin area
+        router.replace('/dashboard');
+      } else {
+        console.log(`[AdminLayout Effect] Access Granted. User: ${currentUser.email}, Role: ${currentUser.role}`);
       }
-      // If user is admin, do nothing (allow access)
+    } else {
+      console.log('[AdminLayout Effect] Auth still loading...');
     }
   }, [currentUser, authLoading, router, toast]);
 
-  // Show loading state while checking auth/role
   if (authLoading) {
+    console.log('[AdminLayout Rendering] Auth is loading, showing Loader...');
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        {/* Optional Skeleton layout */}
-        {/* <div className="p-4 md:p-6 lg:p-8 space-y-4 w-full max-w-4xl">
-          <Skeleton className="h-12 w-1/3 rounded-lg" />
-          <Skeleton className="h-48 w-full rounded-xl" />
-          <Skeleton className="h-32 w-full rounded-xl" />
-        </div> */}
       </div>
     );
   }
 
-  // If loading is done, but user is not admin (this condition should be caught by useEffect redirect)
-  // Render a fallback message while redirect happens, or if redirect fails.
+  // This part primarily handles the UI display while the redirect from useEffect might be happening.
+  // The useEffect is the main gatekeeper for access.
   if (!currentUser || currentUser.role !== 'admin') {
+    console.log(`[AdminLayout Rendering] No current user or user is not admin after auth load. User Email: ${currentUser?.email}, Role: ${currentUser?.role}. Showing Access Denied message.`);
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)] p-4">
         <Alert variant="destructive" className="max-w-lg">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Access Denied</AlertTitle>
           <AlertDescription>
-            You do not have the necessary permissions to view this page. Redirecting...
+            You do not have the necessary permissions to view this page. You might be redirected shortly.
           </AlertDescription>
         </Alert>
       </div>
     );
   }
 
-  // If loading is done and user IS admin, render the children
-  // console.log("AdminLayout: Access granted, rendering admin content.");
+  console.log(`[AdminLayout Rendering] User is admin (${currentUser.email}), rendering children.`);
   return <div className="space-y-6">{children}</div>;
 }
