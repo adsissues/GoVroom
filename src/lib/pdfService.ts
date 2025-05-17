@@ -1,22 +1,35 @@
 
-"use client"; 
+"use client";
 
 import jsPDF from 'jspdf';
 import type { Shipment } from '@/lib/types';
 
 // Helper function to trigger download via data URI
 const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void => {
-  console.log(`[PDFService] ${pdfType}: triggerDownload called for: ${filename}`);
+  console.log(`[PDFService] ${pdfType}: triggerDownload CALLED for: ${filename}`);
   try {
     console.log(`[PDFService] ${pdfType}: Attempting to generate data URI for ${filename}...`);
+    // Ensure jsPDF output is explicitly requested as 'datauristring' (which should be base64)
     const pdfDataUri = doc.output('datauristring');
     const pdfDataUriType = typeof pdfDataUri;
     const pdfDataUriLength = pdfDataUri?.length || 0;
+
     console.log(`[PDFService] ${pdfType}: Data URI generated. Type: ${pdfDataUriType}, Length: ${pdfDataUriLength}`);
     console.log(`[PDFService] ${pdfType}: Data URI Preview (first 100 chars): ${pdfDataUri?.substring(0, 100)}`);
 
-    if (pdfDataUriType !== 'string' || pdfDataUriLength < 100 || !pdfDataUri.startsWith('data:application/pdf;base64,')) {
-      const errorMsg = `CRITICAL ERROR - pdfDataUri for ${filename} is invalid or too short. Length: ${pdfDataUriLength}. Starts with: ${pdfDataUri?.substring(0, 30)}`;
+    // Revised check:
+    // 1. Must be a string.
+    // 2. Must be reasonably long (e.g., > 100 chars for a minimal PDF).
+    // 3. Must start with 'data:application/pdf;'.
+    // 4. Must include ';base64,' indicating the data payload is base64 encoded.
+    const isValidBase64PdfDataUri =
+      pdfDataUriType === 'string' &&
+      pdfDataUriLength > 100 &&
+      pdfDataUri.startsWith('data:application/pdf;') &&
+      pdfDataUri.includes(';base64,');
+
+    if (!isValidBase64PdfDataUri) {
+      const errorMsg = `CRITICAL ERROR - pdfDataUri for ${filename} is not a valid base64 PDF Data URI. Length: ${pdfDataUriLength}. Starts with: ${pdfDataUri?.substring(0, 50)}. Contains ';base64,': ${pdfDataUri?.includes(';base64,')}`;
       console.error(`[PDFService] ${pdfType}: ${errorMsg}`);
       alert(`Failed to generate valid PDF content for ${filename} (Type: ${pdfType}). ${errorMsg}. Please check console.`);
       return;
@@ -45,9 +58,9 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
 
 export const generatePreAlertPdf = (shipment: Shipment): void => {
   const pdfType = "Pre-Alert";
-  const filename = `pre-alert-${shipment.id || 'shipment'}.pdf`; // Simplified filename
+  const filename = `pre-alert-${shipment.id || 'unknown'}.pdf`;
   console.log(`[PDFService] ${pdfType}: generatePreAlertPdf CALLED. Attempting to generate: ${filename}`);
-  console.log(`[PDFService] ${pdfType}: Full shipment data:`, JSON.stringify(shipment, null, 2));
+  // console.log(`[PDFService] ${pdfType}: Full shipment data:`, JSON.stringify(shipment, null, 2));
 
   try {
     console.log(`[PDFService] ${pdfType}: Creating new jsPDF instance...`);
@@ -61,12 +74,13 @@ export const generatePreAlertPdf = (shipment: Shipment): void => {
 
     console.log(`[PDFService] ${pdfType}: Setting font size and adding simplified text...`);
     doc.setFontSize(18);
-    doc.text(`Test PDF - ${pdfType}`, 10, 20); 
+    doc.text(`Test PDF - ${pdfType}`, 10, 20);
     doc.setFontSize(12);
     doc.text(`Shipment ID: ${shipment.id || 'N/A'}`, 10, 30);
     console.log(`[PDFService] ${pdfType}: Simplified text added to PDF.`);
 
     triggerDownload(doc, filename, pdfType);
+    console.log(`[PDFService] ${pdfType}: triggerDownload completed for ${filename}.`);
 
   } catch (error) {
     const errorMsg = `Error directly in generatePreAlertPdf function for ${filename}: ${error instanceof Error ? error.message : String(error)}`;
@@ -77,9 +91,9 @@ export const generatePreAlertPdf = (shipment: Shipment): void => {
 
 export const generateCmrPdf = (shipment: Shipment): void => {
   const pdfType = "CMR";
-  const filename = `cmr-${shipment.id || 'shipment'}.pdf`; // Simplified filename
+  const filename = `cmr-${shipment.id || 'unknown'}.pdf`;
   console.log(`[PDFService] ${pdfType}: generateCmrPdf CALLED. Attempting to generate: ${filename}`);
-  console.log(`[PDFService] ${pdfType}: Full shipment data:`, JSON.stringify(shipment, null, 2));
+  // console.log(`[PDFService] ${pdfType}: Full shipment data:`, JSON.stringify(shipment, null, 2));
 
   try {
     console.log(`[PDFService] ${pdfType}: Creating new jsPDF instance...`);
@@ -97,8 +111,9 @@ export const generateCmrPdf = (shipment: Shipment): void => {
     doc.setFontSize(12);
     doc.text(`Shipment ID: ${shipment.id || 'N/A'}`, 10, 30);
     console.log(`[PDFService] ${pdfType}: Simplified text added to PDF.`);
-    
+
     triggerDownload(doc, filename, pdfType);
+    console.log(`[PDFService] ${pdfType}: triggerDownload completed for ${filename}.`);
 
   } catch (error) {
     const errorMsg = `Error directly in generateCmrPdf function for ${filename}: ${error instanceof Error ? error.message : String(error)}`;
@@ -106,5 +121,3 @@ export const generateCmrPdf = (shipment: Shipment): void => {
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
 };
-
-    
