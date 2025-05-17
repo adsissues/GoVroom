@@ -37,7 +37,6 @@ export default function ShipmentDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Ref to store the status of the shipment *before* an update that leads to PDF generation
   const previousShipmentStatusRef = useRef<ShipmentStatus | undefined | 'processing_pdf'>(undefined);
 
 
@@ -87,7 +86,7 @@ export default function ShipmentDetailPage() {
         setError("No Shipment ID provided in URL.");
         setIsLoading(false);
     }
-  }, [shipmentId, fetchShipment]); // Added fetchShipment to deps as it's stable via useCallback
+  }, [shipmentId, fetchShipment]); 
 
   const handleUpdateShipment = async (data: Partial<Shipment>) => {
     if (!shipment || !shipmentId) {
@@ -99,8 +98,6 @@ export default function ShipmentDetailPage() {
     console.log('[ShipmentDetailPage] handleUpdateShipment: Initiated. Data to save:', JSON.parse(JSON.stringify(data)));
     console.log(`[ShipmentDetailPage] handleUpdateShipment: Current shipment status (before this update attempt): ${shipment.status}`);
     
-    // Capture the status *before* this specific update attempt
-    // This ref is specifically for the PDF generation trigger.
     previousShipmentStatusRef.current = shipment.status;
     console.log(`[ShipmentDetailPage] handleUpdateShipment: Set previousShipmentStatusRef.current to: ${previousShipmentStatusRef.current}`);
 
@@ -109,30 +106,17 @@ export default function ShipmentDetailPage() {
       toast({ title: "Shipment Updated", description: "Main shipment details saved successfully." });
       
       console.log('[ShipmentDetailPage] handleUpdateShipment: Update successful. Refetching shipment...');
-      // The fetchShipment call will update the `shipment` state,
-      // which will then trigger the PDF `useEffect` if conditions are met.
       const updatedShipment = await fetchShipment(false); 
       console.log('[ShipmentDetailPage] handleUpdateShipment: Refetched shipment data after update:', updatedShipment ? JSON.stringify(updatedShipment).substring(0, 300) + "..." : "null/undefined");
       
-      // Call onSaveSuccess which typically handles setIsEditing(false)
-      // onSaveSuccess itself might call fetchShipment again if not careful, 
-      // but the PDF effect should be guarded by the ref logic.
-      // The form's onSaveSuccess prop is:
-      // onSaveSuccess={async () => { setIsEditing(false); await fetchShipment(false); }}
-
-      setIsEditing(false); // Moved from onSaveSuccess to here to ensure it happens after main update logic
-      
-      // No need to call fetchShipment again here if onSaveSuccess also calls it,
-      // or if the setShipment from the fetchShipment above is sufficient.
-      // If onSaveSuccess in the form props is defined and also fetches, it could cause an extra fetch.
-      // For now, let's assume the fetchShipment above is the primary one for state update.
+      setIsEditing(false);
 
     } catch (err) {
       console.error("[ShipmentDetailPage] handleUpdateShipment: Error updating shipment:", err);
       toast({ variant: "destructive", title: "Update Failed", description: err instanceof Error ? err.message : "Could not save shipment changes." });
       // If update fails, clear the ref to prevent incorrect PDF trigger on next effect run
-      previousShipmentStatusRef.current = undefined;
-      console.log(`[ShipmentDetailPage] handleUpdateShipment: Error during update. Resetting previousShipmentStatusRef.current to undefined.`);
+      // previousShipmentStatusRef.current = undefined; // This will be reset in the PDF effect's finally block
+      console.log(`[ShipmentDetailPage] handleUpdateShipment: Error during update. previousShipmentStatusRef.current is still: ${previousShipmentStatusRef.current}`);
     }
   };
 
@@ -147,7 +131,7 @@ export default function ShipmentDetailPage() {
     console.log(`[ShipmentDetailPage] PDF Effect: Checking condition: (shipment exists: ${!!shipment}) AND (previousShipmentStatusRef.current === 'Pending': ${wasPending}) AND (shipment.status === 'Completed': ${isCompleted}). Overall: ${shouldGeneratePdfs}`);
 
     if (shouldGeneratePdfs) {
-      // Synchronously mark this transition as being processed to prevent re-entry
+      // Synchronously mark this transition as being processed to prevent re-entry if effect runs again quickly
       previousShipmentStatusRef.current = 'processing_pdf'; 
       console.log(`[ShipmentDetailPage] PDF Effect: Condition MET for PDF generation. Shipment ID: ${shipment.id}. previousShipmentStatusRef.current changed to 'processing_pdf'.`);
       
@@ -160,15 +144,13 @@ export default function ShipmentDetailPage() {
       (async () => {
         try {
           console.log('[ShipmentDetailPage] PDF Effect: Calling generatePreAlertPdf with shipment data...');
-          console.log('[PDFService] Pre-Alert PDF: Full shipment data:', JSON.stringify(shipment, null, 2));
-          generatePreAlertPdf(shipment); 
+          await generatePreAlertPdf(shipment); 
           
           console.log('[ShipmentDetailPage] PDF Effect: Waiting 1000ms before generating CMR PDF...');
           await delay(1000); 
 
           console.log('[ShipmentDetailPage] PDF Effect: Calling generateCmrPdf with shipment data...');
-          console.log('[PDFService] CMR PDF: Full shipment data:', JSON.stringify(shipment, null, 2));
-          generateCmrPdf(shipment); 
+          await generateCmrPdf(shipment); 
           
           console.log('[ShipmentDetailPage] PDF Effect: PDF generation calls ostensibly complete.');
         } catch(pdfError) {
@@ -179,8 +161,6 @@ export default function ShipmentDetailPage() {
             description: pdfError instanceof Error ? pdfError.message : "Could not generate PDFs."
           });
         } finally {
-            // Reset the ref after processing is done (or attempted)
-            // This allows a future, legitimate "Pending" -> "Completed" transition to work if the shipment status changes again.
             console.log('[ShipmentDetailPage] PDF Effect (async IIFE finally): Resetting previousShipmentStatusRef.current from', previousShipmentStatusRef.current, 'to undefined.');
             previousShipmentStatusRef.current = undefined;
         }
@@ -188,6 +168,7 @@ export default function ShipmentDetailPage() {
     } else {
       console.log(`[ShipmentDetailPage] PDF Effect: Condition NOT MET. Shipment ID: ${shipment?.id}, Current Status: ${shipment?.status}, Previous Status from Ref was: ${previousShipmentStatusRef.current}`);
       // If the condition was not met, but the ref indicates processing or was pending and current is not completed, reset it.
+      // This handles cases where the ref might have been 'processing_pdf' or 'Pending' but the shipment status didn't end up 'Completed'.
       if (previousShipmentStatusRef.current === 'processing_pdf' || 
          (previousShipmentStatusRef.current === 'Pending' && shipment?.status !== 'Completed')) {
          console.log('[ShipmentDetailPage] PDF Effect (Condition NOT MET branch): Resetting previousShipmentStatusRef.current from', previousShipmentStatusRef.current, 'to undefined.');
@@ -230,8 +211,6 @@ export default function ShipmentDetailPage() {
 
   if (!shipment) {
     console.log("[ShipmentDetailPage] Rendering: No shipment data (after loading and no error). This might mean notFound() was or should have been called.");
-    // This state could be reached if notFound() was called, or fetchShipment returned null.
-    // notFound() should ideally handle the redirect, but as a fallback UI:
     return (
        <div className="space-y-6 p-4 md:p-6 lg:p-8">
         <Button variant="outline" onClick={() => router.back()} className="mb-4">
@@ -288,16 +267,9 @@ export default function ShipmentDetailPage() {
             onSubmit={handleUpdateShipment}
             isEditing={isEditing}
             shipmentId={shipment.id}
-            // onSaveSuccess is effectively handled by handleUpdateShipment calling setIsEditing(false)
-            // and re-fetching data.
              onSaveSuccess={async (savedShipmentId) => { 
-               // This callback is from the ShipmentForm.
-               // We've already set isEditing to false in handleUpdateShipment.
-               // The fetchShipment in handleUpdateShipment should have updated the state.
-               // We might not need to do another fetch here unless strictly necessary.
-               console.log(`[ShipmentDetailPage] ShipmentForm's onSaveSuccess called for ${savedShipmentId}. isEditing should be false.`);
-               // If an additional fetch is desired here for some reason:
-               // await fetchShipment(false); 
+               console.log(`[ShipmentDetailPage] ShipmentForm onSaveSuccess called for ${savedShipmentId}. Refetching shipment.`);
+               await fetchShipment(false); 
              }}
           />
         </CardContent>
