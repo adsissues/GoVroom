@@ -2,14 +2,14 @@
 "use client";
 
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import autoTable from 'jspdf-autotable'; // Keep for Pre-Alert
 import type { Shipment, ShipmentDetail } from '@/lib/types';
 import { db } from '@/lib/firebase/config';
 import {
     collection,
     getDocs,
     query,
-    orderBy, // Ensure orderBy is imported
+    orderBy,
     type QueryDocumentSnapshot,
     type DocumentData,
     Timestamp
@@ -24,7 +24,7 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
   console.log(`[PDFService] ${pdfType}: triggerDownload CALLED for: ${filename}`);
   try {
     console.log(`[PDFService] ${pdfType}: Attempting to generate data URI for ${filename}...`);
-    const pdfDataUri = doc.output('datauristring'); // For Pre-Alert and simpler CMR
+    const pdfDataUri = doc.output('datauristring');
     const pdfDataUriType = typeof pdfDataUri;
     const pdfDataUriLength = pdfDataUri?.length || 0;
 
@@ -33,9 +33,9 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
 
     const isValidBase64PdfDataUri =
       pdfDataUriType === 'string' &&
-      pdfDataUriLength > 100 && 
-      pdfDataUri.startsWith('data:application/pdf;') && 
-      pdfDataUri.includes(';base64,');
+      pdfDataUriLength > 100 && // Check for a reasonable length
+      pdfDataUri.startsWith('data:application/pdf;') && // Check for PDF MIME type
+      pdfDataUri.includes(';base64,'); // Check for base64 encoding marker
 
     if (!isValidBase64PdfDataUri) {
       const errorMsg = `CRITICAL ERROR - pdfDataUri for ${filename} is invalid or too short. Length: ${pdfDataUriLength}. Starts with: ${pdfDataUri?.substring(0, 50)}. Contains ';base64,': ${pdfDataUri?.includes(';base64,')}`;
@@ -78,8 +78,8 @@ const formatDateForPdf = (timestamp?: Timestamp): string => {
 
 const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
   if (!value) return defaultValueIfNotFoundOrValueMissing;
-  if (!map) return value; 
-  return map[value] || value; 
+  if (!map) return value;
+  return map[value] || value;
 };
 
 
@@ -90,7 +90,7 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
     return [];
   }
   const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
-  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc')); 
+  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc'));
   try {
     const snapshot = await getDocs(q);
     const details = snapshot.docs.map(doc => detailFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
@@ -103,24 +103,26 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
 };
 
 const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
-  const logoWidth = 35; 
-  const logoHeight = 10; 
+  const logoWidth = 35;
+  const logoHeight = 10;
   const text = "asendia";
-  const textFontSize = 9; 
+  const textFontSize = 9;
 
-  doc.setFillColor(0, 90, 106); 
-  doc.rect(x, y, logoWidth, logoHeight, 'F');
+  doc.setFillColor(0, 90, 106); // Dark Teal
+  doc.rect(x, y, logoWidth, logoHeight, 'F'); // Filled rectangle
 
   doc.setFontSize(textFontSize);
-  doc.setFont('helvetica', 'normal'); 
-  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'normal'); // Changed to normal from bold for closer match
+  doc.setTextColor(255, 255, 255); // White text
 
+  // Calculate text position for centering
   const textX = x + logoWidth / 2;
   const textY = y + logoHeight / 2;
 
   doc.text(text, textX, textY, { align: 'center', baseline: 'middle' });
 
-  doc.setTextColor(0, 0, 0); 
+  // Reset text color to black for subsequent text
+  doc.setTextColor(0, 0, 0);
 };
 
 
@@ -143,12 +145,12 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     const dropdownMaps = await getDropdownOptionsMap(dropdownCollectionNames);
     console.log(`[PDFService] ${pdfType}: Fetched dropdown maps for labels.`);
 
-    const pageMargin = 15; 
+    const pageMargin = 15;
     const pageWidth = doc.internal.pageSize.getWidth();
     let currentY = pageMargin;
 
     addAsendiaStyleLogo(doc, pageMargin, currentY);
-    currentY += 10 + 5; 
+    currentY += 10 + 5; // Space after logo
 
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
@@ -178,28 +180,28 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     ];
 
     const firstColX = pageMargin;
-    const secondColX = pageMargin + 45;
+    const secondColX = pageMargin + 45; // Adjusted for potentially longer labels/values
     const lineHeight = 6;
 
     labelValuePairs.forEach(pair => {
-      if (currentY > doc.internal.pageSize.getHeight() - pageMargin - lineHeight) { 
+      if (currentY > doc.internal.pageSize.getHeight() - pageMargin - lineHeight) { // Check for page break
         doc.addPage();
         currentY = pageMargin;
-        addAsendiaStyleLogo(doc, pageMargin, currentY); 
-        currentY += 10 + 5; 
+        addAsendiaStyleLogo(doc, pageMargin, currentY); // Add logo to new page
+        currentY += 10 + 5; // Space after logo
       }
       doc.text(pair.label, firstColX, currentY);
       doc.text(pair.value, secondColX, currentY);
       currentY += lineHeight;
     });
-    currentY += 5; 
+    currentY += 5; // Extra space before table
 
-    
-    if (currentY > doc.internal.pageSize.getHeight() - 50) { 
+    // Check for page break before adding "Shipment Details" title
+    if (currentY > doc.internal.pageSize.getHeight() - 50) { // Approximate height for title + table header
         doc.addPage();
         currentY = pageMargin;
-        addAsendiaStyleLogo(doc, pageMargin, currentY); 
-        currentY += 10 + 5; 
+        addAsendiaStyleLogo(doc, pageMargin, currentY); // Add logo to new page
+        currentY += 10 + 5; // Space after logo
     }
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
@@ -228,7 +230,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
       ];
     });
 
-    autoTable(doc, {
+    (doc as any).autoTable({ // Use (doc as any) to bypass potential type mismatch with autoTable
       head: tableHead,
       body: tableBody,
       startY: currentY,
@@ -239,15 +241,16 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
         overflow: 'linebreak'
       },
       headStyles: {
-        fillColor: [0, 90, 106], 
+        fillColor: [22, 78, 99], // Dark teal
         textColor: [255, 255, 255],
         fontStyle: 'bold',
         halign: 'center'
       },
       tableLineColor: [180, 180, 180],
       tableLineWidth: 0.1,
-      didDrawPage: (data) => { 
-        if (data.pageNumber > 1 || data.pageNumber === 1 && data.cursor?.y && data.cursor.y < 40) { 
+      didDrawPage: (data: any) => { // Add type for data
+        // Add logo to subsequent pages if table spans multiple pages
+        if (data.pageNumber > 1 || data.pageNumber === 1 && data.cursor?.y && data.cursor.y < 40) { // Check if cursor is high to avoid overlap
              addAsendiaStyleLogo(doc, pageMargin, pageMargin);
         }
       }
@@ -277,7 +280,7 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     console.log(`[PDFService] ${pdfType}: Creating new jsPDF instance...`);
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
     console.log(`[PDFService] ${pdfType}: jsPDF instance created successfully.`);
-    
+
     const pageMargin = 15;
     const pageWidth = doc.internal.pageSize.getWidth();
     let currentY = pageMargin;
@@ -302,7 +305,7 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     doc.text("This is a placeholder for the CMR document content.", pageMargin, currentY);
     currentY += 7;
     doc.text("Detailed CMR fields will be added here based on specific requirements.", pageMargin, currentY);
-    
+
     console.log(`[PDFService] ${pdfType}: Content added to PDF for placeholder CMR.`);
     console.log(`[PDFService] ${pdfType}: Attempting to trigger download for ${filename}...`);
     triggerDownload(doc, filename, pdfType);
