@@ -14,44 +14,51 @@ import type { User, UserRole } from '@/lib/types';
 import { getUserDocument, createUserDocument } from './users'; // Use user service functions
 
 export const signInWithEmail = async (email: string, password: string): Promise<FirebaseUser> => {
+  console.log(`[authService.ts] Attempting signInWithEmail for user: ${email}`);
   const userCredential = await signInWithEmailAndPassword(auth, email, password);
-  // Optionally update lastLogin timestamp here
+  console.log(`[authService.ts] signInWithEmail successful for UID: ${userCredential.user.uid}. Updating lastLogin.`);
   const userDocRef = doc(db, 'users', userCredential.user.uid);
   await setDoc(userDocRef, { lastLogin: serverTimestamp() }, { merge: true });
   return userCredential.user;
 };
 
 export const signOutUser = async (): Promise<void> => {
+  console.log("[authService.ts] Attempting signOutUser.");
   await signOut(auth);
+  console.log("[authService.ts] signOutUser successful.");
 };
 
 // Listener that fetches user role from Firestore
 export const onAuthStateChangedListener = (callback: (user: User | null) => void): (() => void) => {
   return onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+    console.log(`[authService.ts] onAuthStateChangedListener triggered. Firebase user email: ${firebaseUser?.email ?? 'null'}, UID: ${firebaseUser?.uid ?? 'null'}`);
     if (firebaseUser) {
-      // Fetch the full user document which includes the role
+      console.log(`[authService.ts] Firebase user found (UID: ${firebaseUser.uid}). Fetching user document...`);
       const userDoc = await getUserDocument(firebaseUser.uid);
+      console.log(`[authService.ts] Fetched userDoc for UID ${firebaseUser.uid}:`, userDoc ? JSON.parse(JSON.stringify(userDoc)) : null);
 
       if (userDoc) {
-        callback(userDoc); // Pass the full user object with role
+        console.log(`[authService.ts] User document found. Role: ${userDoc.role}. Calling callback.`);
+        callback(userDoc);
       } else {
-        // This case might happen if the user exists in Auth but not Firestore.
-        // Decide on the behavior: create the doc or treat as an error/incomplete profile.
-        // For robustness, let's create a basic user document if it doesn't exist.
-        console.warn(`User document not found for UID: ${firebaseUser.uid}. Creating a new one with default 'user' role.`);
+        console.warn(`[authService.ts] User document not found for UID: ${firebaseUser.uid} after an auth change. Attempting to create one with 'user' role.`);
         try {
-          await createUserDocument(firebaseUser.uid, firebaseUser.email, 'user');
-          callback({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            role: 'user' // Return the newly created user info
-          });
+          await createUserDocument(firebaseUser.uid, firebaseUser.email, 'user'); // Default to 'user'
+          const newUserDoc = await getUserDocument(firebaseUser.uid); // Fetch again after creation
+          if (newUserDoc) {
+            console.log(`[authService.ts] Successfully created and fetched new user document. Role: ${newUserDoc.role}. Calling callback.`);
+            callback(newUserDoc);
+          } else {
+            console.error(`[authService.ts] Failed to fetch user document even after attempting creation for UID: ${firebaseUser.uid}. Calling callback with null.`);
+            callback(null);
+          }
         } catch (error) {
-          console.error("Error creating user document on-the-fly:", error);
-          callback(null); // Failed to create doc, treat as not fully logged in
+          console.error("[authService.ts] Error creating user document on-the-fly during auth change:", error);
+          callback(null);
         }
       }
     } else {
+      console.log("[authService.ts] No Firebase user. Calling callback with null.");
       callback(null); // No Firebase user
     }
   });
