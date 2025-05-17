@@ -3,7 +3,7 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { Shipment, ShipmentDetail, DropdownItem } from '@/lib/types';
+import type { Shipment, ShipmentDetail } from '@/lib/types';
 import { db } from '@/lib/firebase/config';
 import {
     collection,
@@ -11,12 +11,12 @@ import {
     query,
     type QueryDocumentSnapshot,
     type DocumentData,
-    Timestamp, // Ensure Timestamp is imported
+    Timestamp,
     orderBy
 } from 'firebase/firestore';
 import { detailFromFirestore } from '@/lib/firebase/shipmentsService';
 import { getDropdownOptionsMap } from '@/lib/firebase/dropdownService';
-import { SERVICE_FORMAT_MAPPING } from '@/lib/constants';
+import { SERVICE_FORMAT_MAPPING, BAG_WEIGHT_MULTIPLIER } from '@/lib/constants'; // Import BAG_WEIGHT_MULTIPLIER
 import { format } from 'date-fns';
 
 // Helper function to trigger download via data URI
@@ -31,10 +31,9 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
     console.log(`[PDFService] ${pdfType}: Data URI generated. Type: ${pdfDataUriType}, Length: ${pdfDataUriLength}`);
     console.log(`[PDFService] ${pdfType}: Data URI Preview (first 100 chars): ${pdfDataUri?.substring(0, 100)}`);
 
-    // More lenient check for data URI: starts with 'data:application/pdf;' and contains ';base64,'
     const isValidBase64PdfDataUri =
       pdfDataUriType === 'string' &&
-      pdfDataUriLength > 100 && // Arbitrary length check, ensure it's substantial
+      pdfDataUriLength > 100 &&
       pdfDataUri.startsWith('data:application/pdf;') &&
       pdfDataUri.includes(';base64,');
 
@@ -48,7 +47,7 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
 
     console.log(`[PDFService] ${pdfType}: Creating anchor element for ${filename}...`);
     const link = document.createElement('a');
-    link.href = pdfDataUri; // No filename in data URI itself for cleaner URI
+    link.href = pdfDataUri;
     link.download = filename;
     console.log(`[PDFService] ${pdfType}: Anchor element created. Href (first 50 chars): ${link.href.substring(0,50)}..., Download: ${link.download}`);
 
@@ -79,35 +78,30 @@ const formatDateForPdf = (timestamp?: Timestamp): string => {
 
 const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
   if (!value) return defaultValueIfNotFoundOrValueMissing;
-  if (!map) return value; // Return the value itself if map is not available
-  return map[value] || value; // Return value if not found in map
+  if (!map) return value;
+  return map[value] || value;
 };
-
 
 const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
     const logoWidth = 35; // mm
     const logoHeight = 10; // mm
     const text = "asendia";
-    const textFontSize = 11; // Adjusted for better fit
+    const textFontSize = 11;
 
-    // Draw the teal box
     doc.setFillColor(0, 90, 106); // Dark Teal
     doc.rect(x, y, logoWidth, logoHeight, 'F');
 
-    // Set text properties
     doc.setFontSize(textFontSize);
-    doc.setFont('helvetica', 'normal'); // Changed from 'bold' to 'normal' for closer match
+    doc.setFont('helvetica', 'normal');
     doc.setTextColor(255, 255, 255); // White text
 
-    // Calculate text position for centering
     const textMetrics = doc.getTextDimensions(text, { fontSize: textFontSize });
     const textX = x + (logoWidth - textMetrics.w) / 2;
-    const textY = y + (logoHeight / 2) + (textMetrics.h / 3); // Adjusted for better vertical centering
+    const textY = y + (logoHeight / 2) + (textMetrics.h / 3.5); // Adjusted for better vertical centering
 
-    doc.text(text, textX, textY, { baseline: 'middle', align: 'left' }); // Use left align and position manually for center
+    doc.text(text, textX, textY, { baseline: 'middle', align: 'left' });
 
-    // Reset text color for subsequent drawing
-    doc.setTextColor(0, 0, 0);
+    doc.setTextColor(0, 0, 0); // Reset text color
 };
 
 
@@ -118,7 +112,7 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
     return [];
   }
   const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
-  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc')); // Assuming you want details ordered
+  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc'));
   try {
     const snapshot = await getDocs(q);
     const details = snapshot.docs.map(doc => detailFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
@@ -153,17 +147,14 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     const pageWidth = doc.internal.pageSize.getWidth();
     let currentY = pageMargin;
 
-    // Add Logo (Top-Left)
     addAsendiaStyleLogo(doc, pageMargin, currentY);
-    currentY += 10 + 10; // Space after logo
+    currentY += 10 + 10;
 
-    // Title
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.text("Shipment Completion Report", pageWidth / 2, currentY, { align: 'center' });
     currentY += 15;
 
-    // Main Shipment Details Section
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.text("Main Shipment Details:", pageMargin, currentY);
@@ -187,7 +178,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     ];
 
     const firstColX = pageMargin;
-    const secondColX = pageMargin + 45; // Adjust as needed for spacing
+    const secondColX = pageMargin + 45;
     const lineHeight = 6;
 
     labelValuePairs.forEach(pair => {
@@ -195,19 +186,18 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
         doc.addPage();
         currentY = pageMargin;
         addAsendiaStyleLogo(doc, pageMargin, currentY);
-        currentY += 10 + 10; // Space after logo on new page
+        currentY += 10 + 10;
       }
       doc.text(pair.label, firstColX, currentY);
       doc.text(pair.value, secondColX, currentY);
       currentY += lineHeight;
     });
-    currentY += 5; // Extra space before table
+    currentY += 5;
 
-    // Shipment Details Table
-    if (currentY > doc.internal.pageSize.getHeight() - 50) { // Check if enough space for table header + a few rows
+    if (currentY > doc.internal.pageSize.getHeight() - 50) {
         doc.addPage();
         currentY = pageMargin;
-        addAsendiaStyleLogo(doc, pageMargin, currentY); // Add logo on new page if table starts here
+        addAsendiaStyleLogo(doc, pageMargin, currentY);
         currentY += 10 + 10;
     }
     doc.setFontSize(14);
@@ -250,15 +240,14 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
         overflow: 'linebreak'
       },
       headStyles: {
-        fillColor: [22, 78, 99], // Dark blueish-grey
+        fillColor: [22, 78, 99],
         textColor: [255, 255, 255],
         fontStyle: 'bold',
         halign: 'center'
       },
-      tableLineColor: [180, 180, 180], // Lighter grey for grid lines
+      tableLineColor: [180, 180, 180],
       tableLineWidth: 0.1,
       didDrawPage: (data: any) => {
-        // Add logo on subsequent pages if table spans multiple pages
         if (data.pageNumber > 1) {
              addAsendiaStyleLogo(doc, pageMargin, pageMargin);
         }
@@ -288,10 +277,8 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
     console.log(`[PDFService] ${pdfType}: jsPDF instance created successfully.`);
 
-    // Fetch carrier name for Box 5
     const dropdownMaps = await getDropdownOptionsMap(['carriers']);
     const carrierName = getLabelFromMap(dropdownMaps['carriers'], shipment.carrierId, shipment.carrierId);
-
 
     const pageMargin = 10;
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -315,17 +302,16 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
       if (options.fontSize) doc.setFontSize(options.fontSize);
 
       textToPrint.forEach(line => {
-          const splitLines = doc.splitTextToSize(line, width - 4); // 2mm padding on each side
+          const splitLines = doc.splitTextToSize(line, width - 4);
           lines.push(...splitLines);
       });
 
       if (options.fontStyle) doc.setFont(doc.getFont().fontName, options.fontStyle);
       
-      const currentTextColor = doc.getTextColor(); // Store current text color
+      const currentTextColor = doc.getTextColor();
       if (options.textColor) doc.setTextColor(options.textColor[0], options.textColor[1], options.textColor[2]);
 
-
-      const textYOffset = options.fontSize ? options.fontSize / 3.5 : 3; // Approximate vertical centering adjustment
+      const textYOffset = options.fontSize ? options.fontSize / 3.5 : 3;
       let textX = x + 2;
 
       if (mergedOptions.align === 'right') {
@@ -334,19 +320,18 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
         textX = x + width / 2;
       }
 
-      doc.text(lines, textX, y + 2 + textYOffset, mergedOptions); // Add 2mm top padding for text
+      doc.text(lines, textX, y + 2 + textYOffset, mergedOptions);
 
       doc.setFontSize(originalFontSize);
       doc.setFont(doc.getFont().fontName, 'normal');
-      doc.setTextColor(currentTextColor); // Restore original text color
+      doc.setTextColor(currentTextColor);
     };
 
-    // --- Header Section ---
     addAsendiaStyleLogo(doc, pageMargin, currentY);
 
-    const crmLogoX = pageMargin + 35 + 2; // Position CRM logo next to Asendia logo
+    const crmLogoX = pageMargin + 35 + 2;
     const crmLogoRadius = 5;
-    doc.setFillColor(200, 200, 200); // Grey fill for CRM circle
+    doc.setFillColor(200, 200, 200);
     doc.circle(crmLogoX + crmLogoRadius, currentY + crmLogoRadius, crmLogoRadius, 'F');
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
@@ -360,9 +345,8 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     doc.setFont('helvetica', 'bold');
     doc.text("INTERNATIONAL CONSIGNMENT NOTE", titleX, currentY + 8);
     doc.setFont('helvetica', 'normal');
-    currentY += 12; // Space after header
+    currentY += 12;
 
-    // --- Grid Layout ---
     const col1Width = contentWidth * 0.5;
     const col2Width = contentWidth * 0.5;
     const col1X = pageMargin;
@@ -388,12 +372,12 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     drawTextBox("7 Successive Carrier Transporteurs successifs\n\nN/A", col2X, currentY, col2Width, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
-    boxHeight = 20; // Increased height for Box 8
+    boxHeight = 20;
     const dynamicTakingOverText = `${shipment.senderAddress || 'Asendia UK, Unit 5, The Hub, Solent Business Park, Fareham, PO15 7FH'}, UK ${formatDateForPdf(shipment.departureDate)}`;
     const takingOverGoodsTextLines = [
         `8 Place and date of taking over the goods (place, country, date)`,
         `Lieu et date de prise en charge des marchandises (lieu, pays, date)`,
-        ``, // Empty line for spacing
+        ``,
         dynamicTakingOverText
     ];
     drawTextBox(takingOverGoodsTextLines, col1X, currentY, contentWidth, boxHeight, {fontSize: 7});
@@ -414,41 +398,40 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     const goodsDataHeight = 30;
     let goodsDescTextLines = [
         `Pallets:        ${shipment.totalPallets || 0}`,
-        `Sacks:          ${shipment.totalBags || 0}`, // Using totalBags for "Sacks"
+        `Sacks:          ${shipment.totalBags || 0}`,
         ``,
         `SEAL #1 Number:   ${shipment.sealNumber || 'N/A'}`,
-        `SEAL #2 Number:   N/A`, // Assuming only one seal number for now
+        `SEAL #2 Number:   N/A`,
         ``,
         `Description of Goods: cross border eCommerce B2C parcels`
     ];
     drawTextBox(goodsDescTextLines, col1X, currentY, goodsCol1Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0]});
 
-    drawTextBox("", col1X + goodsCol1Width, currentY, goodsCol2Width, goodsDataHeight); // Box 10 - Statistical packages
+    drawTextBox("", col1X + goodsCol1Width, currentY, goodsCol2Width, goodsDataHeight);
 
     const grossWeightVal = shipment.totalGrossWeight || 0;
-    const tareWeightVal = shipment.totalTareWeight || 0; // Assuming this is the "55.00 Kgs" from sample
-    const totalCalculatedWeight = grossWeightVal + tareWeightVal; // As per sample's visual total
+    const grossWeightOfBags = (shipment.totalBags || 0) * BAG_WEIGHT_MULTIPLIER;
+    const totalCalculatedWeight = grossWeightVal + grossWeightOfBags;
 
-    console.log(`[PDFService] CMR: Box 11 - Data: grossWeightVal=${grossWeightVal}, tareWeightVal=${tareWeightVal}, totalCalculatedWeight=${totalCalculatedWeight}`);
+    console.log(`[PDFService] CMR: Box 11 - Data: grossWeightVal=${grossWeightVal}, grossWeightOfBags=${grossWeightOfBags}, totalCalculatedWeight=${totalCalculatedWeight}`);
     let weightTextLines = [
-        `${grossWeightVal.toFixed(2)} Kgs`, // Gross Weight
+        `${grossWeightVal.toFixed(2)} Kgs`,
         ``,
-        `${tareWeightVal.toFixed(2)} Kgs`, // Tare Weight (for the "55.00 Kgs" line)
+        `${grossWeightOfBags.toFixed(2)} Kgs`, // Gross Weight of Bags
         ``,
         ``,
         `TOTAL: ${totalCalculatedWeight.toFixed(2)} Kgs`
     ];
     drawTextBox(weightTextLines, col1X + goodsCol1Width + goodsCol2Width, currentY, goodsCol3Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0], align: 'right'});
 
-    drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsDataHeight); // Box 12 - Volume
+    drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsDataHeight);
     currentY += goodsDataHeight;
 
     boxHeight = 7;
     drawTextBox("13 Carriage Charges Prix de transport", col1X, currentY, contentWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
-    // Box 14 and 15
-    const midPointXBox1415 = pageMargin + contentWidth * 0.6; // 60% for Reservations
+    const midPointXBox1415 = pageMargin + contentWidth * 0.6;
     const resWidth = midPointXBox1415 - pageMargin;
     const docAttachWidth = contentWidth - resWidth;
     boxHeight = 15;
@@ -460,9 +443,8 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     drawTextBox("16 Special agreements Conventions particulières (optional)", col1X, currentY, contentWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
-    // Signature Boxes (17, 18, 19)
     const sigBoxWidth = contentWidth / 3;
-    boxHeight = 30; // Height for signature boxes
+    boxHeight = 30;
 
     const consigneeFirstLine = (shipment.consigneeAddress || 'Consignee, Destination Country').split('\n')[0];
     const goodsReceivedText = `17 Goods Received/Marchandises Recues\n\n\n\nDate: ${formatDateForPdf(Timestamp.now())}\n${consigneeFirstLine}`;
@@ -472,12 +454,11 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     drawTextBox("19 Place and date, Signature Lieu et date, Signature", col1X + sigBoxWidth * 2, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
-    // Dates below signature boxes
-    currentY += 2; // Small gap
+    currentY += 2;
     doc.setFontSize(7);
-    doc.text(`Date: ${formatDateForPdf(Timestamp.now())}`, pageMargin + 5, currentY + 5); // Date for Box 17
-    doc.text(`Date: ${formatDateForPdf(Timestamp.now())}`, pageMargin + sigBoxWidth + 5, currentY + 5); // Date for Box 18
-    doc.text(`Date: __ / __ / __`, pageMargin + sigBoxWidth * 2 + 5, currentY + 5); // Placeholder for Box 19 date
+    doc.text(`Date: ${formatDateForPdf(Timestamp.now())}`, pageMargin + 5, currentY + 5);
+    doc.text(`Date: ${formatDateForPdf(Timestamp.now())}`, pageMargin + sigBoxWidth + 5, currentY + 5);
+    doc.text(`Date: __ / __ / __`, pageMargin + sigBoxWidth * 2 + 5, currentY + 5);
 
 
     console.log(`[PDFService] ${pdfType}: Content added to PDF.`);
@@ -490,3 +471,6 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
 };
+
+
+    
