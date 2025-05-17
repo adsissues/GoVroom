@@ -9,7 +9,7 @@ import {
     collection,
     getDocs,
     query,
-    orderBy, // Ensure orderBy is imported
+    orderBy,
     type QueryDocumentSnapshot,
     type DocumentData,
     Timestamp
@@ -33,9 +33,9 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
 
     const isValidBase64PdfDataUri =
       pdfDataUriType === 'string' &&
-      pdfDataUriLength > 100 &&
-      pdfDataUri.startsWith('data:application/pdf;') &&
-      pdfDataUri.includes(';base64,');
+      pdfDataUriLength > 100 && // Check if it's reasonably long
+      pdfDataUri.startsWith('data:application/pdf;') && // Check for PDF mime type start
+      pdfDataUri.includes(';base64,'); // Ensure it's base64 encoded
 
     if (!isValidBase64PdfDataUri) {
       const errorMsg = `CRITICAL ERROR - pdfDataUri for ${filename} is invalid or too short. Length: ${pdfDataUriLength}. Starts with: ${pdfDataUri?.substring(0, 50)}. Contains ';base64,': ${pdfDataUri?.includes(';base64,')}`;
@@ -78,8 +78,8 @@ const formatDateForPdf = (timestamp?: Timestamp): string => {
 
 const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
   if (!value) return defaultValueIfNotFoundOrValueMissing;
-  if (!map) return value; // Return the value itself if map is undefined
-  return map[value] || value; // Return value if not found in map, or the label
+  if (!map) return value; 
+  return map[value] || value; 
 };
 
 
@@ -90,7 +90,7 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
     return [];
   }
   const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
-  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc')); // Assuming you want details ordered
+  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc')); 
   try {
     const snapshot = await getDocs(q);
     const details = snapshot.docs.map(doc => detailFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
@@ -103,11 +103,10 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
 };
 
 const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
-  const logoWidth = 35; // mm - Width of the teal box
-  const logoHeight = 10; // mm - Height of the teal box
+  const logoWidth = 35; 
+  const logoHeight = 10; 
   const text = "asendia";
-  const textFontSize = 9;
-  const textLeftPadding = 4;
+  const textFontSize = 9; // Adjusted from 12 for better fit
 
   // Teal background rectangle
   doc.setFillColor(0, 90, 106); // Asendia Teal color
@@ -115,20 +114,14 @@ const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
 
   // White text "asendia"
   doc.setFontSize(textFontSize);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('helvetica', 'normal'); // Changed from 'bold' to 'normal'
   doc.setTextColor(255, 255, 255);
 
-  const textX = x + textLeftPadding;
+  // Center the text within the box
+  const textX = x + logoWidth / 2;
   const textY = y + logoHeight / 2;
 
-  doc.text(text, textX, textY, { baseline: 'middle' });
-
-  // Yellow dot - REMOVED
-  // doc.setFillColor(255, 205, 0); // Asendia Yellow color
-  // const dotRadius = 1.4;
-  // const dotX = x + logoWidth * 0.82;
-  // const dotY = y + logoHeight / 2;
-  // doc.circle(dotX, dotY, dotRadius, 'F');
+  doc.text(text, textX, textY, { align: 'center', baseline: 'middle' });
 
   doc.setTextColor(0, 0, 0); // Reset text color to black
 };
@@ -158,7 +151,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     let currentY = pageMargin;
 
     addAsendiaStyleLogo(doc, pageMargin, currentY);
-    currentY += 10 + 5; // Adjust currentY to be below the logo (logoHeight + some padding)
+    currentY += 10 + 5; 
 
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
@@ -192,24 +185,24 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     const lineHeight = 6;
 
     labelValuePairs.forEach(pair => {
-      if (currentY > doc.internal.pageSize.getHeight() - pageMargin - lineHeight) { // Check if new page needed
+      if (currentY > doc.internal.pageSize.getHeight() - pageMargin - lineHeight) { 
         doc.addPage();
         currentY = pageMargin;
-        addAsendiaStyleLogo(doc, pageMargin, currentY); // Add logo to new page
-        currentY += 10 + 5; // Space below logo
+        addAsendiaStyleLogo(doc, pageMargin, currentY); 
+        currentY += 10 + 5; 
       }
       doc.text(pair.label, firstColX, currentY);
       doc.text(pair.value, secondColX, currentY);
       currentY += lineHeight;
     });
-    currentY += 5; // Extra space before details table
+    currentY += 5; 
 
-    // Check for page break before drawing table
-    if (currentY > doc.internal.pageSize.getHeight() - 50) { // 50mm is an arbitrary value for table space + footer
+    
+    if (currentY > doc.internal.pageSize.getHeight() - 50) { 
         doc.addPage();
         currentY = pageMargin;
-        addAsendiaStyleLogo(doc, pageMargin, currentY); // Add logo to new page
-        currentY += 10 + 5; // Space below logo
+        addAsendiaStyleLogo(doc, pageMargin, currentY); 
+        currentY += 10 + 5; 
     }
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
@@ -249,15 +242,15 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
         overflow: 'linebreak'
       },
       headStyles: {
-        fillColor: [0, 90, 106], // Asendia Teal
+        fillColor: [0, 90, 106], 
         textColor: [255, 255, 255],
         fontStyle: 'bold',
         halign: 'center'
       },
       tableLineColor: [180, 180, 180],
       tableLineWidth: 0.1,
-      didDrawPage: (data) => { // Add logo to subsequent pages of the table
-        if (data.pageNumber > 1) { // Only for pages after the first if the table spans multiple pages
+      didDrawPage: (data) => { 
+        if (data.pageNumber > 1 || data.pageNumber === 1 && data.cursor?.y && data.cursor.y < 40) { 
              addAsendiaStyleLogo(doc, pageMargin, pageMargin);
         }
       }
@@ -293,7 +286,7 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     let currentY = pageMargin;
 
     addAsendiaStyleLogo(doc, pageMargin, currentY);
-    currentY += 10 + 5; // Adjust currentY to be below the logo (logoHeight + some padding)
+    currentY += 10 + 5; 
 
     console.log(`[PDFService] ${pdfType}: Setting font size and adding simplified text...`);
     doc.setFontSize(18);
