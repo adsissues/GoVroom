@@ -9,10 +9,11 @@ import {
     collection,
     getDocs,
     query,
-    orderBy,
+    // orderBy, // orderBy was here, ensure it's imported if used elsewhere
     type QueryDocumentSnapshot,
     type DocumentData,
-    Timestamp
+    Timestamp,
+    orderBy // Make sure orderBy is imported
 } from 'firebase/firestore';
 import { detailFromFirestore } from '@/lib/firebase/shipmentsService';
 import { getDropdownOptionsMap } from '@/lib/firebase/dropdownService';
@@ -24,7 +25,7 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
   console.log(`[PDFService] ${pdfType}: triggerDownload CALLED for: ${filename}`);
   try {
     console.log(`[PDFService] ${pdfType}: Attempting to generate data URI for ${filename}...`);
-    const pdfDataUri = doc.output('datauristring');
+    const pdfDataUri = doc.output('datauristring'); // Filename in datauristring is optional
     const pdfDataUriType = typeof pdfDataUri;
     const pdfDataUriLength = pdfDataUri?.length || 0;
 
@@ -78,27 +79,29 @@ const formatDateForPdf = (timestamp?: Timestamp): string => {
 
 const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
   if (!value) return defaultValueIfNotFoundOrValueMissing;
-  if (!map) return value; // Return the value itself if map is not available
-  return map[value] || value; // Return the value if not found in map
+  if (!map) return value;
+  return map[value] || value;
 };
 
 const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
     const logoWidth = 35; // mm
     const logoHeight = 10; // mm
     const text = "asendia";
-    const textFontSize = 9;
+    const textFontSize = 11; // Slightly larger for better centering perception
 
     doc.setFillColor(0, 90, 106); // Dark Teal
     doc.rect(x, y, logoWidth, logoHeight, 'F');
 
     doc.setFontSize(textFontSize);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('helvetica', 'normal'); // Changed to normal, sample doesn't look bold
     doc.setTextColor(255, 255, 255); // White text
 
-    const textX = x + logoWidth / 2;
-    const textY = y + logoHeight / 2;
+    // Calculate text width to center it
+    const textWidth = doc.getStringUnitWidth(text) * textFontSize / doc.internal.scaleFactor;
+    const textX = x + (logoWidth - textWidth) / 2;
+    const textY = y + logoHeight / 2; //  Vertical center of the box
 
-    doc.text(text, textX, textY, { align: 'center', baseline: 'middle' });
+    doc.text(text, textX, textY, { baseline: 'middle', align: 'left' }); // Using baseline middle
     doc.setTextColor(0, 0, 0); // Reset text color
 };
 
@@ -124,9 +127,9 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
 
 export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => {
   const pdfType = "Pre-Alert";
-  const filename = `pre-alert-${shipment.id || 'unknown'}.pdf`;
-  console.log(`[PDFService] ${pdfType}: generatePreAlertPdf CALLED. Attempting to generate: ${filename}`);
+  const filename = `pre-alert-${shipment.id || 'shipment'}.pdf`;
   console.log(`[PDFService] ${pdfType} PDF: Full shipment data:`, JSON.stringify(shipment, null, 2));
+  console.log(`[PDFService] ${pdfType}: generatePreAlertPdf CALLED. Attempting to generate: ${filename}`);
 
   try {
     console.log(`[PDFService] ${pdfType}: Creating new jsPDF instance...`);
@@ -146,7 +149,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     let currentY = pageMargin;
 
     addAsendiaStyleLogo(doc, pageMargin, currentY);
-    currentY += 10 + 5; // Space after logo
+    currentY += 10 + 5;
 
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
@@ -176,15 +179,15 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     ];
 
     const firstColX = pageMargin;
-    const secondColX = pageMargin + 45;
+    const secondColX = pageMargin + 45; // Increased space for values
     const lineHeight = 6;
 
     labelValuePairs.forEach(pair => {
       if (currentY > doc.internal.pageSize.getHeight() - pageMargin - lineHeight) {
         doc.addPage();
         currentY = pageMargin;
-        addAsendiaStyleLogo(doc, pageMargin, currentY);
-        currentY += 10 + 5;
+        addAsendiaStyleLogo(doc, pageMargin, currentY); // Add logo to new page
+        currentY += 10 + 5; // Space after logo
       }
       doc.text(pair.label, firstColX, currentY);
       doc.text(pair.value, secondColX, currentY);
@@ -195,8 +198,8 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     if (currentY > doc.internal.pageSize.getHeight() - 50) { // Check if space for table header
         doc.addPage();
         currentY = pageMargin;
-        addAsendiaStyleLogo(doc, pageMargin, currentY);
-        currentY += 10 + 5;
+        addAsendiaStyleLogo(doc, pageMargin, currentY); // Add logo to new page
+        currentY += 10 + 5; // Space after logo
     }
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
@@ -224,7 +227,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
       ];
     });
 
-    autoTable(doc, {
+    autoTable(doc, { // Corrected: Call autoTable as a function
       head: tableHead,
       body: tableBody,
       startY: currentY,
@@ -235,15 +238,15 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
         overflow: 'linebreak'
       },
       headStyles: {
-        fillColor: [22, 78, 99], // Dark blueish-cyan
+        fillColor: [22, 78, 99],
         textColor: [255, 255, 255],
         fontStyle: 'bold',
         halign: 'center'
       },
       tableLineColor: [180, 180, 180],
       tableLineWidth: 0.1,
-      didDrawPage: (data: any) => { // Add logo to subsequent pages if table spans multiple pages
-        if (data.pageNumber > 1 || (data.pageNumber === 1 && data.cursor?.y && data.cursor.y < 40)) { // Heuristic for first page if table starts high
+      didDrawPage: (data: any) => {
+        if (data.pageNumber > 1 || (data.pageNumber === 1 && data.cursor?.y && data.cursor.y < 40)) {
              addAsendiaStyleLogo(doc, pageMargin, pageMargin);
         }
       }
@@ -260,47 +263,48 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
   }
 };
 
+
 export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
   const pdfType = "CMR";
-  const filename = `cmr-${shipment.id || 'unknown'}.pdf`;
-  console.log(`[PDFService] ${pdfType}: generateCmrPdf CALLED. Attempting to generate: ${filename}`);
+  const filename = `cmr-${shipment.id || 'shipment'}.pdf`;
   console.log(`[PDFService] ${pdfType} PDF: Full shipment data:`, JSON.stringify(shipment, null, 2));
+  console.log(`[PDFService] ${pdfType}: generateCmrPdf CALLED. Attempting to generate: ${filename}`);
 
   try {
     console.log(`[PDFService] ${pdfType}: Creating new jsPDF instance...`);
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
     console.log(`[PDFService] ${pdfType}: jsPDF instance created successfully.`);
 
-    const dropdownMaps = await getDropdownOptionsMap(['carriers']); // Fetch carrier map
+    const dropdownMaps = await getDropdownOptionsMap(['carriers']);
 
     const pageMargin = 10;
     const pageWidth = doc.internal.pageSize.getWidth();
     const contentWidth = pageWidth - 2 * pageMargin;
     let currentY = pageMargin;
 
-    // --- Helper to draw text in a box, with potential wrapping ---
     const drawTextBox = (text: string | string[], x: number, y: number, width: number, height: number, options: any = {}) => {
       doc.rect(x, y, width, height);
       const defaultOptions = { align: 'left', baseline: 'top', flags: {noBOM: true, autoencode: true} };
       const mergedOptions = {...defaultOptions, ...options};
       
       let textToPrint = Array.isArray(text) ? text : [text];
+      const lines: string[] = [];
       
+      const originalFontSize = doc.getFontSize();
       if (options.fontSize) doc.setFontSize(options.fontSize);
-      if (options.fontStyle) doc.setFont(doc.getFont().fontName, options.fontStyle);
-      if (options.textColor) doc.setTextColor(options.textColor[0], options.textColor[1], options.textColor[2]);
-
-      // Simple manual wrapping for multiple lines
-      const lines = [];
+      
       textToPrint.forEach(line => {
-          const splitLines = doc.splitTextToSize(line, width - 4); // 2mm padding each side
+          const currentLineText = typeof line === 'string' ? line : ''; // Ensure it's a string
+          const splitLines = doc.splitTextToSize(currentLineText, width - 4); 
           lines.push(...splitLines);
       });
 
-      doc.text(lines, x + 2, y + 2, mergedOptions); // 2mm padding
+      if (options.fontStyle) doc.setFont(doc.getFont().fontName, options.fontStyle);
+      if (options.textColor) doc.setTextColor(options.textColor[0], options.textColor[1], options.textColor[2]);
 
-      // Reset to default after drawing
-      doc.setFontSize(10);
+      doc.text(lines, x + 2, y + 2 + (options.fontSize ? options.fontSize / 3.5 : 3), mergedOptions);
+
+      doc.setFontSize(originalFontSize);
       doc.setFont(doc.getFont().fontName, 'normal');
       doc.setTextColor(0,0,0);
     };
@@ -308,10 +312,9 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     // --- Header Section ---
     addAsendiaStyleLogo(doc, pageMargin, currentY);
     
-    // CRM Logo (Simulated)
-    const crmLogoX = pageMargin + 35 + 2; // Next to Asendia logo
+    const crmLogoX = pageMargin + 35 + 2;
     const crmLogoRadius = 5;
-    doc.setFillColor(200, 200, 200); // Light gray
+    doc.setFillColor(200, 200, 200); 
     doc.circle(crmLogoX + crmLogoRadius, currentY + crmLogoRadius, crmLogoRadius, 'F');
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
@@ -325,7 +328,7 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     doc.setFont('helvetica', 'bold');
     doc.text("INTERNATIONAL CONSIGNMENT NOTE", titleX, currentY + 8);
     doc.setFont('helvetica', 'normal');
-    currentY += 12; // End of header part
+    currentY += 12; 
 
     // --- Grid Layout ---
     const col1Width = contentWidth * 0.5;
@@ -333,76 +336,81 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     const col1X = pageMargin;
     const col2X = pageMargin + col1Width;
 
-    // Line 1: Sender / Customs Ref
     let boxHeight = 30;
-    drawTextBox(`1 Sender (Name, Address, Country) Expéditeur (Nom, Adresse, Pays)\n\n${shipment.senderAddress || 'Asendia UK\nUnit 8-12 The Heathrow Estate\nSilver Jubilee way\nHounslow\nTW4 6NF'}`, col1X, currentY, col1Width, boxHeight, {fontSize: 7});
+    const senderText = `1 Sender (Name, Address, Country) Expéditeur (Nom, Adresse, Pays)\n\n${shipment.senderAddress || 'Asendia UK\nUnit 8-12 The Heathrow Estate\nSilver Jubilee way\nHounslow\nTW4 6NF'}`;
+    drawTextBox(senderText, col1X, currentY, col1Width, boxHeight, {fontSize: 7});
     drawTextBox("2 Customs Reference/Status Ref douane/Statut\n\nN/A", col2X, currentY, col2Width, boxHeight / 2, {fontSize: 7});
     drawTextBox("3 Senders Agents Reference Ref expéditeur de l'agent\n\nN/A", col2X, currentY + boxHeight / 2, col2Width, boxHeight / 2, {fontSize: 7});
     currentY += boxHeight;
 
-    // Line 2: Consignee / Carrier
     boxHeight = 30;
-    drawTextBox(`4 Consignee, Final Delivery Point (Name, Address) Destinataire (Nom, Adresse, Pays)\n\n${shipment.consigneeAddress || 'LA POSTE ROISSY HUB\n7 Rue Du Haute de Laval\n93290 Tremblay-en-France\nFrance'}`, col1X, currentY, col1Width, boxHeight, {fontSize: 7, fontStyle: 'bold'});
+    const consigneeText = `4 Consignee, Final Delivery Point (Name, Address) Destinataire (Nom, Adresse, Pays)\n\n${shipment.consigneeAddress || 'LA POSTE ROISSY HUB\n7 Rue Du Haute de Laval\n93290 Tremblay-en-France\nFrance'}`;
+    drawTextBox(consigneeText, col1X, currentY, col1Width, boxHeight, {fontSize: 7, fontStyle: 'bold'});
     const carrierName = getLabelFromMap(dropdownMaps['carriers'], shipment.carrierId, shipment.carrierId);
-    const truckTrailer = `${shipment.truckRegistration || 'NDB442'}/${shipment.trailerRegistration || 'NN406'}`;
-    drawTextBox(`5 Carrier (Name, Address, Country) Transporteur (Nom, Adresse, Pays)\n\nCarrier Name: ${carrierName}\nTruck & Trailer: ${truckTrailer}`, col2X, currentY, col2Width, boxHeight, {fontSize: 7, textColor: [255,0,0], fontStyle: 'bold'});
+    const truckTrailer = `${shipment.truckRegistration || 'N/A'}/${shipment.trailerRegistration || 'N/A'}`;
+    const carrierText = `5 Carrier (Name, Address, Country) Transporteur (Nom, Adresse, Pays)\n\nCarrier Name: ${carrierName}\nTruck & Trailer: ${truckTrailer}`;
+    drawTextBox(carrierText, col2X, currentY, col2Width, boxHeight, {fontSize: 7, textColor: [255,0,0], fontStyle: 'bold'});
     currentY += boxHeight;
     
-    // Line 3: Senders instructions for customs etc / Successive Carrier
     boxHeight = 20;
     drawTextBox("6 Senders instructions for customs, etc... Instructions de l'expéditeur (optionel)\n\nN/A", col1X, currentY, col1Width, boxHeight, {fontSize: 7});
     drawTextBox("7 Successive Carrier Transporteurs successifs\n\nN/A", col2X, currentY, col2Width, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
-    // Line 4: Place and date of taking over the goods...
-    boxHeight = 10;
-    const takingOverGoodsText = `8 Place and date of taking over the goods (place, country, date)\nLieu et date de prise en charge des marchandises (lieu, pays, date)\n\n${(shipment.senderAddress || 'Asendia UK').split('\n')[0]}, UK ${formatDateForPdf(shipment.departureDate)}`;
-    drawTextBox(takingOverGoodsText, col1X, currentY, contentWidth, boxHeight, {fontSize: 7});
+    // Box 8: Increased height to prevent overflow
+    boxHeight = 20; 
+    const dynamicTakingOverText = `${shipment.senderAddress || 'Asendia UK, Unit 5, The Hub, Solent Business Park, Fareham, PO15 7FH'}, UK ${formatDateForPdf(shipment.departureDate)}`;
+    const takingOverGoodsTextLines = [
+        `8 Place and date of taking over the goods (place, country, date)`,
+        `Lieu et date de prise en charge des marchandises (lieu, pays, date)`,
+        ``, // Empty line for spacing if needed, or adjust content below
+        dynamicTakingOverText
+    ];
+    drawTextBox(takingOverGoodsTextLines, col1X, currentY, contentWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
-    // Line 5: Goods Table Header (Complex, simplified for now)
-    const goodsDetailsYStart = currentY;
+    // Line 9-12: Goods Table Header & Data
     const goodsCol1Width = contentWidth * 0.4;
     const goodsCol2Width = contentWidth * 0.2;
     const goodsCol3Width = contentWidth * 0.2;
     const goodsCol4Width = contentWidth * 0.2;
+    let goodsTableHeaderHeight = 10;
 
-    drawTextBox("9 Marks & Nos; No & Kind of Packages; Description of Goods\nMarques et Nos; Nb et nature des colis; Désignation des marchandises", col1X, currentY, goodsCol1Width, 10, {fontSize: 6});
-    drawTextBox("10 No. of packages\n(statistical)", col1X + goodsCol1Width, currentY, goodsCol2Width, 10, {fontSize: 6});
-    drawTextBox("11 Gross Weight (kg)\nPoids Brut (kg)", col1X + goodsCol1Width + goodsCol2Width, currentY, goodsCol3Width, 10, {fontSize: 6});
-    drawTextBox("12 Volume (m³)\nCubage (m³)", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, 10, {fontSize: 6});
-    currentY += 10;
+    drawTextBox("9 Marks & Nos; No & Kind of Packages; Description of Goods\nMarques et Nos; Nb et nature des colis; Désignation des marchandises", col1X, currentY, goodsCol1Width, goodsTableHeaderHeight, {fontSize: 6});
+    drawTextBox("10 No. of packages\n(statistical)", col1X + goodsCol1Width, currentY, goodsCol2Width, goodsTableHeaderHeight, {fontSize: 6});
+    drawTextBox("11 Gross Weight (kg)\nPoids Brut (kg)", col1X + goodsCol1Width + goodsCol2Width, currentY, goodsCol3Width, goodsTableHeaderHeight, {fontSize: 6});
+    drawTextBox("12 Volume (m³)\nCubage (m³)", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsTableHeaderHeight, {fontSize: 6});
+    currentY += goodsTableHeaderHeight;
 
-    // Goods Table Data
     const goodsDataHeight = 30;
-    // Column 1 Data
-    let dataText = `Pallets:        ${shipment.totalPallets || 0}\n`;
-    dataText +=    `Sacks:          ${shipment.totalBags || 0}\n\n`;
-    dataText +=    `SEAL #1 Number:   ${shipment.sealNumber || 'N/A'}\n`;
-    dataText +=    `SEAL #2 Number:   N/A\n\n`;
-    dataText +=    `Description of Goods: cross border eCommerce B2C parcels`;
-    drawTextBox(dataText, col1X, currentY, goodsCol1Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0]});
+    let goodsDescText = `Pallets:        ${shipment.totalPallets || 0}\n`;
+    goodsDescText +=    `Sacks:          ${shipment.totalBags || 0}\n\n`;
+    goodsDescText +=    `SEAL #1 Number:   ${shipment.sealNumber || 'N/A'}\n`;
+    goodsDescText +=    `SEAL #2 Number:   N/A\n\n`;
+    goodsDescText +=    `Description of Goods: cross border eCommerce B2C parcels`;
+    drawTextBox(goodsDescText, col1X, currentY, goodsCol1Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0]});
     
-    // Column 2 Data (No. of packages) - Sample is blank
-    drawTextBox("", col1X + goodsCol1Width, currentY, goodsCol2Width, goodsDataHeight);
+    drawTextBox("", col1X + goodsCol1Width, currentY, goodsCol2Width, goodsDataHeight); 
 
-    // Column 3 Data (Weights)
-    let weightText = `${(shipment.totalGrossWeight || 0).toFixed(2)} Kgs\n\n`; // Gross
-    weightText +=    `${(shipment.totalTareWeight || 0).toFixed(2)} Kgs\n\n\n`; // Tare (approximating "55.00 Kgs" from sample)
-    weightText +=    `TOTAL: ${((shipment.totalGrossWeight || 0) + (shipment.totalTareWeight || 0)).toFixed(2)} Kgs`;
-    drawTextBox(weightText, col1X + goodsCol1Width + goodsCol2Width, currentY, goodsCol3Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0], align: 'right'});
+    // Weights for Box 11 Data
+    let weightTextLines = [
+        `${(shipment.totalGrossWeight || 0).toFixed(2)} Kgs`, // Total Gross Weight (pallets + bags)
+        ``, // Spacer line
+        `${(shipment.totalTareWeight || 0).toFixed(2)} Kgs`, // Tare Weight (referred to as "gross weight of pallets" in user's terms, but this is total tare)
+        ``, // Spacer line
+        ``, // Spacer line
+        `TOTAL: ${((shipment.totalGrossWeight || 0) + (shipment.totalTareWeight || 0)).toFixed(2)} Kgs`
+    ];
+    drawTextBox(weightTextLines, col1X + goodsCol1Width + goodsCol2Width, currentY, goodsCol3Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0], align: 'right'});
     
-    // Column 4 Data (Volume) - Sample is blank
-    drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsDataHeight);
+    drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsDataHeight); 
     currentY += goodsDataHeight;
 
-    // Line 6: Carriage Charges
     boxHeight = 7;
     drawTextBox("13 Carriage Charges Prix de transport", col1X, currentY, contentWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
-    // Line 7: Reservations / Documents attached
-    const midPointX = pageMargin + contentWidth * 0.6; // Adjusted split
+    const midPointX = pageMargin + contentWidth * 0.6; 
     const resWidth = midPointX - pageMargin;
     const docAttachWidth = contentWidth - resWidth;
     boxHeight = 15;
@@ -410,26 +418,23 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     drawTextBox("15 Documents attached Documents Annexes (optional)", midPointX, currentY, docAttachWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
     
-    // Line 8: Special agreements
     boxHeight = 10;
     drawTextBox("16 Special agreements Conventions particulières (optional)", col1X, currentY, contentWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
-    // Line 9: Goods Received / Signature Boxes
     const sigBoxWidth = contentWidth / 3;
-    boxHeight = 30; // Height for signature boxes
-    drawTextBox("17 Goods Received/Marchandises Recues\n\n\n\nDate: " + formatDateForPdf(shipment.arrivalDate) + "\nAsendia UK, Hounslow", col1X, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
+    boxHeight = 30; 
+    const goodsReceivedText = `17 Goods Received/Marchandises Recues\n\n\n\nDate: ${formatDateForPdf(shipment.arrivalDate)}\n${(shipment.senderAddress || 'Asendia UK').split('\n')[0]}, UK`;
+    drawTextBox(goodsReceivedText, col1X, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
     drawTextBox("18 Signature and stamp of Carrier/Signature du Transporteur", col1X + sigBoxWidth, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
     drawTextBox("19 Place and date, Signature Lieu et date, Signature", col1X + sigBoxWidth * 2, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
-    // Final Date Line
     currentY += 2;
     doc.setFontSize(7);
     doc.text(`Date: ${formatDateForPdf(shipment.departureDate)}`, pageMargin + 5, currentY + 5);
     doc.text(`Date: ${formatDateForPdf(shipment.departureDate)}`, pageMargin + sigBoxWidth + 5, currentY + 5);
     doc.text(`Date: __ / __ / __`, pageMargin + sigBoxWidth * 2 + 5, currentY + 5);
-
 
     console.log(`[PDFService] ${pdfType}: Content added to PDF.`);
     triggerDownload(doc, filename, pdfType);
@@ -441,5 +446,3 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
 };
-
-    
