@@ -93,6 +93,7 @@ export const detailFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): Sh
         numPallets: typeof data.numPallets === 'number' ? data.numPallets : 0,
         numBags: typeof data.numBags === 'number' ? data.numBags : 0,
         customerId: data.customerId || '',
+        // destinationId: data.destinationId || '', // Removed
         serviceId: data.serviceId || '',
         formatId: data.formatId || '',
         tareWeight: tareWeight,
@@ -228,7 +229,7 @@ export const updateShipmentDetail = async (shipmentId: string, detailId: string,
   const detailRef = doc(db, 'shipments', shipmentId, 'details', detailId);
   try {
     const dataToUpdate: DocumentData = { ...updates };
-    
+
     // Recalculate netWeight if grossWeight or tareWeight is being updated
     if (updates.grossWeight !== undefined || updates.tareWeight !== undefined) {
       const currentDocSnap = await getDoc(detailRef); // Get current data to ensure we have both values
@@ -342,6 +343,10 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
 
 // --- Dashboard Specific Queries ---
 
+/**
+ * Fetches aggregated statistics for the dashboard.
+ * Note: totalGrossWeightSum is now returned as null as it requires backend aggregation.
+ */
 export const getDashboardStats = async (): Promise<{
     pendingCount: number | null;
     completedCount: number | null;
@@ -352,7 +357,7 @@ export const getDashboardStats = async (): Promise<{
     try {
         const pendingQuery = query(shipmentsCollection, where('status', '==', 'Pending'));
         const completedQuery = query(shipmentsCollection, where('status', '==', 'Completed'));
-        
+
         // Use Promise.all to fetch counts concurrently
         const [pendingSnapshot, completedSnapshot] = await Promise.all([
             getCountFromServer(pendingQuery),
@@ -365,7 +370,7 @@ export const getDashboardStats = async (): Promise<{
 
         // totalGrossWeightSum is removed from client-side calculation for performance.
         // This should be handled by a backend aggregation (e.g., Cloud Function).
-        const totalGrossWeightSum = null;
+        const totalGrossWeightSum = null; // Explicitly null
 
         return {
             pendingCount: pendingSnapshot.data().count,
@@ -384,4 +389,3 @@ export const getDashboardStats = async (): Promise<{
         };
     }
 };
-

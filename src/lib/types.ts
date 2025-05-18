@@ -43,7 +43,7 @@ export interface ShipmentDetail {
   numPallets: number;
   numBags: number;
   customerId: string; // Reference to /customers/{id} -> value field
-  destinationId: string; // New field for destination
+  // destinationId: string; // Removed
   serviceId: string; // Reference to /services/{id} -> value field
   formatId: string; // Reference to /formats.../{id} -> value field (depends on service)
   tareWeight: number;
@@ -114,8 +114,9 @@ export interface Notification {
     createdAt: Timestamp;
 }
 
+// Removed DestinationOption interface
 // For Destination RadioGroup
-export interface DestinationOption {
-  value: string;
-  label: string;
-}
+// export interface DestinationOption {
+//   value: string;
+//   label: string;
+// }
