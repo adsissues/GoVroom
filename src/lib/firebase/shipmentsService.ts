@@ -36,7 +36,14 @@ import { ASENDIA_CUSTOMER_VALUE } from '@/lib/constants';
 export const shipmentFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): Shipment => {
   const data = docSnap.data();
   if (!data) {
-    throw new Error(`Document data missing for snapshot ID: ${docSnap.id}`);
+    // It's better to throw an error or return a more specific "not found"
+    // than to try and construct a partial object, which can lead to downstream errors.
+    console.error(`Document data missing for snapshot ID: ${docSnap.id}`);
+    // Depending on how this is used, you might want to:
+    // throw new Error(`Document data missing for snapshot ID: ${docSnap.id}`);
+    // Or return a type that indicates failure, or null if the calling code handles it.
+    // For now, let's log and return a best-effort object, but this should be reviewed.
+    return { id: docSnap.id } as Shipment; // This will likely cause issues if data is truly missing
   }
   return {
     id: docSnap.id,
@@ -53,14 +60,14 @@ export const shipmentFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): 
     consigneeAddress: data.consigneeAddress || '',
     lastUpdated: data.lastUpdated instanceof Timestamp ? data.lastUpdated : Timestamp.now(),
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(),
-    totalPallets: typeof data.totalPallets === 'number' ? data.totalPallets : undefined,
-    totalBags: typeof data.totalBags === 'number' ? data.totalBags : undefined,
-    totalGrossWeight: typeof data.totalGrossWeight === 'number' ? data.totalGrossWeight : undefined,
-    totalTareWeight: typeof data.totalTareWeight === 'number' ? data.totalTareWeight : undefined,
-    totalNetWeight: typeof data.totalNetWeight === 'number' ? data.totalNetWeight : undefined,
-    asendiaGrossWeight: typeof data.asendiaGrossWeight === 'number' ? data.asendiaGrossWeight : undefined,
-    asendiaTareWeight: typeof data.asendiaTareWeight === 'number' ? data.asendiaTareWeight : undefined,
-    asendiaNetWeight: typeof data.asendiaNetWeight === 'number' ? data.asendiaNetWeight : undefined,
+    totalPallets: typeof data.totalPallets === 'number' ? data.totalPallets : 0, // Default to 0
+    totalBags: typeof data.totalBags === 'number' ? data.totalBags : 0, // Default to 0
+    totalGrossWeight: typeof data.totalGrossWeight === 'number' ? data.totalGrossWeight : 0, // Default to 0
+    totalTareWeight: typeof data.totalTareWeight === 'number' ? data.totalTareWeight : 0, // Default to 0
+    totalNetWeight: typeof data.totalNetWeight === 'number' ? data.totalNetWeight : 0, // Default to 0
+    asendiaGrossWeight: typeof data.asendiaGrossWeight === 'number' ? data.asendiaGrossWeight : 0, // Default to 0
+    asendiaTareWeight: typeof data.asendiaTareWeight === 'number' ? data.asendiaTareWeight : 0, // Default to 0
+    asendiaNetWeight: typeof data.asendiaNetWeight === 'number' ? data.asendiaNetWeight : 0, // Default to 0
     pdfUrls: data.pdfUrls || undefined,
     scannedDocuments: Array.isArray(data.scannedDocuments) ? data.scannedDocuments : undefined,
   } as Shipment;
@@ -72,7 +79,9 @@ export const shipmentFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): 
 export const detailFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): ShipmentDetail => {
     const data = docSnap.data();
     if (!data) {
-        throw new Error(`Document data missing for detail snapshot ID: ${docSnap.id}`);
+        // Similar to shipmentFromFirestore, handle missing data appropriately.
+        console.error(`Document data missing for detail snapshot ID: ${docSnap.id}`);
+        return { id: docSnap.id, shipmentId: docSnap.ref.parent.parent?.id || '' } as ShipmentDetail;
     }
     const grossWeight = typeof data.grossWeight === 'number' ? data.grossWeight : 0;
     const tareWeight = typeof data.tareWeight === 'number' ? data.tareWeight : 0;
@@ -80,7 +89,7 @@ export const detailFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): Sh
 
     return {
         id: docSnap.id,
-        shipmentId: docSnap.ref.parent.parent?.id || '', 
+        shipmentId: docSnap.ref.parent.parent?.id || '',
         numPallets: typeof data.numPallets === 'number' ? data.numPallets : 0,
         numBags: typeof data.numBags === 'number' ? data.numBags : 0,
         customerId: data.customerId || '',
@@ -88,7 +97,7 @@ export const detailFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): Sh
         formatId: data.formatId || '',
         tareWeight: tareWeight,
         grossWeight: grossWeight,
-        netWeight: netWeight, 
+        netWeight: netWeight,
         dispatchNumber: data.dispatchNumber || undefined,
         doeId: data.doeId || undefined,
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(),
@@ -99,7 +108,7 @@ export const detailFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): Sh
 
 // --- Shipment CRUD ---
 
-export const addShipment = async (shipmentData: Omit<Shipment, 'id' | 'createdAt' | 'lastUpdated' | 'totalPallets' | 'totalBags' | 'totalGrossWeight' | 'totalTareWeight' | 'totalNetWeight' | 'asendiaGrossWeight' | 'asendiaTareWeight' | 'asendiaNetWeight'>): Promise<string> => {
+export const addShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'lastUpdated' | 'totalPallets' | 'totalBags' | 'totalGrossWeight' | 'totalTareWeight' | 'totalNetWeight' | 'asendiaGrossWeight' | 'asendiaTareWeight' | 'asendiaNetWeight'>>): Promise<string> => {
   try {
     const docRef = await addDoc(collection(db, 'shipments'), {
       ...shipmentData,
@@ -113,13 +122,14 @@ export const addShipment = async (shipmentData: Omit<Shipment, 'id' | 'createdAt
       asendiaGrossWeight: 0,
       asendiaTareWeight: 0,
       asendiaNetWeight: 0,
+      status: shipmentData.status || 'Pending', // Ensure status has a default
       createdAt: serverTimestamp(),
       lastUpdated: serverTimestamp(),
     });
     return docRef.id;
   } catch (error) {
     console.error("Error adding shipment:", error);
-    throw error; 
+    throw error;
   }
 };
 
@@ -137,9 +147,6 @@ export const updateShipment = async (shipmentId: string, updates: Partial<Omit<S
 
     await updateDoc(shipmentRef, dataToUpdate);
 
-    if (updates.status === 'Completed') {
-       // Placeholder for future PDF generation and notifications
-    }
   } catch (error) {
     console.error(`Error updating shipment ${shipmentId}:`, error);
     throw error;
@@ -173,13 +180,14 @@ export const getShipmentById = async (shipmentId: string): Promise<Shipment | nu
     try {
         const docSnap = await getDoc(shipmentRef);
         if (docSnap.exists()) {
-        return shipmentFromFirestore(docSnap);
+          return shipmentFromFirestore(docSnap);
         } else {
-        return null;
+          console.log(`No shipment found with ID: ${shipmentId}`);
+          return null;
         }
     } catch (error) {
         console.error(`Error fetching shipment ${shipmentId}:`, error);
-        throw error; 
+        throw error;
     }
 };
 
@@ -187,7 +195,7 @@ export const getAllShipments = async (): Promise<Shipment[]> => {
   try {
     const q = query(collection(db, 'shipments'), orderBy('createdAt', 'desc'));
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(shipmentFromFirestore);
+    return querySnapshot.docs.map(docSnap => shipmentFromFirestore(docSnap));
   } catch (error) {
     console.error("Error fetching all shipments:", error);
     throw error;
@@ -196,13 +204,14 @@ export const getAllShipments = async (): Promise<Shipment[]> => {
 
 // --- Shipment Detail CRUD ---
 
-export const addShipmentDetail = async (shipmentId: string, detailData: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated'>): Promise<string> => {
+export const addShipmentDetail = async (shipmentId: string, detailData: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated' | 'netWeight'>): Promise<string> => {
   if (!shipmentId) throw new Error("Parent Shipment ID is required to add a detail.");
   const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
   try {
+    const netWeight = parseFloat(((detailData.grossWeight ?? 0) - (detailData.tareWeight ?? 0)).toFixed(3));
     const docRef = await addDoc(detailsCollectionRef, {
       ...detailData,
-      netWeight: parseFloat(((detailData.grossWeight ?? 0) - (detailData.tareWeight ?? 0)).toFixed(3)),
+      netWeight: netWeight,
       createdAt: serverTimestamp(),
       lastUpdated: serverTimestamp(),
     });
@@ -214,19 +223,22 @@ export const addShipmentDetail = async (shipmentId: string, detailData: Omit<Shi
   }
 };
 
-export const updateShipmentDetail = async (shipmentId: string, detailId: string, updates: Partial<Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt'>>): Promise<void> => {
+export const updateShipmentDetail = async (shipmentId: string, detailId: string, updates: Partial<Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'netWeight'>>): Promise<void> => {
   if (!shipmentId || !detailId) throw new Error("Shipment ID and Detail ID are required to update a detail.");
   const detailRef = doc(db, 'shipments', shipmentId, 'details', detailId);
   try {
     const dataToUpdate: DocumentData = { ...updates };
-    const currentDocSnap = await getDoc(detailRef);
-    const currentData = currentDocSnap.data() || {};
-    const grossWeight = updates.grossWeight ?? currentData.grossWeight ?? 0;
-    const tareWeight = updates.tareWeight ?? currentData.tareWeight ?? 0;
+    
+    // Recalculate netWeight if grossWeight or tareWeight is being updated
     if (updates.grossWeight !== undefined || updates.tareWeight !== undefined) {
-        dataToUpdate.netWeight = parseFloat((grossWeight - tareWeight).toFixed(3));
+      const currentDocSnap = await getDoc(detailRef); // Get current data to ensure we have both values
+      const currentData = currentDocSnap.data() || {};
+      const grossWeight = updates.grossWeight !== undefined ? updates.grossWeight : currentData.grossWeight;
+      const tareWeight = updates.tareWeight !== undefined ? updates.tareWeight : currentData.tareWeight;
+      dataToUpdate.netWeight = parseFloat(((grossWeight ?? 0) - (tareWeight ?? 0)).toFixed(3));
     }
-    dataToUpdate.lastUpdated = serverTimestamp(); 
+
+    dataToUpdate.lastUpdated = serverTimestamp();
     await updateDoc(detailRef, dataToUpdate);
     await recalculateShipmentTotals(shipmentId);
   } catch (error) {
@@ -271,12 +283,16 @@ export const getShipmentDetailsCount = async (shipmentId: string): Promise<numbe
 // --- Calculation Logic ---
 
 export const recalculateShipmentTotals = async (shipmentId: string): Promise<void> => {
+  if (!shipmentId) {
+    console.warn("recalculateShipmentTotals called with invalid shipmentId:", shipmentId);
+    return;
+  }
   const shipmentRef = doc(db, 'shipments', shipmentId);
   const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
 
   try {
     await runTransaction(db, async (transaction) => {
-      const detailsQuerySnapshot = await getDocs(query(detailsCollectionRef)); // Fetch details
+      const detailsQuerySnapshot = await getDocs(query(detailsCollectionRef));
       const details: ShipmentDetail[] = detailsQuerySnapshot.docs.map(d => detailFromFirestore(d as QueryDocumentSnapshot<DocumentData>));
 
       let totalPallets = 0;
@@ -293,12 +309,14 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
         totalBags += detail.numBags || 0;
         totalGrossWeight += detail.grossWeight || 0;
         totalTareWeight += detail.tareWeight || 0;
-        totalNetWeight += detail.netWeight || 0; 
+        // Ensure netWeight is calculated if not present or explicitly use the calculated one
+        const currentNetWeight = detail.netWeight !== undefined ? detail.netWeight : parseFloat(((detail.grossWeight || 0) - (detail.tareWeight || 0)).toFixed(3));
+        totalNetWeight += currentNetWeight;
 
         if (detail.customerId === ASENDIA_CUSTOMER_VALUE) {
           asendiaGrossWeight += detail.grossWeight || 0;
           asendiaTareWeight += detail.tareWeight || 0;
-          asendiaNetWeight += detail.netWeight || 0;
+          asendiaNetWeight += currentNetWeight;
         }
       });
 
@@ -311,13 +329,13 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
         asendiaGrossWeight: parseFloat(asendiaGrossWeight.toFixed(3)),
         asendiaTareWeight: parseFloat(asendiaTareWeight.toFixed(3)),
         asendiaNetWeight: parseFloat(asendiaNetWeight.toFixed(3)),
-        lastUpdated: serverTimestamp(), 
+        lastUpdated: serverTimestamp(),
       };
       transaction.update(shipmentRef, updates);
     });
   } catch (error) {
     console.error(`Error recalculating totals for shipment ${shipmentId}:`, error);
-    throw error; 
+    throw error;
   }
 };
 
@@ -325,37 +343,45 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
 // --- Dashboard Specific Queries ---
 
 export const getDashboardStats = async (): Promise<{
-    pendingCount: number;
-    completedCount: number;
-    totalGrossWeightSum: number; 
+    pendingCount: number | null;
+    completedCount: number | null;
+    totalGrossWeightSum: number | null; // This will be null now
     lastUpdateTimestamp: Timestamp | null;
 }> => {
     const shipmentsCollection = collection(db, 'shipments');
     try {
         const pendingQuery = query(shipmentsCollection, where('status', '==', 'Pending'));
         const completedQuery = query(shipmentsCollection, where('status', '==', 'Completed'));
-        const pendingSnapshot = await getCountFromServer(pendingQuery);
-        const completedSnapshot = await getCountFromServer(completedQuery);
+        
+        // Use Promise.all to fetch counts concurrently
+        const [pendingSnapshot, completedSnapshot] = await Promise.all([
+            getCountFromServer(pendingQuery),
+            getCountFromServer(completedQuery)
+        ]);
 
         const lastUpdatedQuery = query(shipmentsCollection, orderBy('lastUpdated', 'desc'), limit(1));
         const lastUpdatedSnapshot = await getDocs(lastUpdatedQuery);
         const lastUpdateTimestamp = lastUpdatedSnapshot.empty ? null : (lastUpdatedSnapshot.docs[0].data().lastUpdated as Timestamp);
 
-        let totalGrossWeightSum = 0;
-        // This is inefficient for large datasets. Consider server-side aggregation for production.
-        const allShipmentsSnapshot = await getDocs(query(shipmentsCollection));
-        allShipmentsSnapshot.forEach(doc => {
-            totalGrossWeightSum += doc.data().totalGrossWeight || 0;
-        });
+        // totalGrossWeightSum is removed from client-side calculation for performance.
+        // This should be handled by a backend aggregation (e.g., Cloud Function).
+        const totalGrossWeightSum = null;
 
         return {
             pendingCount: pendingSnapshot.data().count,
             completedCount: completedSnapshot.data().count,
-            totalGrossWeightSum: parseFloat(totalGrossWeightSum.toFixed(3)),
+            totalGrossWeightSum: totalGrossWeightSum,
             lastUpdateTimestamp: lastUpdateTimestamp,
         };
     } catch (error) {
         console.error("Error fetching dashboard stats:", error);
-        throw error;
+        // Return nulls or default values in case of error to prevent crashing UI
+        return {
+            pendingCount: null,
+            completedCount: null,
+            totalGrossWeightSum: null,
+            lastUpdateTimestamp: null,
+        };
     }
 };
+

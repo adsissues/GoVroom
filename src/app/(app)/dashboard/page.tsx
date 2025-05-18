@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { List, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react'; // Icons for sections
+import { List, CheckCircle2, AlertTriangle, Loader2, Weight } from 'lucide-react'; // Icons for sections
 import type { Shipment } from '@/lib/types';
 import { shipmentFromFirestore, getDashboardStats } from '@/lib/firebase/shipmentsService'; // Import helper
 import { DASHBOARD_STATS_MAP } from '@/lib/constants';
@@ -29,7 +29,7 @@ const formatTimestamp = (timestamp: Timestamp | null | undefined): string => {
 };
 
 // Component for individual stat card
-const StatCard = ({ title, value, icon: Icon, unit, bgColorClass, textColorClass, isLoading }: {
+const StatCard = ({ title, value, icon: Icon, unit, bgColorClass, textColorClass, isLoading, isUnavailable }: {
   title: string;
   value: string | number | null;
   icon: React.ElementType;
@@ -37,6 +37,7 @@ const StatCard = ({ title, value, icon: Icon, unit, bgColorClass, textColorClass
   bgColorClass: string;
   textColorClass: string;
   isLoading: boolean;
+  isUnavailable?: boolean;
 }) => (
   <Card className={`shadow-md rounded-xl border ${bgColorClass} ${textColorClass}`}>
     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -46,6 +47,8 @@ const StatCard = ({ title, value, icon: Icon, unit, bgColorClass, textColorClass
     <CardContent>
       {isLoading ? (
         <Skeleton className="h-8 w-3/4" />
+      ) : isUnavailable ? (
+        <div className="text-sm text-muted-foreground italic">N/A (Backend Aggregation Required)</div>
       ) : (
         <div className="text-2xl font-bold">
           {value ?? 'N/A'}
@@ -64,7 +67,7 @@ export default function DashboardPage() {
   const [dashboardStats, setDashboardStats] = useState<{
       pendingCount: number | null;
       completedCount: number | null;
-      totalGrossWeightSum: number | null;
+      totalGrossWeightSum: number | null; // Will be null from the service
       lastUpdateTimestamp: Timestamp | null;
   }>({ pendingCount: null, completedCount: null, totalGrossWeightSum: null, lastUpdateTimestamp: null });
 
@@ -86,6 +89,8 @@ export default function DashboardPage() {
       .catch(err => {
         console.error("Error fetching dashboard stats:", err);
         setErrorStats("Failed to load dashboard statistics.");
+        // Set default/null stats on error
+        setDashboardStats({ pendingCount: null, completedCount: null, totalGrossWeightSum: null, lastUpdateTimestamp: null });
       })
       .finally(() => setIsLoadingStats(false));
   }, []); // Empty dependency array means fetch once
@@ -102,7 +107,7 @@ export default function DashboardPage() {
         limit(5) // Limit to latest 5 pending
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(shipmentFromFirestore);
+      const data = snapshot.docs.map(doc => shipmentFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
       setPendingShipments(data);
       setIsLoadingPending(false);
     }, (error) => {
@@ -125,7 +130,7 @@ export default function DashboardPage() {
         limit(5) // Limit to latest 5 completed
      );
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(shipmentFromFirestore);
+      const data = snapshot.docs.map(doc => shipmentFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
       setCompletedShipments(data);
       setIsLoadingCompleted(false);
     }, (error) => {
@@ -194,6 +199,13 @@ export default function DashboardPage() {
         <h1 className="text-2xl md:text-3xl font-bold">Welcome, {currentUser?.email || 'User'}!</h1>
 
         {/* Dashboard Stats Grid */}
+         {errorStats && (
+             <Alert variant="destructive">
+                 <AlertTriangle className="h-4 w-4" />
+                 <AlertTitle>Error Loading Statistics</AlertTitle>
+                 <AlertDescription>{errorStats}</AlertDescription>
+             </Alert>
+         )}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
              <StatCard
                  title={DASHBOARD_STATS_MAP.pendingShipments.title}
@@ -211,15 +223,15 @@ export default function DashboardPage() {
                  textColorClass={DASHBOARD_STATS_MAP.completedShipments.textColorClass}
                  isLoading={isLoadingStats}
               />
-              {/* Total weight calculation needs backend/Cloud Function */}
               <StatCard
                  title={DASHBOARD_STATS_MAP.totalGrossWeight.title}
-                 value={dashboardStats.totalGrossWeightSum} // Replace with actual value later
+                 value={dashboardStats.totalGrossWeightSum} // This will be null
                  icon={DASHBOARD_STATS_MAP.totalGrossWeight.icon}
                  unit={DASHBOARD_STATS_MAP.totalGrossWeight.unit}
                  bgColorClass={DASHBOARD_STATS_MAP.totalGrossWeight.bgColorClass}
                  textColorClass={DASHBOARD_STATS_MAP.totalGrossWeight.textColorClass}
-                 isLoading={isLoadingStats} // Or keep loading until function provides data
+                 isLoading={isLoadingStats}
+                 isUnavailable={dashboardStats.totalGrossWeightSum === null && !isLoadingStats} // Show N/A message if null and not loading
               />
                <StatCard
                  title={DASHBOARD_STATS_MAP.lastUpdated.title}
@@ -262,19 +274,7 @@ export default function DashboardPage() {
                 </CardContent>
             </Card>
         </div>
-
-        {/* Placeholder for Charts or other widgets */}
-        {/* <div className="grid gap-6 md:grid-cols-1">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Shipment Status Overview</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {isLoadingStats ? <Skeleton className="h-48 w-full" /> : <ShipmentsStatusChart pending={dashboardStats.pendingCount ?? 0} completed={dashboardStats.completedCount ?? 0} />}
-                </CardContent>
-            </Card>
-        </div> */}
-
     </div>
   );
 }
+
