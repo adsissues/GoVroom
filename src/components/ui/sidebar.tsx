@@ -182,7 +182,7 @@ const Sidebar = React.forwardRef<
       return (
         <div
           className={cn(
-            "flex h-full w-[--sidebar-width] flex-col bg-sidebar text-sidebar-foreground",
+            "flex h-full w-[--sidebar-width] flex-col bg-sidebar text-sidebar-foreground", // Ensure h-full here
             className
           )}
           ref={ref}
@@ -316,15 +316,17 @@ const SidebarRail = React.forwardRef<
 SidebarRail.displayName = "SidebarRail"
 
 const SidebarInset = React.forwardRef<
-  HTMLDivElement,
+  React.ElementRef<"main">,
   React.ComponentProps<"main">
 >(({ className, ...props }, ref) => {
   return (
     <main
       ref={ref}
       className={cn(
-        "relative flex h-full flex-1 flex-col bg-background", // Changed min-h-svh to h-full
-        "peer-data-[variant=inset]:min-h-[calc(100svh-theme(spacing.4))] md:peer-data-[variant=inset]:m-2 md:peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow",
+        // Ensure SidebarInset is a flex column and grows to take available horizontal space
+        // Its height will be determined by the parent h-screen.
+        // Overflow and padding are now passed via className from AuthenticatedAppLayout.
+        "relative flex flex-1 flex-col bg-background",
         className
       )}
       {...props}

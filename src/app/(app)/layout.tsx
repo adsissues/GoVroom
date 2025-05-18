@@ -6,7 +6,6 @@ import AppSidebar from '@/components/layout/app-sidebar';
 import AppHeader from '@/components/layout/app-header';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2 } from 'lucide-react';
 import {
   SidebarProvider,
@@ -87,10 +86,13 @@ export default function AuthenticatedAppLayout({ children }: { children: ReactNo
         </UiConfigurableSidebar>
         
         {/* SidebarInset is a <main> tag, styled as flex-col, flex-1 (horizontally) */}
-        <SidebarInset> 
-          <AppHeader /> {/* Header, fixed height. This is the first flex child of SidebarInset. */}
-          {/* This div is the second flex child and should take remaining vertical space and be scrollable */}
-          <div className="flex-1 overflow-y-auto bg-secondary/50 p-4 md:p-6 lg:p-8">
+        {/* It will now also be the scrollable container for content below the header */}
+        <SidebarInset className="overflow-y-auto bg-secondary/50 p-4 pt-0 md:p-6 md:pt-0 lg:p-8 lg:pt-0"> 
+          {/* AppHeader is sticky and will stay at the top of SidebarInset's scrollable area */}
+          {/* Padding top is removed from SidebarInset and handled by content wrapper if needed, or header's own height creates space */}
+          <AppHeader /> 
+          {/* Page content is directly here, it will scroll within SidebarInset */}
+          <div className="pt-4 md:pt-6 lg:pt-8"> {/* Add padding top for content below sticky header */}
             {children}
           </div>
         </SidebarInset>
