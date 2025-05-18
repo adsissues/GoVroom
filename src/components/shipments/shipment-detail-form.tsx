@@ -24,14 +24,14 @@ import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 
 // Default value for the "Prior" service, ensure this matches the `value` in your /services Firestore collection
-const DEFAULT_PRIOR_SERVICE_VALUE = "prior";
+const DEFAULT_PRIOR_SERVICE_VALUE = "prior"; // Example: "prior", "E", "priority_mail"
 
 const detailFormSchema = z.object({
   numPallets: z.coerce.number().min(0, "Pallets cannot be negative").default(1),
   numBags: z.coerce.number().min(0, "Bags cannot be negative").default(0),
   customerId: z.string().min(1, "Customer is required"),
   serviceId: z.string().min(1, "Service is required"),
-  formatId: z.string().optional().default(''), // Optional at base, refined below
+  formatId: z.string().optional().default(''),
   tareWeight: z.coerce.number().min(0, "Tare weight cannot be negative"),
   grossWeight: z.coerce.number().min(0, "Gross weight cannot be negative"),
   dispatchNumber: z.string().optional(),
@@ -66,7 +66,6 @@ const fetchServices = () => getDropdownOptions('services');
 const fetchDoes = () => getDropdownOptions('doe');
 const fetchFormats = (formatCollectionId: string | null) => {
     if (!formatCollectionId) return Promise.resolve([]);
-    // console.log(`[FETCH FORMATS] Fetching for collection: ${formatCollectionId}`);
     return getDropdownOptions(formatCollectionId);
 };
 
@@ -82,20 +81,20 @@ export default function ShipmentDetailForm({
   const [currentServiceId, setCurrentServiceId] = useState<string>(detail?.serviceId ?? (detail ? '' : DEFAULT_PRIOR_SERVICE_VALUE));
   const [showPalletInputMode, setShowPalletInputMode] = useState(true);
 
-  const { data: customerOptions = [], isLoading: isLoadingCustomers } = useQuery<DropdownItem[]>({
+  const { data: customerOptions = [], isLoading: isLoadingCustomers, error: errorCustomers } = useQuery<DropdownItem[]>({
       queryKey: ['customers'], queryFn: fetchCustomers, staleTime: 5 * 60 * 1000, gcTime: 10 * 60 * 1000 });
-  const { data: serviceOptions = [], isLoading: isLoadingServices } = useQuery<DropdownItem[]>({
+  const { data: serviceOptions = [], isLoading: isLoadingServices, error: errorServices } = useQuery<DropdownItem[]>({
       queryKey: ['services'], queryFn: fetchServices, staleTime: 5 * 60 * 1000, gcTime: 10 * 60 * 1000 });
-  const { data: doeOptions = [], isLoading: isLoadingDoes } = useQuery<DropdownItem[]>({
+  const { data: doeOptions = [], isLoading: isLoadingDoes, error: errorDoes } = useQuery<DropdownItem[]>({
       queryKey: ['doe'], queryFn: fetchDoes, staleTime: 5 * 60 * 1000, gcTime: 10 * 60 * 1000 });
 
   const formHook = useForm<DetailFormValues>({
     resolver: zodResolver(detailFormSchema),
-    defaultValues: {
+    defaultValues: { // Basic structural defaults
         numPallets: 1,
         numBags: 0,
-        customerId: detail ? detail.customerId : ASENDIA_CUSTOMER_VALUE,
-        serviceId: detail ? detail.serviceId : DEFAULT_PRIOR_SERVICE_VALUE,
+        customerId: '', // Will be set by reset in useEffect
+        serviceId: '',  // Will be set by reset in useEffect
         formatId: '',
         tareWeight: TARE_WEIGHT_DEFAULT,
         grossWeight: 0,
@@ -109,17 +108,16 @@ export default function ShipmentDetailForm({
   const numBagsWatched = watch('numBags');
   const watchedServiceId = watch('serviceId');
   const watchedFormatId = watch('formatId');
-
+  const watchedCustomerId = watch('customerId'); // Watch customerId for logging
 
   const formatCollectionId = useMemo(() => {
     const serviceKey = currentServiceId ? currentServiceId.toLowerCase() : '';
-    // console.log(`[FORMAT COLLECTION ID DEBUG] currentServiceId: '${currentServiceId}', serviceKey: '${serviceKey}'`);
     const mappedCollection = serviceKey ? SERVICE_FORMAT_MAPPING[serviceKey] || null : null;
-    // console.log(`[FORMAT COLLECTION ID DEBUG] Mapped Collection: '${mappedCollection}'`);
+    // console.log(`[FORMAT COLLECTION ID DEBUG] currentServiceId: '${currentServiceId}', serviceKey: '${serviceKey}', Mapped Collection: '${mappedCollection}'`);
     return mappedCollection;
   }, [currentServiceId]);
 
-  const { data: rawFormatOptions = [], isLoading: isLoadingFormats } = useQuery<DropdownItem[]>({
+  const { data: rawFormatOptions = [], isLoading: isLoadingFormats, error: errorFormats } = useQuery<DropdownItem[]>({
       queryKey: ['formats', formatCollectionId],
       queryFn: () => fetchFormats(formatCollectionId),
       enabled: !!formatCollectionId && isOpen,
@@ -128,7 +126,6 @@ export default function ShipmentDetailForm({
   });
 
   const serviceLabelForFormat = useMemo(() => {
-    // console.log("[SERVICE LABEL FOR FORMAT DEBUG] serviceOptions available:", serviceOptions.length > 0);
     const selectedService = serviceOptions.find(s => s.value === currentServiceId);
     return selectedService ? selectedService.label.toUpperCase() : "FORMAT";
   }, [currentServiceId, serviceOptions]);
@@ -139,10 +136,7 @@ export default function ShipmentDetailForm({
   const validServiceOptions = useMemo(() => serviceOptions.filter(option => option && typeof option.value === 'string' && option.value.trim() !== ''), [serviceOptions]);
   const validDoeOptions = useMemo(() => doeOptions.filter(option => option && typeof option.value === 'string' && option.value.trim() !== ''), [doeOptions]);
   const validFormatOptions = useMemo(() => {
-    // console.log("[FORMAT OPTIONS DEBUG] Raw formatOptions:", rawFormatOptions);
-    const filtered = rawFormatOptions.filter(option => option && typeof option.value === 'string' && option.value.trim() !== '');
-    // console.log("[FORMAT OPTIONS DEBUG] Filtered validFormatOptions:", filtered);
-    return filtered;
+    return rawFormatOptions.filter(option => option && typeof option.value === 'string' && option.value.trim() !== '');
   }, [rawFormatOptions]);
 
   const dropdownsLoading = isLoadingCustomers || isLoadingServices || isLoadingDoes || (showFormatRadioGroup && isLoadingFormats);
@@ -156,15 +150,12 @@ export default function ShipmentDetailForm({
       }
     } else {
       setValue('numPallets', 0, { shouldValidate: false });
-      // If switching to bag mode and bags are 0, let user input or default to 0.
-      // if(getValues('numBags') === 0) { // No, don't default bags to 1 here
-      // }
     }
   }, [setValue, getValues]);
 
 
   useEffect(() => {
-    // console.log(`[EFFECT isOpen, detail] Fired. isOpen: ${isOpen}`);
+    console.log(`[ShipmentDetailForm EFFECT isOpen, detail] Fired. isOpen: ${isOpen}, Has detail: ${!!detail}`);
     if (isOpen) {
         let initialModeIsPallet = true;
         if (detail) { // Editing existing item
@@ -179,12 +170,12 @@ export default function ShipmentDetailForm({
                 dispatchNumber: detail.dispatchNumber ?? '',
                 doeId: detail.doeId ?? '',
             };
+            console.log("[ShipmentDetailForm EFFECT isOpen] Resetting form with existing detail:", initialFormValues);
             reset(initialFormValues);
             initialModeIsPallet = (initialFormValues.numPallets > 0);
             setCurrentServiceId(initialFormValues.serviceId);
-            // console.log("[EFFECT isOpen, detail] Reset form with detail. Initial mode:", initialModeIsPallet ? "Pallet" : "Bag", "Initial Service ID:", initialFormValues.serviceId);
         } else { // Adding new item
-            reset({
+            const newFormDefaults = {
                 numPallets: 1,
                 numBags: 0,
                 customerId: ASENDIA_CUSTOMER_VALUE,
@@ -194,10 +185,12 @@ export default function ShipmentDetailForm({
                 grossWeight: 0,
                 dispatchNumber: '',
                 doeId: '',
-            });
+            };
+            console.log("[ShipmentDetailForm EFFECT isOpen] Resetting form for new item with defaults:", newFormDefaults);
+            console.log(`[ShipmentDetailForm EFFECT isOpen] ASENDIA_CUSTOMER_VALUE: "${ASENDIA_CUSTOMER_VALUE}", DEFAULT_PRIOR_SERVICE_VALUE: "${DEFAULT_PRIOR_SERVICE_VALUE}"`);
+            reset(newFormDefaults);
             initialModeIsPallet = true;
             setCurrentServiceId(DEFAULT_PRIOR_SERVICE_VALUE);
-            // console.log("[EFFECT isOpen, !detail] Reset form for new item. Customer default: ", ASENDIA_CUSTOMER_VALUE, "Service default: ", DEFAULT_PRIOR_SERVICE_VALUE);
         }
         setShowPalletInputMode(initialModeIsPallet);
         // Defer RHF value sync for pallet/bags to after this render pass
@@ -220,13 +213,13 @@ export default function ShipmentDetailForm({
 
     if (newTareWeight !== getValues('tareWeight')) {
         setValue('tareWeight', newTareWeight, { shouldValidate: true });
-        trigger("grossWeight");
+        trigger("grossWeight"); // Assuming grossWeight might depend on tare or just to re-validate
     }
   }, [showPalletInputMode, numBagsWatched, setValue, getValues, trigger]);
 
   useEffect(() => {
-    // console.log(`[SERVICE CHANGE DEBUG] Watched Service ID: ${watchedServiceId}, Current Service ID: ${currentServiceId}`);
     if (watchedServiceId !== currentServiceId) {
+      // console.log(`[SERVICE CHANGE DEBUG] Watched Service ID: ${watchedServiceId}, Current Service ID: ${currentServiceId}`);
       setCurrentServiceId(watchedServiceId);
       setValue('formatId', '', { shouldValidate: false });
       const newFormatCollectionId = watchedServiceId ? SERVICE_FORMAT_MAPPING[watchedServiceId.toLowerCase()] || null : null;
@@ -249,8 +242,7 @@ export default function ShipmentDetailForm({
 
   const handleToggleInputMode = () => {
     // console.log('[handleToggleInputMode] Clicked.');
-    const newModeIsPallet = !showPalletInputMode;
-    setShowPalletInputMode(newModeIsPallet);
+    setShowPalletInputMode(prev => !prev);
     // The useEffect for showPalletInputMode will handle RHF value sync.
   };
 
@@ -265,11 +257,7 @@ export default function ShipmentDetailForm({
            if (finalData.numPallets <= 0 && !detail) finalData.numPallets = 1;
        } else {
            finalData.numPallets = 0;
-           if (finalData.numBags <= 0 && !detail) { // If bag mode and bags are 0 for a new item, maybe it's an error or should default to 1 bag? For now, allows 0.
-              // Consider if 0 bags is valid in bag mode. The schema allows it.
-           }
        }
-      //  console.log('[SUBMIT] Final data before onSave:', JSON.parse(JSON.stringify(finalData)));
 
        const saveData: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated' | 'netWeight'> = {
          numPallets: finalData.numPallets,
@@ -282,7 +270,6 @@ export default function ShipmentDetailForm({
          dispatchNumber: finalData.dispatchNumber || undefined,
          doeId: finalData.doeId || undefined,
        };
-      //  console.log('[SUBMIT] Data to be passed to onSave:', JSON.parse(JSON.stringify(saveData)));
       await onSave(saveData);
       onClose();
     } catch (error) {
@@ -305,6 +292,12 @@ export default function ShipmentDetailForm({
         ? "bg-primary text-primary-foreground hover:bg-primary/90"
         : "bg-muted text-muted-foreground hover:bg-muted/80"
     );
+
+    // For debugging defaults
+    // console.log("[ShipmentDetailForm RENDER] RHF Customer ID:", watchedCustomerId, "RHF Service ID:", watchedServiceId);
+    // console.log("[ShipmentDetailForm RENDER] Valid Customer Options:", validCustomerOptions.map(o => o.value));
+    // console.log("[ShipmentDetailForm RENDER] Valid Service Options:", validServiceOptions.map(o => o.value));
+
 
   return (
      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -349,7 +342,7 @@ export default function ShipmentDetailForm({
                                         const pallets = parseInt(e.target.value, 10);
                                         const newPalletValue = isNaN(pallets) || pallets < 0 ? 0 : pallets;
                                         field.onChange(newPalletValue);
-                                        if (newPalletValue <= 0 && showPalletInputMode) {
+                                        if (newPalletValue <= 0 && showPalletInputMode) { // Check current mode before switching
                                             setShowPalletInputMode(false);
                                         }
                                      }}
@@ -373,7 +366,7 @@ export default function ShipmentDetailForm({
                                             const bags = parseInt(e.target.value, 10);
                                             const newBagValue = isNaN(bags) || bags < 0 ? 0 : bags;
                                             field.onChange(newBagValue);
-                                            if (newBagValue <= 0 && !showPalletInputMode) {
+                                            if (newBagValue <= 0 && !showPalletInputMode) { // Check current mode
                                                  setShowPalletInputMode(true);
                                             }
                                         }}
@@ -451,7 +444,7 @@ export default function ShipmentDetailForm({
                                     <FormLabel>Format {serviceLabelForFormat} *</FormLabel>
                                     <FormControl>
                                         <RadioGroup
-                                            key={currentServiceId || 'no-service'} // Change key when service changes to reset
+                                            key={currentServiceId || 'no-service'} 
                                             onValueChange={(value) => {
                                                 field.onChange(value);
                                                 trigger('formatId');
@@ -586,3 +579,4 @@ export default function ShipmentDetailForm({
   );
 }
 
+    
