@@ -17,7 +17,7 @@ import type { ShipmentDetail, DropdownItem } from '@/lib/types';
 import { getDropdownOptions } from '@/lib/firebase/dropdownService';
 import { TARE_WEIGHT_DEFAULT, BAG_WEIGHT_MULTIPLIER, SERVICE_FORMAT_MAPPING } from '@/lib/constants';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Loader2, RotateCcw } from 'lucide-react'; // Added RotateCcw for toggle
+import { AlertCircle, Loader2, RotateCcw } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
 const detailFormSchema = z.object({
@@ -74,11 +74,11 @@ export default function ShipmentDetailForm({
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [currentServiceId, setCurrentServiceId] = useState<string>(detail?.serviceId ?? '');
-  const [showPalletInputMode, setShowPalletInputMode] = useState(true);
+  const [showPalletInputMode, setShowPalletInputMode] = useState(true); // true for Pallet, false for Bag
 
   const formHook = useForm<DetailFormValues>({
     resolver: zodResolver(detailFormSchema),
-    defaultValues: {
+    defaultValues: { // Initial defaults, will be overridden by useEffect
         numPallets: 1,
         numBags: 0,
         customerId: '',
@@ -95,11 +95,10 @@ export default function ShipmentDetailForm({
   const numPalletsWatched = watch('numPallets');
   const numBagsWatched = watch('numBags');
   const watchedServiceId = watch('serviceId');
-  const watchedFormatId = watch('formatId'); // Watch formatId for validation effect
+  const watchedFormatId = watch('formatId');
 
   const formatCollectionId = useMemo(() => {
     const serviceKey = currentServiceId ? currentServiceId.toLowerCase() : '';
-    // console.log(`[FORMAT COLL ID DEBUG] currentServiceId: ${currentServiceId}, serviceKey: ${serviceKey}, Mapped Collection: ${SERVICE_FORMAT_MAPPING[serviceKey]}`);
     return serviceKey ? SERVICE_FORMAT_MAPPING[serviceKey] || null : null;
   }, [currentServiceId]);
 
@@ -115,7 +114,7 @@ export default function ShipmentDetailForm({
   const { data: rawFormatOptions = [], isLoading: isLoadingFormats } = useQuery<DropdownItem[]>({
       queryKey: ['formats', formatCollectionId],
       queryFn: () => fetchFormats(formatCollectionId),
-      enabled: !!formatCollectionId && isOpen, // Only fetch if there's a collection ID and dialog is open
+      enabled: !!formatCollectionId && isOpen,
       staleTime: 5 * 60 * 1000,
       gcTime: 10 * 60 * 1000,
   });
@@ -123,17 +122,27 @@ export default function ShipmentDetailForm({
   const validCustomerOptions = useMemo(() => customerOptions.filter(option => option && typeof option.value === 'string' && option.value.trim() !== ''), [customerOptions]);
   const validServiceOptions = useMemo(() => serviceOptions.filter(option => option && typeof option.value === 'string' && option.value.trim() !== ''), [serviceOptions]);
   const validDoeOptions = useMemo(() => doeOptions.filter(option => option && typeof option.value === 'string' && option.value.trim() !== ''), [doeOptions]);
-  const validFormatOptions = useMemo(() => {
-    // console.log('[FORMAT OPTIONS DEBUG] Raw formatOptions:', rawFormatOptions);
-    const filtered = rawFormatOptions.filter(option => option && typeof option.value === 'string' && option.value.trim() !== '');
-    // console.log('[FORMAT OPTIONS DEBUG] Filtered validFormatOptions:', filtered);
-    return filtered;
-  }, [rawFormatOptions]);
+  const validFormatOptions = useMemo(() => rawFormatOptions.filter(option => option && typeof option.value === 'string' && option.value.trim() !== ''), [rawFormatOptions]);
 
   const dropdownsLoading = isLoadingCustomers || isLoadingServices || isLoadingDoes || (showFormatDropdown && isLoadingFormats);
 
+  const syncPalletBagRHFValues = useCallback((isPalletMode: boolean) => {
+    // console.log(`[syncPalletBagRHFValues] Called. Mode: ${isPalletMode ? 'Pallet' : 'Bag'}`);
+    if (isPalletMode) {
+      setValue('numBags', 0, { shouldValidate: false });
+      if (getValues('numPallets') === 0) {
+        setValue('numPallets', 1, { shouldValidate: false });
+      }
+    } else {
+      setValue('numPallets', 0, { shouldValidate: false });
+    }
+  }, [setValue, getValues]);
+
+
   useEffect(() => {
+    // console.log(`[EFFECT isOpen, detail] Fired. isOpen: ${isOpen}`);
     if (isOpen) {
+        let initialModeIsPallet = true;
         if (detail) {
             const initialFormValues = {
                 numPallets: detail.numPallets ?? 1,
@@ -147,16 +156,10 @@ export default function ShipmentDetailForm({
                 doeId: detail.doeId ?? '',
             };
             reset(initialFormValues);
-            // console.log("[EFFECT isOpen, detail] Resetting form with detail:", initialFormValues);
-            if (initialFormValues.numPallets > 0) {
-                setShowPalletInputMode(true);
-                setValue('numBags', 0, { shouldValidate: false });
-                // console.log("[EFFECT isOpen, detail] Pallet mode from detail.");
-            } else {
-                setShowPalletInputMode(false);
-                // console.log("[EFFECT isOpen, detail] Bag mode from detail. numBags:", initialFormValues.numBags);
-            }
+            initialModeIsPallet = (initialFormValues.numPallets > 0);
+            setShowPalletInputMode(initialModeIsPallet);
             setCurrentServiceId(initialFormValues.serviceId);
+            // console.log("[EFFECT isOpen, detail] Reset form with detail. Initial mode:", initialModeIsPallet ? "Pallet" : "Bag");
         } else {
             reset({
                 numPallets: 1,
@@ -169,33 +172,26 @@ export default function ShipmentDetailForm({
                 dispatchNumber: '',
                 doeId: '',
             });
+            initialModeIsPallet = true;
             setShowPalletInputMode(true);
-            setValue('numBags', 0, { shouldValidate: false });
-            setCurrentServiceId(getValues('serviceId'));
-            // console.log("[EFFECT isOpen, !detail] Resetting form for new item. Pallet mode.");
+            setCurrentServiceId('');
+            // console.log("[EFFECT isOpen, !detail] Reset form for new item. Initial mode: Pallet");
         }
+        // Defer RHF value sync for pallet/bags to after this render pass
+        setTimeout(() => syncPalletBagRHFValues(initialModeIsPallet), 0);
     }
-  }, [isOpen, detail, reset, setValue, getValues]);
+  }, [isOpen, detail, reset, syncPalletBagRHFValues]);
+
 
   useEffect(() => {
     let newTareWeight;
     const currentRHFPallets = getValues('numPallets');
     const currentRHFBags = getValues('numBags');
-    // console.log(`[TARE EFFECT] showPalletInputMode: ${showPalletInputMode}, PalletsWatched: ${numPalletsWatched}, BagsWatched: ${numBagsWatched}, RHF Pallets: ${currentRHFPallets}, RHF Bags: ${currentRHFBags}`);
 
     if (showPalletInputMode) {
         newTareWeight = TARE_WEIGHT_DEFAULT;
-        if (currentRHFBags !== 0) {
-            // console.log("[TARE EFFECT] In pallet mode, bags > 0. Setting RHF bags to 0.");
-            setValue('numBags', 0, { shouldValidate: false });
-        }
-         // Pallet mode must have at least 1 pallet by default, handled by input onChange.
     } else {
-        if (currentRHFPallets !== 0) {
-            // console.log("[TARE EFFECT] In bag mode, pallets > 0. Setting RHF pallets to 0.");
-            setValue('numPallets', 0, { shouldValidate: false });
-        }
-        if (numBagsWatched > 0) { // Use watched value here for calculation reactivity
+        if (numBagsWatched > 0) {
             newTareWeight = parseFloat((numBagsWatched * BAG_WEIGHT_MULTIPLIER).toFixed(3));
         } else {
             newTareWeight = 0;
@@ -204,20 +200,16 @@ export default function ShipmentDetailForm({
 
     if (newTareWeight !== getValues('tareWeight')) {
         setValue('tareWeight', newTareWeight, { shouldValidate: true });
-        trigger("grossWeight"); // May need to re-validate related fields
-        // console.log(`[TARE EFFECT] Setting tareWeight to: ${newTareWeight}`);
+        trigger("grossWeight");
     }
   }, [showPalletInputMode, numPalletsWatched, numBagsWatched, setValue, getValues, trigger]);
 
   useEffect(() => {
-    // console.log(`[SERVICE CHANGE DEBUG] Watched Service ID: ${watchedServiceId}, Current Service ID in state: ${currentServiceId}`);
     if (watchedServiceId !== currentServiceId) {
       setCurrentServiceId(watchedServiceId);
-      setValue('formatId', '', { shouldValidate: false }); // Reset format and avoid immediate validation
-      // console.log(`[SERVICE CHANGE DEBUG] Service changed. Reset formatId. New currentServiceId: ${watchedServiceId}`);
+      setValue('formatId', '', { shouldValidate: false });
       const newFormatCollectionId = watchedServiceId ? SERVICE_FORMAT_MAPPING[watchedServiceId.toLowerCase()] || null : null;
       if (!newFormatCollectionId) {
-        // console.log("[SERVICE CHANGE DEBUG] New service does not require format. Clearing formatId errors.");
         formHook.clearErrors('formatId');
       }
     }
@@ -225,32 +217,17 @@ export default function ShipmentDetailForm({
 
   useEffect(() => {
     const formatFieldState = formHook.getFieldState('formatId');
-    // console.log(`[FORMAT VALIDATION EFFECT] WatchedFormatId: ${watchedFormatId}, Submitted: ${formState.isSubmitted}, Touched: ${formatFieldState.isTouched}, ShowFormatDropdown: ${showFormatDropdown}`);
     if (showFormatDropdown && (formState.isSubmitted || formatFieldState.isTouched)) {
-        // console.log("[FORMAT VALIDATION EFFECT] Triggering formatId validation.");
         trigger('formatId');
     }
-  }, [watchedFormatId, formState.isSubmitted, formHook.getFieldState, trigger, showFormatDropdown]);
+  }, [watchedFormatId, formState.isSubmitted, formHook.getFieldState, trigger, showFormatDropdown, formHook]);
+
 
   const handleToggleInputMode = () => {
-    setShowPalletInputMode(prevMode => {
-        const newModeIsPallet = !prevMode;
-        if (newModeIsPallet) {
-            // Switching to Pallet mode
-            setValue('numBags', 0, { shouldValidate: false });
-            if (getValues('numPallets') === 0) { // If pallets were 0, default to 1
-                setValue('numPallets', 1, { shouldValidate: false });
-            }
-        } else {
-            // Switching to Bag mode
-            setValue('numPallets', 0, { shouldValidate: false });
-            // Default bags to 0, user can then input. If already >0, it will be kept by RHF.
-            if (getValues('numBags') === 0) {
-                 setValue('numBags', 0, { shouldValidate: false }); // Or 1 if we want to enforce a bag value
-            }
-        }
-        return newModeIsPallet;
-    });
+    // console.log('[handleToggleInputMode] Clicked.');
+    const newModeIsPallet = !showPalletInputMode;
+    setShowPalletInputMode(newModeIsPallet);
+    syncPalletBagRHFValues(newModeIsPallet); // Sync RHF values immediately on button click
   };
 
   const onSubmit = async (data: DetailFormValues) => {
@@ -258,17 +235,15 @@ export default function ShipmentDetailForm({
     setIsSaving(true);
     try {
        let finalData = { ...data };
+       // Final RHF value adjustment based on mode before saving
        if (showPalletInputMode) {
            finalData.numBags = 0;
-           if (finalData.numPallets <= 0) finalData.numPallets = 1;
+           if (finalData.numPallets <= 0) finalData.numPallets = 1; // Ensure at least 1 pallet if in pallet mode
        } else {
            finalData.numPallets = 0;
-           // If bags are 0 in bag mode, it's typically an invalid state unless it's to switch back to pallet mode.
-           // However, the submit button might be clicked before the mode switch via input's onChange fully propagates.
-           // For simplicity, if in bag mode and bags are 0, we assume intent was 0 bags.
-           // The UI should guide user if 0 bags in bag mode is not truly desired.
+           // If in bag mode and bags are 0, it's valid.
        }
-      // console.log('[SUBMIT] Final data before onSave:', JSON.parse(JSON.stringify(finalData)));
+      //  console.log('[SUBMIT] Final data before onSave:', JSON.parse(JSON.stringify(finalData)));
 
        const saveData: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated' | 'netWeight'> = {
          numPallets: finalData.numPallets,
@@ -337,11 +312,12 @@ export default function ShipmentDetailForm({
                                      <Input type="number" min="0" {...field} disabled={isSaving}
                                      onChange={e => {
                                         const pallets = parseInt(e.target.value, 10);
-                                        const newPalletValue = isNaN(pallets) ? 0 : pallets;
-                                        field.onChange(newPalletValue);
-                                        if (newPalletValue === 0 && showPalletInputMode) { // Only switch if currently in pallet mode
+                                        const newPalletValue = isNaN(pallets) || pallets < 0 ? 0 : pallets;
+                                        field.onChange(newPalletValue); // Update RHF state for THIS field
+                                        if (newPalletValue === 0) { // Current showPalletInputMode is true here
+                                            // console.log("[PALLET INPUT ONCHANGE] Pallets set to 0, switching to Bag mode.");
                                             setShowPalletInputMode(false);
-                                            setValue('numBags', 0, {shouldValidate: false});
+                                            syncPalletBagRHFValues(false); // Sync RHF values for new mode
                                         }
                                      }}
                                      />
@@ -362,11 +338,12 @@ export default function ShipmentDetailForm({
                                        <Input type="number" min="0" {...field}
                                         onChange={e => {
                                             const bags = parseInt(e.target.value, 10);
-                                            const newBagValue = isNaN(bags) ? 0 : bags;
-                                            field.onChange(newBagValue);
-                                            if (newBagValue === 0 && !showPalletInputMode) { // Only switch if currently in bag mode
+                                            const newBagValue = isNaN(bags) || bags < 0 ? 0 : bags;
+                                            field.onChange(newBagValue); // Update RHF state for THIS field
+                                            if (newBagValue === 0) { // Current showPalletInputMode is false here
+                                                // console.log("[BAG INPUT ONCHANGE] Bags set to 0, switching to Pallet mode.");
                                                 setShowPalletInputMode(true);
-                                                setValue('numPallets', 1, {shouldValidate: false});
+                                                syncPalletBagRHFValues(true); // Sync RHF values for new mode
                                             }
                                         }}
                                        disabled={isSaving} />
@@ -436,10 +413,11 @@ export default function ShipmentDetailForm({
                                 <FormItem>
                                     <FormLabel>Format *</FormLabel>
                                     <Select
-                                        key={formatCollectionId || 'no-format-collection'} // Key change helps re-render
+                                        key={formatCollectionId || 'no-format-collection'}
                                         onValueChange={(value) => {
                                             field.onChange(value);
                                             // console.log('[FORMAT SELECT] Selected value:', value);
+                                            // formHook.trigger('formatId'); // Triggering here might be problematic, moved to useEffect
                                         }}
                                         value={field.value || ""}
                                         disabled={isSaving || isLoadingFormats || !showFormatDropdown}
@@ -570,3 +548,5 @@ export default function ShipmentDetailForm({
     </Dialog>
   );
 }
+
+    
