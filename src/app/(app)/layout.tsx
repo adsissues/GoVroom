@@ -32,15 +32,15 @@ export default function AuthenticatedAppLayout({ children }: { children: ReactNo
   useEffect(() => {
     const effectId = effectExecutionCount.current++;
     const effectStartTime = Date.now();
-    console.log(`[AuthenticatedAppLayout EFFECT #${effectId} START] Path: ${pathname}, Auth Loading: ${authLoading}, User Email: ${currentUser?.email ?? 'None'}, User changed: ${currentUser !== prevCurrentUser.current}, AuthLoading changed: ${authLoading !== prevAuthLoading.current}, Pathname changed: ${pathname !== prevPathname.current}`);
+    // console.log(`[AuthenticatedAppLayout EFFECT #${effectId} START] Path: ${pathname}, Auth Loading: ${authLoading}, User Email: ${currentUser?.email ?? 'None'}, User changed: ${currentUser !== prevCurrentUser.current}, AuthLoading changed: ${authLoading !== prevAuthLoading.current}, Pathname changed: ${pathname !== prevPathname.current}`);
 
     if (!authLoading && !currentUser) {
-      console.log(`[AuthenticatedAppLayout EFFECT #${effectId}] No user found after auth check, redirecting to login from path: ${pathname}`);
+      // console.log(`[AuthenticatedAppLayout EFFECT #${effectId}] No user found after auth check, redirecting to login from path: ${pathname}`);
       router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
     } else if (!authLoading && currentUser) {
-      console.log(`[AuthenticatedAppLayout EFFECT #${effectId}] User authenticated. Email: ${currentUser.email}, Role: ${currentUser.role}`);
+      // console.log(`[AuthenticatedAppLayout EFFECT #${effectId}] User authenticated. Email: ${currentUser.email}, Role: ${currentUser.role}`);
     } else if (authLoading) {
-      console.log(`[AuthenticatedAppLayout EFFECT #${effectId}] Auth is still loading.`);
+      // console.log(`[AuthenticatedAppLayout EFFECT #${effectId}] Auth is still loading.`);
     }
 
     // Update refs for next effect run
@@ -48,17 +48,17 @@ export default function AuthenticatedAppLayout({ children }: { children: ReactNo
     prevAuthLoading.current = authLoading;
     prevPathname.current = pathname;
 
-    console.log(`[AuthenticatedAppLayout EFFECT #${effectId} END] Duration: ${Date.now() - effectStartTime}ms`);
+    // console.log(`[AuthenticatedAppLayout EFFECT #${effectId} END] Duration: ${Date.now() - effectStartTime}ms`);
   }, [currentUser, authLoading, router, pathname]);
 
   useEffect(() => {
     const currentRenderTime = Date.now();
-    console.log(`[AuthenticatedAppLayout] Render END. Total component render duration: ${currentRenderTime - renderStartTime.current}ms. Path: ${pathname}`);
+    // console.log(`[AuthenticatedAppLayout] Render END. Total component render duration: ${currentRenderTime - renderStartTime.current}ms. Path: ${pathname}`);
     renderStartTime.current = currentRenderTime; // Reset for the next render cycle measurement
   });
 
   if (authLoading) {
-    console.log("[AuthenticatedAppLayout] Rendering: Auth is loading, showing Loader component...");
+    // console.log("[AuthenticatedAppLayout] Rendering: Auth is loading, showing Loader component...");
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center space-y-4 p-4 text-center">
@@ -70,7 +70,7 @@ export default function AuthenticatedAppLayout({ children }: { children: ReactNo
   }
 
   if (!currentUser) {
-    console.log("[AuthenticatedAppLayout] Rendering: No current user after auth load (redirect should be in progress). Showing redirect message.");
+    // console.log("[AuthenticatedAppLayout] Rendering: No current user after auth load (redirect should be in progress). Showing redirect message.");
      return (
         <div className="flex h-screen w-screen items-center justify-center bg-background">
           <p className="text-muted-foreground">Redirecting to login...</p>
@@ -78,7 +78,7 @@ export default function AuthenticatedAppLayout({ children }: { children: ReactNo
      );
    }
 
-  console.log(`[AuthenticatedAppLayout] Rendering: User authenticated (${currentUser.email}, Role: ${currentUser.role}), rendering main layout with children. Path: ${pathname}`);
+  // console.log(`[AuthenticatedAppLayout] Rendering: User authenticated (${currentUser.email}, Role: ${currentUser.role}), rendering main layout with children. Path: ${pathname}`);
   return (
     <SidebarProvider defaultOpen={false}>
       <div className="flex h-screen bg-background"> {/* Full screen height flex container */}
