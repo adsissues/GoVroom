@@ -2,25 +2,18 @@
 "use client"; // This layout needs client-side hooks for auth and navigation
 import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
-import AppSidebar from '@/components/layout/app-sidebar';
+// AppSidebar and SidebarProvider/UiConfigurableSidebar/SidebarInset are no longer needed
 import AppHeader from '@/components/layout/app-header';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import {
-  SidebarProvider,
-  Sidebar as UiConfigurableSidebar,
-  SidebarInset,
-} from '@/components/ui/sidebar';
 
 export default function AuthenticatedAppLayout({ children }: { children: ReactNode }) {
   const renderStartTime = useRef(Date.now());
   const effectExecutionCount = useRef(0);
-  // Store previous values of dependencies to log changes
   const prevCurrentUser = useRef(useAuth().currentUser);
   const prevAuthLoading = useRef(useAuth().loading);
   const prevPathname = useRef(usePathname());
-
 
   const { currentUser, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -42,7 +35,6 @@ export default function AuthenticatedAppLayout({ children }: { children: ReactNo
       // console.log(`[AuthenticatedAppLayout EFFECT #${effectId}] Auth is still loading.`);
     }
 
-    // Update refs for next effect run
     prevCurrentUser.current = currentUser;
     prevAuthLoading.current = authLoading;
     prevPathname.current = pathname;
@@ -53,7 +45,7 @@ export default function AuthenticatedAppLayout({ children }: { children: ReactNo
   useEffect(() => {
     const currentRenderTime = Date.now();
     // console.log(`[AuthenticatedAppLayout] Render END. Total component render duration: ${currentRenderTime - renderStartTime.current}ms. Path: ${pathname}`);
-    renderStartTime.current = currentRenderTime; // Reset for the next render cycle measurement
+    renderStartTime.current = currentRenderTime;
   });
 
   if (authLoading) {
@@ -79,24 +71,13 @@ export default function AuthenticatedAppLayout({ children }: { children: ReactNo
 
   // console.log(`[AuthenticatedAppLayout] Rendering: User authenticated (${currentUser.email}, Role: ${currentUser.role}), rendering main layout with children. Path: ${pathname}`);
   return (
-    <SidebarProvider defaultOpen={false}>
-      <div className="flex h-screen bg-background"> {/* Full screen height flex container */}
-        <UiConfigurableSidebar> {/* Sidebar component */}
-          <AppSidebar /> {/* Sidebar content */}
-        </UiConfigurableSidebar>
-        
-        {/* SidebarInset is a <main> tag, styled as flex-col, flex-1 (horizontally) */}
-        {/* It will now also be the scrollable container for content below the header */}
-        <SidebarInset className="overflow-y-auto bg-secondary/50 p-4 pt-0 md:p-6 md:pt-0 lg:p-8 lg:pt-0"> 
-          {/* AppHeader is sticky and will stay at the top of SidebarInset's scrollable area */}
-          {/* Padding top is removed from SidebarInset and handled by content wrapper if needed, or header's own height creates space */}
-          <AppHeader /> 
-          {/* Page content is directly here, it will scroll within SidebarInset */}
-          <div className="pt-4 md:pt-6 lg:pt-8"> {/* Add padding top for content below sticky header */}
-            {children}
-          </div>
-        </SidebarInset>
-      </div>
-    </SidebarProvider>
+    // SidebarProvider and related components are removed
+    <div className="flex h-screen flex-col bg-background"> {/* Main container is now flex-col */}
+      <AppHeader /> {/* Header remains at the top */}
+      {/* Main content area that scrolls and takes remaining space */}
+      <main className="flex-1 overflow-y-auto bg-secondary/50 p-4 md:p-6 lg:p-8">
+        {children}
+      </main>
+    </div>
   );
 }

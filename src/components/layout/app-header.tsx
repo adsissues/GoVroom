@@ -1,11 +1,11 @@
 
 "use client";
-import { Bell, UserCircle, Search, LogOut, Sun, Moon, Menu } from 'lucide-react'; // Added Menu
+import Link from 'next/link';
+import { Bell, UserCircle, Search, LogOut, Sun, Moon, Menu, PackageSearch, LayoutDashboard, ListChecks, Eye, PlusCircle, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { APP_NAME, SIDEBAR_NAV_ITEMS } from '@/lib/constants';
-import type { NavItem } from '@/lib/constants';
-import { usePathname } from 'next/navigation';
+import { APP_NAME } from '@/lib/constants'; // SIDEBAR_NAV_ITEMS no longer used here directly
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
@@ -17,65 +17,98 @@ import {
   DropdownMenuTrigger,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuGroup, // Added for grouping
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from '../ui/skeleton';
-import { SidebarTrigger } from '@/components/ui/sidebar'; // Import SidebarTrigger
+// SidebarTrigger is no longer needed as the sidebar is removed
 
-const getPageTitle = (pathname: string): string => {
-    const findTitle = (items: NavItem[], currentPath: string): string | null => {
-        for (const item of items) {
-            const isActive = item.matchExact
-                ? currentPath === item.href
-                : currentPath.startsWith(item.href);
-
-            if (isActive) {
-                 if (item.children) {
-                    const childTitle = findTitle(item.children, currentPath);
-                    if (childTitle) return childTitle;
-                 }
-                 return item.title;
-            }
-            if (item.children) {
-                 const childTitle = findTitle(item.children, currentPath);
-                 if (childTitle) return childTitle;
-            }
-        }
-        return null;
-    };
-
-    const title = findTitle(SIDEBAR_NAV_ITEMS, pathname);
-
-    if (pathname.startsWith('/shipments/') && pathname !== '/shipments/new' && pathname !== '/shipments') {
-        return 'Shipment Details';
-    }
-     if (pathname.startsWith('/admin/') && pathname !== '/admin/dropdowns' && pathname !== '/admin/settings') {
-         return 'Admin Dashboard';
-     }
-
-    return title || APP_NAME;
-};
+// const getPageTitle = (pathname: string): string => {
+//   // This function might need adjustment if page titles were heavily reliant on sidebar structure
+//   // For now, we'll simplify or use a direct approach based on current path.
+//   if (pathname.startsWith('/dashboard')) return 'Dashboard';
+//   if (pathname.startsWith('/shipments/new')) return 'Add New Shipment';
+//   if (pathname.startsWith('/shipments/')) return 'Shipment Details';
+//   if (pathname.startsWith('/shipments')) return 'Shipments';
+//   if (pathname.startsWith('/admin/dropdowns')) return 'Dropdown Management';
+//   if (pathname.startsWith('/admin/settings')) return 'Application Settings';
+//   if (pathname.startsWith('/admin/users')) return 'User Management';
+//   if (pathname.startsWith('/admin')) return 'Admin Dashboard';
+//   return APP_NAME;
+// };
 
 
 export default function AppHeader() {
   const pathname = usePathname();
-  const pageTitle = getPageTitle(pathname);
+  // const pageTitle = getPageTitle(pathname); // Simplified title logic for now
   const { currentUser, signOut, loading: authLoading } = useAuth();
   const { theme, setTheme } = useTheme();
+  const router = useRouter();
+
+  const handleNavigation = (href: string) => {
+    router.push(href);
+  };
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b bg-card px-4 md:px-6 shadow-sm sticky top-0 z-30">
+      {/* App Name and Logo */}
       <div className="flex items-center gap-2">
-        {/* Sidebar Trigger - will be handled by ui/sidebar's own trigger if collapsible="icon" mode is used for desktop */}
-        {/* The ui/sidebar.tsx includes a SidebarTrigger, let's use that. It can be styled or conditionally rendered. */}
-        <SidebarTrigger className="h-7 w-7 text-muted-foreground hover:text-foreground" />
-        
-        {/* Page Title */}
-        <h1 className="text-lg font-semibold text-foreground md:text-xl">
-          {pageTitle}
-        </h1>
+        <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-primary">
+          <PackageSearch className="h-7 w-7" />
+          <span className="text-xl hidden sm:inline">{APP_NAME}</span>
+        </Link>
       </div>
 
-      <div className="flex items-center gap-2 md:gap-4">
+      {/* Page Title - Can be more dynamic if needed, or removed if redundant with header context */}
+      {/* <h1 className="text-lg font-semibold text-foreground md:text-xl">
+        {pageTitle}
+      </h1> */}
+
+      <div className="flex items-center gap-1 md:gap-2">
+        {/* Main Navigation Dropdown Menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full" aria-label="Open navigation menu">
+              <Menu className="h-5 w-5 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>Navigation</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleNavigation('/dashboard')} className="cursor-pointer">
+              <LayoutDashboard className="mr-2 h-4 w-4" />
+              <span>Dashboard</span>
+            </DropdownMenuItem>
+            <DropdownMenuGroup> {/* Grouping shipment related items */}
+              <DropdownMenuItem onClick={() => handleNavigation('/dashboard')} className="cursor-pointer">
+                <ListChecks className="mr-2 h-4 w-4" /> {/* Icon for Pending/Completed */}
+                <span>Pending Shipments</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleNavigation('/dashboard')} className="cursor-pointer">
+                <ListChecks className="mr-2 h-4 w-4" />
+                <span>Completed Shipments</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleNavigation('/shipments')} className="cursor-pointer">
+                <Eye className="mr-2 h-4 w-4" />
+                <span>View All Shipments</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleNavigation('/shipments/new')} className="cursor-pointer">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                <span>Add New Shipment</span>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            {currentUser?.role === 'admin' && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => handleNavigation('/admin')} className="cursor-pointer">
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Admin Section</span>
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Theme Toggle */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full" aria-label="Toggle theme">
@@ -95,11 +128,13 @@ export default function AppHeader() {
           </DropdownMenuContent>
         </DropdownMenu>
 
+        {/* Notifications Button - kept for consistency, functionality can be added later */}
         <Button variant="ghost" size="icon" className="rounded-full" aria-label="Notifications">
           <Bell className="h-5 w-5 text-muted-foreground" />
           <span className="sr-only">Toggle notifications</span>
         </Button>
 
+        {/* User Menu */}
         {authLoading ? (
              <Skeleton className="h-8 w-8 rounded-full" />
         ) : currentUser ? (
