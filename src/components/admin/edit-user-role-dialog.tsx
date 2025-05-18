@@ -18,7 +18,7 @@ import { Loader2 } from 'lucide-react';
 interface EditUserRoleDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  user: User;
+  user: User | null; // Allow user to be null initially
   onRoleUpdated: () => void;
 }
 
@@ -35,35 +35,39 @@ export default function EditUserRoleDialog({ isOpen, onClose, user, onRoleUpdate
   const form = useForm<EditUserRoleFormValues>({
     resolver: zodResolver(editUserRoleFormSchema),
     defaultValues: {
-      role: user.role,
+      role: user?.role || 'user', // Default to 'user' if user or user.role is undefined
     },
   });
 
   useEffect(() => {
     if (user) {
       form.reset({ role: user.role });
+    } else {
+      form.reset({ role: 'user' }); // Reset to default if user becomes null
     }
-  }, [user, form]);
+  }, [user, form]); // form is stable
 
   const editRoleMutation = useMutation({
     mutationFn: async (data: EditUserRoleFormValues) => {
+      if (!user) {
+        throw new Error("User not available for role update.");
+      }
       if (user.role === data.role) {
-        // If role hasn't changed, we can skip the update to avoid unnecessary writes
-        return { noChanges: true };
+        return { noChanges: true, email: user.email };
       }
       await updateUserRole(user.uid, data.role);
       return { email: user.email, newRole: data.role };
     },
     onSuccess: (data) => {
       if (data?.noChanges) {
-        toast({ title: "No Changes", description: `User ${user.email}'s role was not changed.` });
+        toast({ title: "No Changes", description: `User ${data.email}'s role was not changed.` });
       } else {
         toast({
           title: "User Role Updated",
           description: `User ${data?.email}'s role successfully updated to ${data?.newRole}.`,
         });
       }
-      onRoleUpdated();
+      onRoleUpdated(); // This will refetch the user list via query invalidation
       onClose();
     },
     onError: (error: Error) => {
@@ -76,10 +80,14 @@ export default function EditUserRoleDialog({ isOpen, onClose, user, onRoleUpdate
   });
 
   const onSubmit = (data: EditUserRoleFormValues) => {
+    if (!user) {
+      toast({ variant: "destructive", title: "Error", description: "No user selected for role update." });
+      return;
+    }
     editRoleMutation.mutate(data);
   };
 
-  if (!user) return null;
+  if (!user) return null; // Don't render if no user is provided (e.g., dialog closed)
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -87,7 +95,9 @@ export default function EditUserRoleDialog({ isOpen, onClose, user, onRoleUpdate
         <DialogHeader>
           <DialogTitle>Edit User Role</DialogTitle>
           <DialogDescription>
-            Change the role for user: <span className="font-semibold">{user.email}</span> (UID: <span className="font-mono text-xs">{user.uid}</span>).
+            Change the role for user: <span className="font-semibold">{user.email}</span>
+            <br />
+            <span className="text-xs text-muted-foreground">UID: <span className="font-mono">{user.uid}</span></span>
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -122,7 +132,7 @@ export default function EditUserRoleDialog({ isOpen, onClose, user, onRoleUpdate
               <Button type="submit" disabled={editRoleMutation.isPending || !form.formState.isDirty}>
                 {editRoleMutation.isPending ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Updating...
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Updating Role...
                   </>
                 ) : 'Update Role'}
               </Button>

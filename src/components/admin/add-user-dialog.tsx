@@ -26,7 +26,6 @@ interface AddUserDialogProps {
 
 const addUserFormSchema = z.object({
   email: z.string().email("Invalid email address.").min(1, "Email is required."),
-  // Password for client-side form, but not directly used to create Auth user client-side
   password: z.string().min(6, "Password must be at least 6 characters."),
   confirmPassword: z.string().min(6, "Please confirm password."),
   role: z.enum(['user', 'admin'], { required_error: "Role is required." }),
@@ -54,34 +53,30 @@ export default function AddUserDialog({ isOpen, onClose, onUserAdded }: AddUserD
 
   const addUserMutation = useMutation({
     mutationFn: async (data: AddUserFormValues) => {
-      // Step 1: Placeholder for Firebase Auth user creation
-      // In a real app, this would call a Cloud Function that uses the Admin SDK
-      // to create the user in Firebase Authentication with the email and password.
-      // The Cloud Function would return the new user's UID.
       let newAuthUserUid: string;
       try {
         // This is a placeholder. The actual password from the form should be sent
         // to the backend function.
-        newAuthUserUid = await adminCreateAuthUser(data.email, data.password);
-        setBackendNote(`Placeholder: Firebase Auth user with email ${data.email} 'created' (mock UID: ${newAuthUserUid}). Implement backend Cloud Function for actual Auth user creation.`);
+        newAuthUserUid = await adminCreateAuthUser(data.email, data.password); // This returns a mock UID
+        setBackendNote(`Placeholder Action: Firebase Auth user with email ${data.email} 'created' with mock UID: ${newAuthUserUid}. Actual Auth user creation requires a backend Cloud Function.`);
       } catch (authError: any) {
         console.error("Error in placeholder adminCreateAuthUser:", authError);
-        setBackendNote(`Error in placeholder adminCreateAuthUser: ${authError.message}. This step requires backend implementation.`);
-        // Decide if you want to proceed with Firestore doc creation if Auth placeholder fails.
-        // For now, we'll throw to stop, as a real app would likely require Auth success.
+        const errMsg = `Error in placeholder adminCreateAuthUser: ${authError.message}. This step requires backend implementation.`;
+        setBackendNote(errMsg);
         throw new Error(`Placeholder Auth user creation failed: ${authError.message}`);
       }
 
-      // Step 2: Create the user document in Firestore with the UID from Auth
+      // Create the user document in Firestore with the (mock) UID from Auth placeholder
       await createUserDocument(newAuthUserUid, data.email, data.role);
       return { email: data.email, role: data.role, uid: newAuthUserUid };
     },
     onSuccess: (data) => {
       toast({
         title: "User Document Added to Firestore",
-        description: `User ${data.email} (Role: ${data.role}, UID: ${data.uid}) added to Firestore. ${backendNote || ''}`,
+        description: `User ${data.email} (Role: ${data.role}, Mock UID: ${data.uid}) added to Firestore. ${backendNote || ''}`,
+        duration: 7000,
       });
-      onUserAdded();
+      onUserAdded(); // This will refetch the user list via query invalidation
       onClose();
       form.reset();
       setBackendNote(null);
@@ -89,35 +84,41 @@ export default function AddUserDialog({ isOpen, onClose, onUserAdded }: AddUserD
     onError: (error: Error) => {
       toast({
         variant: "destructive",
-        title: "Failed to Add User Document",
+        title: "Failed to Add User Document to Firestore",
         description: error.message || "Could not add user document to Firestore.",
       });
-      setBackendNote(null); // Clear backend note on generic error
+      // setBackendNote might already be set by the mutationFn if authError happened
     },
   });
 
   const onSubmit = (data: AddUserFormValues) => {
-    setBackendNote(null); // Clear previous notes
+    setBackendNote(null); // Clear previous notes before mutation
     addUserMutation.mutate(data);
   };
 
+  const handleDialogClose = () => {
+    onClose();
+    form.reset();
+    setBackendNote(null);
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); form.reset(); setBackendNote(null); } }}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { handleDialogClose(); } }}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Add New User</DialogTitle>
+          <DialogTitle>Add New User (Firestore Record)</DialogTitle>
           <DialogDescription>
-            Enter user details. Actual user creation in Firebase Authentication requires backend setup.
+            Enter user details. This will create a user document in Firestore.
+            Actual user creation in Firebase Authentication requires backend setup (Admin SDK).
           </DialogDescription>
         </DialogHeader>
 
         <Alert variant="default" className="mt-4 bg-amber-50 border-amber-200 text-amber-700">
           <AlertTriangle className="h-4 w-4 !text-amber-600" />
-          <AlertTitle className="text-amber-800">Backend Implementation Required</AlertTitle>
+          <AlertTitle className="text-amber-800">Important: Backend Implementation Required</AlertTitle>
           <AlertDescription>
-            Creating a new user in Firebase Authentication (with password and assigned role)
-            must be done via a secure backend (e.g., Firebase Cloud Function using the Admin SDK).
-            This form will create a user document in Firestore and uses a placeholder for Auth creation.
+            This form creates a user record in the Firestore database with a **mock UID**.
+            To enable actual login for this user, you must implement a backend function (e.g., Firebase Cloud Function) that uses the Firebase Admin SDK to create the user in **Firebase Authentication**.
           </AlertDescription>
         </Alert>
 
@@ -149,7 +150,7 @@ export default function AddUserDialog({ isOpen, onClose, onUserAdded }: AddUserD
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} disabled={addUserMutation.isPending} />
+                    <Input type="password" placeholder="•••••••• (min. 6 characters)" {...field} disabled={addUserMutation.isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -191,14 +192,14 @@ export default function AddUserDialog({ isOpen, onClose, onUserAdded }: AddUserD
             />
             <DialogFooter>
               <DialogClose asChild>
-                <Button type="button" variant="outline" onClick={() => { onClose(); form.reset(); setBackendNote(null); }} disabled={addUserMutation.isPending}>
+                <Button type="button" variant="outline" onClick={handleDialogClose} disabled={addUserMutation.isPending}>
                   Cancel
                 </Button>
               </DialogClose>
               <Button type="submit" disabled={addUserMutation.isPending}>
                 {addUserMutation.isPending ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Adding...
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Adding to Firestore...
                   </>
                 ) : 'Add User to Firestore'}
               </Button>

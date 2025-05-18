@@ -39,6 +39,7 @@ const formatDate = (timestamp: Timestamp | undefined): string => {
     try {
         return format(timestamp.toDate(), "PPpp"); // Example: Sep 24, 2023, 10:30 AM
     } catch (error) {
+        console.error("Error formatting date:", error);
         return 'Invalid Date';
     }
 };
@@ -58,27 +59,25 @@ export default function UserTable() {
 
   const deleteUserMutation = useMutation({
     mutationFn: async (uid: string) => {
-      // Step 1: Attempt to delete Firebase Auth user (placeholder for backend call)
+      // Step 1: Attempt to "delete" Firebase Auth user (placeholder for backend call)
       try {
-        await adminDeleteAuthUser(uid);
-        toast({ title: "Auth User Deletion (Placeholder)", description: "Placeholder for Auth user deletion succeeded. Implement backend function." });
+        await adminDeleteAuthUser(uid); // This is currently a placeholder
+        toast({ title: "Auth User Deletion (Placeholder Action)", description: `Placeholder for Firebase Auth user deletion for UID ${uid} 'succeeded'. Implement backend function for actual deletion.`, duration: 7000 });
       } catch (authError: any) {
-        // Even if Auth deletion fails (or is just a placeholder), proceed to delete Firestore doc
-        // Log the error, but don't necessarily stop the Firestore doc deletion
         console.warn(`Placeholder Auth deletion for UID ${uid} 'failed' (this is expected for placeholder): ${authError.message}`);
-        // toast({ variant: "default", title: "Auth Deletion Skipped (Placeholder)", description: `Auth user ${uid} not deleted (placeholder function).` });
+        toast({ variant: "default", title: "Auth Deletion (Placeholder Note)", description: `Actual Firebase Auth user deletion for ${uid} requires backend implementation.`, duration: 7000 });
       }
       // Step 2: Delete Firestore user document
       await deleteUserDocument(uid);
     },
     onSuccess: (_, uid) => {
-      toast({ title: "User Document Deleted", description: `User document for ${uid} removed from Firestore.` });
+      toast({ title: "User Document Deleted from Firestore", description: `User document for ${uid} removed from Firestore.` });
       queryClient.invalidateQueries({ queryKey: ['allUsers'] });
     },
     onError: (error: Error, uid) => {
       toast({
         variant: "destructive",
-        title: "Deletion Failed",
+        title: "Firestore Document Deletion Failed",
         description: `Could not delete user document for ${uid} from Firestore: ${error.message}`,
       });
     },
@@ -95,15 +94,16 @@ export default function UserTable() {
 
   const handleDeleteUser = (uid: string) => {
     if (!uid) return;
-    // Ideally, check if this user is the only admin, etc. before allowing deletion.
-    // For now, direct deletion.
+    // TODO: Add check if this user is the only admin before allowing deletion.
     deleteUserMutation.mutate(uid);
   };
 
   if (isLoading) {
     return (
       <div className="space-y-2">
-        <Skeleton className="h-10 w-32 self-end" />
+        <div className="flex justify-end mb-4">
+            <Skeleton className="h-10 w-32" />
+        </div>
         <Skeleton className="h-12 w-full" />
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-10 w-full" />
@@ -150,13 +150,13 @@ export default function UserTable() {
             {users.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                  No users found.
+                  No users found in Firestore.
                 </TableCell>
               </TableRow>
             ) : (
               users.map((user) => (
                 <TableRow key={user.uid}>
-                  <TableCell className="font-medium">{user.email || 'N/A'}</TableCell>
+                  <TableCell className="font-medium break-all">{user.email || 'N/A'}</TableCell>
                   <TableCell>
                     <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}
                            className={user.role === 'admin' ? 'bg-primary/80 hover:bg-primary text-primary-foreground' : ''}
@@ -165,9 +165,9 @@ export default function UserTable() {
                       {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                     </Badge>
                   </TableCell>
-                  <TableCell className="font-mono text-xs">{user.uid}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{formatDate(user.createdAt)}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{formatDate(user.lastLogin)}</TableCell>
+                  <TableCell className="font-mono text-xs break-all">{user.uid}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(user.createdAt)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(user.lastLogin)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end space-x-1">
                       <Button variant="ghost" size="icon" title="Edit Role" onClick={() => handleEditUserRole(user)}>
@@ -180,7 +180,7 @@ export default function UserTable() {
                             variant="ghost"
                             size="icon"
                             className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                            title="Delete User"
+                            title="Delete User from Firestore"
                             disabled={deleteUserMutation.isPending && deleteUserMutation.variables === user.uid}
                           >
                             {(deleteUserMutation.isPending && deleteUserMutation.variables === user.uid) ? (
@@ -188,7 +188,7 @@ export default function UserTable() {
                             ) : (
                               <UserX className="h-4 w-4" />
                             )}
-                            <span className="sr-only">Delete User</span>
+                            <span className="sr-only">Delete User from Firestore</span>
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
@@ -197,7 +197,7 @@ export default function UserTable() {
                             <AlertDialogDescription>
                               This action will remove the user's document from Firestore.
                               <br />
-                              <strong className="text-destructive">Deleting the Firebase Authentication user requires backend implementation (Admin SDK / Cloud Function) and is currently a placeholder.</strong>
+                              <strong className="text-destructive">Note:</strong> Deleting the actual Firebase Authentication user requires backend implementation (Admin SDK / Cloud Function) and is currently a placeholder action. This step only removes the Firestore record.
                               <br />
                               Are you sure you want to proceed with deleting the Firestore document? This cannot be undone.
                             </AlertDialogDescription>
@@ -208,7 +208,7 @@ export default function UserTable() {
                               onClick={() => handleDeleteUser(user.uid)}
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
-                              Delete User Document
+                              Delete User Document from Firestore
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>

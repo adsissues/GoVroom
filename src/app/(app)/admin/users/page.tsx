@@ -15,7 +15,11 @@ export default function UserManagementPage() {
             <CardTitle className="text-2xl">User Management</CardTitle>
           </div>
           <CardDescription>
-            View, add, edit, and delete users. Manage user roles and access.
+            View, add (to Firestore), edit roles, and delete users (from Firestore). Manage user roles and access.
+            <br />
+            <span className="text-xs text-muted-foreground">
+              Note: Full user creation in Firebase Authentication and deletion from Firebase Authentication requires backend implementation (e.g., Cloud Functions with Admin SDK).
+            </span>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -25,3 +29,4 @@ export default function UserManagementPage() {
     </div>
   );
 }
+
