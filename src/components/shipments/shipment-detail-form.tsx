@@ -8,29 +8,30 @@ import * as z from 'zod';
 import { Timestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-// import { Label } from '@/components/ui/label'; // Using FormLabel now
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label as ShadcnLabel } from "@/components/ui/label"; // For radio group items
+import { Label as ShadcnLabel } from "@/components/ui/label";
 
 import { useToast } from '@/hooks/use-toast';
 import type { ShipmentDetail, DropdownItem } from '@/lib/types';
 import { getDropdownOptions } from '@/lib/firebase/dropdownService';
-import { TARE_WEIGHT_DEFAULT, BAG_WEIGHT_MULTIPLIER, SERVICE_FORMAT_MAPPING } from '@/lib/constants';
+import { TARE_WEIGHT_DEFAULT, BAG_WEIGHT_MULTIPLIER, SERVICE_FORMAT_MAPPING, ASENDIA_CUSTOMER_VALUE } from '@/lib/constants';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, Loader2, RotateCcw } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 
+// Default value for the "Prior" service, ensure this matches the `value` in your /services Firestore collection
+const DEFAULT_PRIOR_SERVICE_VALUE = "prior";
+
 const detailFormSchema = z.object({
   numPallets: z.coerce.number().min(0, "Pallets cannot be negative").default(1),
   numBags: z.coerce.number().min(0, "Bags cannot be negative").default(0),
   customerId: z.string().min(1, "Customer is required"),
-  // destinationId: z.string().min(1, "Destination is required"), // Removed
   serviceId: z.string().min(1, "Service is required"),
-  formatId: z.string().optional().default(''),
+  formatId: z.string().optional().default(''), // Optional at base, refined below
   tareWeight: z.coerce.number().min(0, "Tare weight cannot be negative"),
   grossWeight: z.coerce.number().min(0, "Gross weight cannot be negative"),
   dispatchNumber: z.string().optional(),
@@ -57,7 +58,7 @@ interface ShipmentDetailFormProps {
   detail?: ShipmentDetail | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated'>) => Promise<void>;
+  onSave: (data: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated' | 'netWeight'>) => Promise<void>;
 }
 
 const fetchCustomers = () => getDropdownOptions('customers');
@@ -69,8 +70,6 @@ const fetchFormats = (formatCollectionId: string | null) => {
     return getDropdownOptions(formatCollectionId);
 };
 
-// Removed destinationOptions array
-
 export default function ShipmentDetailForm({
   shipmentId,
   detail,
@@ -80,10 +79,9 @@ export default function ShipmentDetailForm({
 }: ShipmentDetailFormProps) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
-  const [currentServiceId, setCurrentServiceId] = useState<string>(detail?.serviceId ?? '');
+  const [currentServiceId, setCurrentServiceId] = useState<string>(detail?.serviceId ?? (detail ? '' : DEFAULT_PRIOR_SERVICE_VALUE));
   const [showPalletInputMode, setShowPalletInputMode] = useState(true);
 
-  // Use TanStack Query to fetch and cache dropdown options
   const { data: customerOptions = [], isLoading: isLoadingCustomers } = useQuery<DropdownItem[]>({
       queryKey: ['customers'], queryFn: fetchCustomers, staleTime: 5 * 60 * 1000, gcTime: 10 * 60 * 1000 });
   const { data: serviceOptions = [], isLoading: isLoadingServices } = useQuery<DropdownItem[]>({
@@ -96,9 +94,8 @@ export default function ShipmentDetailForm({
     defaultValues: {
         numPallets: 1,
         numBags: 0,
-        customerId: '',
-        // destinationId: '', // Removed
-        serviceId: '',
+        customerId: detail ? detail.customerId : ASENDIA_CUSTOMER_VALUE,
+        serviceId: detail ? detail.serviceId : DEFAULT_PRIOR_SERVICE_VALUE,
         formatId: '',
         tareWeight: TARE_WEIGHT_DEFAULT,
         grossWeight: 0,
@@ -125,7 +122,7 @@ export default function ShipmentDetailForm({
   const { data: rawFormatOptions = [], isLoading: isLoadingFormats } = useQuery<DropdownItem[]>({
       queryKey: ['formats', formatCollectionId],
       queryFn: () => fetchFormats(formatCollectionId),
-      enabled: !!formatCollectionId && isOpen, // Only fetch if there's a collection to fetch from and dialog is open
+      enabled: !!formatCollectionId && isOpen,
       staleTime: 5 * 60 * 1000,
       gcTime: 10 * 60 * 1000,
   });
@@ -160,9 +157,8 @@ export default function ShipmentDetailForm({
     } else {
       setValue('numPallets', 0, { shouldValidate: false });
       // If switching to bag mode and bags are 0, let user input or default to 0.
-      if(getValues('numBags') === 0) {
-        // setValue('numBags', 0, { shouldValidate: false }); // Or 1 if you want to default to 1 bag
-      }
+      // if(getValues('numBags') === 0) { // No, don't default bags to 1 here
+      // }
     }
   }, [setValue, getValues]);
 
@@ -171,12 +167,11 @@ export default function ShipmentDetailForm({
     // console.log(`[EFFECT isOpen, detail] Fired. isOpen: ${isOpen}`);
     if (isOpen) {
         let initialModeIsPallet = true;
-        if (detail) {
+        if (detail) { // Editing existing item
             const initialFormValues = {
                 numPallets: detail.numPallets ?? 1,
                 numBags: detail.numBags ?? 0,
                 customerId: detail.customerId ?? '',
-                // destinationId: detail.destinationId ?? '', // Removed
                 serviceId: detail.serviceId ?? '',
                 formatId: detail.formatId ?? '',
                 tareWeight: detail.tareWeight ?? TARE_WEIGHT_DEFAULT,
@@ -188,13 +183,12 @@ export default function ShipmentDetailForm({
             initialModeIsPallet = (initialFormValues.numPallets > 0);
             setCurrentServiceId(initialFormValues.serviceId);
             // console.log("[EFFECT isOpen, detail] Reset form with detail. Initial mode:", initialModeIsPallet ? "Pallet" : "Bag", "Initial Service ID:", initialFormValues.serviceId);
-        } else {
+        } else { // Adding new item
             reset({
                 numPallets: 1,
                 numBags: 0,
-                customerId: '',
-                // destinationId: '', // Removed
-                serviceId: '',
+                customerId: ASENDIA_CUSTOMER_VALUE,
+                serviceId: DEFAULT_PRIOR_SERVICE_VALUE,
                 formatId: '',
                 tareWeight: TARE_WEIGHT_DEFAULT,
                 grossWeight: 0,
@@ -202,8 +196,8 @@ export default function ShipmentDetailForm({
                 doeId: '',
             });
             initialModeIsPallet = true;
-            setCurrentServiceId('');
-            // console.log("[EFFECT isOpen, !detail] Reset form for new item. Initial mode: Pallet, Service ID reset.");
+            setCurrentServiceId(DEFAULT_PRIOR_SERVICE_VALUE);
+            // console.log("[EFFECT isOpen, !detail] Reset form for new item. Customer default: ", ASENDIA_CUSTOMER_VALUE, "Service default: ", DEFAULT_PRIOR_SERVICE_VALUE);
         }
         setShowPalletInputMode(initialModeIsPallet);
         // Defer RHF value sync for pallet/bags to after this render pass
@@ -214,22 +208,19 @@ export default function ShipmentDetailForm({
 
   useEffect(() => {
     let newTareWeight;
-    // const currentRHFPallets = getValues('numPallets'); // Not directly needed in calculation logic here
-    // const currentRHFBags = getValues('numBags'); // numBagsWatched is sufficient
-
     if (showPalletInputMode) {
         newTareWeight = TARE_WEIGHT_DEFAULT;
     } else {
         if (numBagsWatched > 0) {
             newTareWeight = parseFloat((numBagsWatched * BAG_WEIGHT_MULTIPLIER).toFixed(3));
         } else {
-            newTareWeight = 0; // If in bag mode and bags are 0, tare is 0
+            newTareWeight = 0;
         }
     }
 
     if (newTareWeight !== getValues('tareWeight')) {
         setValue('tareWeight', newTareWeight, { shouldValidate: true });
-        trigger("grossWeight"); // Might need to trigger validation on related fields if any
+        trigger("grossWeight");
     }
   }, [showPalletInputMode, numBagsWatched, setValue, getValues, trigger]);
 
@@ -246,7 +237,7 @@ export default function ShipmentDetailForm({
     }
   }, [watchedServiceId, currentServiceId, setValue, formHook]);
 
-  useEffect(() => {
+   useEffect(() => {
     const formatFieldState = formHook.getFieldState('formatId');
     // console.log(`[FORMAT VALIDATION EFFECT] ShowFormatRadioGroup: ${showFormatRadioGroup}, isSubmitted: ${formState.isSubmitted}, formatFieldIsTouched: ${formatFieldState.isTouched}, watchedFormatId: '${watchedFormatId}'`);
     if (showFormatRadioGroup && (formState.isSubmitted || formatFieldState.isTouched) ) {
@@ -260,8 +251,7 @@ export default function ShipmentDetailForm({
     // console.log('[handleToggleInputMode] Clicked.');
     const newModeIsPallet = !showPalletInputMode;
     setShowPalletInputMode(newModeIsPallet);
-    // Sync RHF values after mode change is reflected in state
-    syncPalletBagRHFValues(newModeIsPallet);
+    // The useEffect for showPalletInputMode will handle RHF value sync.
   };
 
   const onSubmit = async (data: DetailFormValues) => {
@@ -275,6 +265,9 @@ export default function ShipmentDetailForm({
            if (finalData.numPallets <= 0 && !detail) finalData.numPallets = 1;
        } else {
            finalData.numPallets = 0;
+           if (finalData.numBags <= 0 && !detail) { // If bag mode and bags are 0 for a new item, maybe it's an error or should default to 1 bag? For now, allows 0.
+              // Consider if 0 bags is valid in bag mode. The schema allows it.
+           }
        }
       //  console.log('[SUBMIT] Final data before onSave:', JSON.parse(JSON.stringify(finalData)));
 
@@ -282,7 +275,6 @@ export default function ShipmentDetailForm({
          numPallets: finalData.numPallets,
          numBags: finalData.numBags,
          customerId: finalData.customerId,
-         // destinationId: finalData.destinationId, // Removed
          serviceId: finalData.serviceId,
          formatId: SERVICE_FORMAT_MAPPING[finalData.serviceId?.toLowerCase() || ''] ? (finalData.formatId || '') : '',
          tareWeight: finalData.tareWeight,
@@ -355,9 +347,10 @@ export default function ShipmentDetailForm({
                                      <Input type="number" min="0" {...field} disabled={isSaving}
                                      onChange={e => {
                                         const pallets = parseInt(e.target.value, 10);
-                                        field.onChange(isNaN(pallets) || pallets < 0 ? 0 : pallets);
-                                        if ((isNaN(pallets) || pallets <= 0) && showPalletInputMode) {
-                                            // setShowPalletInputMode(false); // Mode change handled by button or if logic here is refined
+                                        const newPalletValue = isNaN(pallets) || pallets < 0 ? 0 : pallets;
+                                        field.onChange(newPalletValue);
+                                        if (newPalletValue <= 0 && showPalletInputMode) {
+                                            setShowPalletInputMode(false);
                                         }
                                      }}
                                      />
@@ -378,9 +371,10 @@ export default function ShipmentDetailForm({
                                        <Input type="number" min="0" {...field}
                                         onChange={e => {
                                             const bags = parseInt(e.target.value, 10);
-                                            field.onChange(isNaN(bags) || bags < 0 ? 0 : bags);
-                                            if ((isNaN(bags) || bags <= 0) && !showPalletInputMode) {
-                                                 // setShowPalletInputMode(true); // Mode change handled by button or if logic here is refined
+                                            const newBagValue = isNaN(bags) || bags < 0 ? 0 : bags;
+                                            field.onChange(newBagValue);
+                                            if (newBagValue <= 0 && !showPalletInputMode) {
+                                                 setShowPalletInputMode(true);
                                             }
                                         }}
                                        disabled={isSaving} />
@@ -415,8 +409,6 @@ export default function ShipmentDetailForm({
                             )}
                          />
                         </div>
-
-                        {/* Destination Field Removed */}
 
                         <FormField
                             control={control}
@@ -459,7 +451,7 @@ export default function ShipmentDetailForm({
                                     <FormLabel>Format {serviceLabelForFormat} *</FormLabel>
                                     <FormControl>
                                         <RadioGroup
-                                            key={formatCollectionId || 'no-format-collection'}
+                                            key={currentServiceId || 'no-service'} // Change key when service changes to reset
                                             onValueChange={(value) => {
                                                 field.onChange(value);
                                                 trigger('formatId');
@@ -473,9 +465,9 @@ export default function ShipmentDetailForm({
                                         {validFormatOptions.map((option) => (
                                             <FormItem key={option.id} className="flex items-center space-x-0 space-y-0">
                                                 <FormControl>
-                                                    <RadioGroupItem value={option.value} id={`fmt-${option.value}`} className="peer sr-only" />
+                                                    <RadioGroupItem value={option.value} id={`fmt-${option.id}-${option.value}`} className="peer sr-only" />
                                                 </FormControl>
-                                                <ShadcnLabel htmlFor={`fmt-${option.value}`} className={radioButtonStyle(field.value === option.value)}>
+                                                <ShadcnLabel htmlFor={`fmt-${option.id}-${option.value}`} className={radioButtonStyle(field.value === option.value)}>
                                                     {option.label}
                                                 </ShadcnLabel>
                                             </FormItem>
@@ -504,7 +496,7 @@ export default function ShipmentDetailForm({
                                                disabled={isSaving || showPalletInputMode || (!showPalletInputMode && numBagsWatched > 0) }
                                                title={
                                                 showPalletInputMode ? `Default tare for pallets: ${TARE_WEIGHT_DEFAULT} kg` :
-                                                (numBagsWatched > 0 ? `Auto-calculated for bags: ${numBagsWatched * BAG_WEIGHT_MULTIPLIER} kg` : "Enter tare weight (usually 0)")
+                                                (numBagsWatched > 0 ? `Auto-calculated for bags: ${(numBagsWatched * BAG_WEIGHT_MULTIPLIER).toFixed(3)} kg` : "Enter tare weight (usually 0)")
                                                }
                                         />
                                      </FormControl>
@@ -593,3 +585,4 @@ export default function ShipmentDetailForm({
     </Dialog>
   );
 }
+
