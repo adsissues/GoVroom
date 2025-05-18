@@ -25,7 +25,7 @@ const detailFormSchema = z.object({
   numBags: z.coerce.number().min(0, "Bags cannot be negative").default(0),
   customerId: z.string().min(1, "Customer is required"),
   serviceId: z.string().min(1, "Service is required"),
-  formatId: z.string().optional().default(''), // Now always a string, defaults to empty
+  formatId: z.string().optional().default(''),
   tareWeight: z.coerce.number().min(0, "Tare weight cannot be negative"),
   grossWeight: z.coerce.number().min(0, "Gross weight cannot be negative"),
   dispatchNumber: z.string().optional(),
@@ -40,10 +40,10 @@ const detailFormSchema = z.object({
         // console.log(`[ZOD REFINE] Format ID Valid: ${isValid}`);
         return isValid;
     }
-    return true; // If format is not required, validation passes for this field
+    return true;
 }, {
     message: "Format is required for the selected service.",
-    path: ["formatId"], // Specify the path for the error message
+    path: ["formatId"],
 });
 
 type DetailFormValues = z.infer<typeof detailFormSchema>;
@@ -93,9 +93,9 @@ export default function ShipmentDetailForm({
   const { watch, setValue, reset, getValues, trigger, control, formState } = formHook;
 
   const numPallets = watch('numPallets');
-  const numBags = watch('numBags');
+  const numBags = watch('numBags'); // Watch numBags for tare weight calculation
   const watchedServiceId = watch('serviceId');
-  const watchedFormatId = watch('formatId'); // Watch formatId for useEffect validation
+  const watchedFormatId = watch('formatId');
 
   const formatCollectionId = useMemo(() => {
     const serviceKey = currentServiceId ? currentServiceId.toLowerCase() : '';
@@ -151,14 +151,50 @@ export default function ShipmentDetailForm({
             };
             // console.log('[FORM LIFECYCLE] Resetting form for EDIT with initialValues:', initialValues);
             reset(initialValues);
-            setCurrentServiceId(initialValues.serviceId); // Set currentServiceId for formatCollectionId useMemo
+            setCurrentServiceId(initialValues.serviceId);
         } else {
             // console.log('[FORM LIFECYCLE] Resetting form for NEW entry to default schema values.');
             reset(); // Reset to useForm defaultValues, Zod defaults will also apply.
-            setCurrentServiceId(getValues('serviceId')); // Set currentServiceId based on default or initial empty
+            setCurrentServiceId(getValues('serviceId'));
         }
     }
   }, [isOpen, detail, reset, getValues]);
+
+  // Effect to manage numBags value based on numPallets
+  useEffect(() => {
+    // console.log(`[PALLET/BAG EFFECT] numPallets changed to: ${numPallets}`);
+    if (numPallets > 0) {
+      // If pallets are present, bags field is hidden. Ensure RHF value for bags is 0.
+      if (getValues('numBags') !== 0) {
+        // console.log(`[PALLET/BAG EFFECT] Pallets > 0, setting numBags to 0.`);
+        setValue('numBags', 0, { shouldValidate: false }); // Don't validate here, field is hidden
+      }
+    }
+    // No 'else' needed: if numPallets becomes 0, the bags field becomes visible via conditional rendering,
+    // and the user can input its value. The existing numBags value (or default 0) is acceptable.
+  }, [numPallets, setValue, getValues]);
+
+  // Effect for Tare Weight Calculation
+  useEffect(() => {
+    let newTareWeight;
+    // numPallets and numBags here are the watched state values
+    if (numPallets > 0) {
+      // Pallets are present, bags are considered 0 (as its field is hidden and value forced to 0).
+      newTareWeight = TARE_WEIGHT_DEFAULT;
+    } else { // numPallets is 0, bags field is visible.
+      if (numBags > 0) {
+        newTareWeight = parseFloat((numBags * BAG_WEIGHT_MULTIPLIER).toFixed(3));
+      } else {
+        newTareWeight = 0; // No pallets, no bags.
+      }
+    }
+
+    if (newTareWeight !== getValues('tareWeight')) {
+      // console.log(`[TARE EFFECT] Calculated newTareWeight: ${newTareWeight}, RHF tareWeight was: ${getValues('tareWeight')}. Setting new value.`);
+      setValue('tareWeight', newTareWeight, { shouldValidate: true });
+      trigger("grossWeight"); // Also validate grossWeight as tareWeight constraint for it might change
+    }
+  }, [numPallets, numBags, setValue, getValues, trigger]);
 
 
   useEffect(() => {
@@ -166,12 +202,12 @@ export default function ShipmentDetailForm({
     if (watchedServiceId !== currentServiceId) {
       // console.log(`[SERVICE CHANGE DEBUG] Service changed from ${currentServiceId} to ${watchedServiceId}. Resetting formatId.`);
       setCurrentServiceId(watchedServiceId);
-      setValue('formatId', '', { shouldValidate: false }); // Reset formatId
+      setValue('formatId', '', { shouldValidate: false });
 
       const newFormatCollectionId = watchedServiceId ? SERVICE_FORMAT_MAPPING[watchedServiceId.toLowerCase()] || null : null;
       // console.log(`[SERVICE CHANGE DEBUG] New formatCollectionId: ${newFormatCollectionId}`);
 
-      if (!newFormatCollectionId) { // If the new service does NOT require a format
+      if (!newFormatCollectionId) {
         // console.log(`[SERVICE CHANGE DEBUG] New service does not require format. Clearing formatId errors.`);
         formHook.clearErrors('formatId');
       }
@@ -179,41 +215,22 @@ export default function ShipmentDetailForm({
   }, [watchedServiceId, currentServiceId, setValue, formHook]);
 
   useEffect(() => {
-    let newTareWeight;
-    if (numPallets === 0) {
-        newTareWeight = 0;
-        if (getValues('numBags') !== 0) {
-            setValue('numBags', 0, { shouldValidate: true });
-        }
-    } else if (numBags > 0) {
-        newTareWeight = parseFloat((numBags * BAG_WEIGHT_MULTIPLIER).toFixed(3));
-    } else {
-        newTareWeight = TARE_WEIGHT_DEFAULT;
-    }
-
-    if (newTareWeight !== getValues('tareWeight')) {
-        setValue('tareWeight', newTareWeight, { shouldValidate: true });
-        trigger("grossWeight"); // Also validate grossWeight if tareWeight changes its constraint
-    }
-  }, [numPallets, numBags, setValue, getValues, trigger]);
-
-  // useEffect to trigger validation for formatId when it changes and the field is touched or form submitted
-  useEffect(() => {
     const formatFieldState = formHook.getFieldState('formatId');
     if (formState.isSubmitted || formatFieldState.isTouched) {
         // console.log('[FORMAT ID WATCH] formatId changed to:', watchedFormatId, 'Triggering validation. Touched:', formatFieldState.isTouched, 'Submitted:', formState.isSubmitted);
         trigger('formatId');
     }
-  }, [watchedFormatId, formState.isSubmitted, formHook, trigger]);
+  }, [watchedFormatId, formState.isSubmitted, formHook.getFieldState, trigger]); // Added getFieldState to deps
 
 
   const onSubmit = async (data: DetailFormValues) => {
     // console.log('[SUBMIT] Form data at start of onSubmit:', data);
     setIsSaving(true);
     try {
-       const finalNumBags = data.numPallets === 0 ? 0 : data.numBags;
+       // Ensure numBags is 0 if numPallets > 0, regardless of hidden field state during submission
+       const finalNumBags = data.numPallets > 0 ? 0 : data.numBags;
        const serviceKeyForSubmit = data.serviceId ? data.serviceId.toLowerCase() : '';
-       const finalFormatId = SERVICE_FORMAT_MAPPING[serviceKeyForSubmit] ? (data.formatId || '') : ''; // Ensure formatId is empty if not applicable
+       const finalFormatId = SERVICE_FORMAT_MAPPING[serviceKeyForSubmit] ? (data.formatId || '') : '';
 
        const saveData: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated' | 'netWeight'> = {
          numPallets: data.numPallets,
@@ -270,9 +287,7 @@ export default function ShipmentDetailForm({
                                  onChange={e => {
                                     const pallets = parseInt(e.target.value, 10);
                                     field.onChange(isNaN(pallets) ? 0 : pallets);
-                                    if (pallets === 0) {
-                                        setValue('numBags', 0, { shouldValidate: true });
-                                    }
+                                    // Side effects related to numBags value are handled by useEffect watching numPallets
                                  }}
                                  />
                               </FormControl>
@@ -280,7 +295,7 @@ export default function ShipmentDetailForm({
                            </FormItem>
                            )}
                         />
-                         {numPallets > 0 && (
+                         {numPallets === 0 && ( // Only show numBags if numPallets is 0
                            <FormField
                               control={control}
                               name="numBags"
@@ -365,9 +380,7 @@ export default function ShipmentDetailForm({
                                         key={formatCollectionId || 'no-format-collection'}
                                         onValueChange={(selectedValue) => {
                                             // console.log('[FORMAT SELECT] User selected value:', selectedValue);
-                                            // console.log('[FORMAT SELECT] RHF field.value BEFORE field.onChange:', field.value);
                                             field.onChange(selectedValue);
-                                            // console.log('[FORMAT SELECT] RHF field.value AFTER field.onChange (via getValues):', getValues('formatId'));
                                             // Validation will be triggered by the useEffect watching watchedFormatId
                                         }}
                                         value={field.value || ""}
@@ -408,13 +421,16 @@ export default function ShipmentDetailForm({
                                             const weight = parseFloat(e.target.value);
                                             field.onChange(isNaN(weight) ? 0 : weight);
                                            }}
-                                           disabled={isSaving || (numPallets > 0 && numBags > 0)}
-                                           title={(numPallets > 0 && numBags > 0) ? "Auto-calculated based on number of bags" : "Enter tare weight"}
+                                           disabled={isSaving || numPallets > 0 || (numPallets === 0 && numBags > 0) } // Disabled if pallets>0 (uses default) OR if pallets=0 AND bags>0 (uses bag calc)
+                                           title={
+                                            numPallets > 0 ? `Default tare for pallets: ${TARE_WEIGHT_DEFAULT} kg` :
+                                            (numBags > 0 ? `Auto-calculated for bags: ${numBags * BAG_WEIGHT_MULTIPLIER} kg` : "Enter tare weight if no pallets and no bags (usually 0)")
+                                           }
                                     />
                                  </FormControl>
-                                 {(numPallets > 0 && numBags > 0) && <p className="text-xs text-muted-foreground pt-1">Auto-calculated ({numBags} bags × {BAG_WEIGHT_MULTIPLIER} kg/bag)</p>}
-                                 {(numPallets > 0 && numBags === 0) && <p className="text-xs text-muted-foreground pt-1">Default tare for pallets without bags.</p>}
-                                 {(numPallets === 0) && <p className="text-xs text-muted-foreground pt-1">Tare weight is 0 if no pallets.</p>}
+                                 {numPallets > 0 && <p className="text-xs text-muted-foreground pt-1">Default for pallets.</p>}
+                                 {numPallets === 0 && numBags > 0 && <p className="text-xs text-muted-foreground pt-1">Auto-calculated ({numBags} bags × {BAG_WEIGHT_MULTIPLIER} kg/bag)</p>}
+                                 {numPallets === 0 && numBags === 0 && <p className="text-xs text-muted-foreground pt-1">Enter tare or defaults to 0.</p>}
                                  <FormMessage />
                               </FormItem>
                            )}
@@ -497,3 +513,4 @@ export default function ShipmentDetailForm({
     </Dialog>
   );
 }
+
