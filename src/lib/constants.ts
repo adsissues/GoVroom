@@ -19,8 +19,9 @@ import {
   Camera, // For Mobile Camera
   Database, // For Offline Mode
   CloudUpload, // For CSV Import/Export
-  UserCog, // For User Management (Admin)
+  UserCog, // For User Management (Admin) & App Settings
   Sheet, // For CSV Import/Export icon
+  Users2, // Icon for User Management
 } from 'lucide-react';
 import type React from 'react'; // Import React for type React.ElementType
 
@@ -56,6 +57,7 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
     children: [
       { title: 'Dropdowns', href: '/admin/dropdowns', icon: List, adminOnly: true },
       { title: 'Settings', href: '/admin/settings', icon: UserCog, adminOnly: true },
+      { title: 'User Management', href: '/admin/users', icon: Users2, adminOnly: true },
     ]
   },
 ];
@@ -94,28 +96,19 @@ export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
  *
  * Then the mapping here MUST include:
  *   'priority_express_mail': 'formats_prior' // key is the lowercase version of the value field
- *
- * If a service document in your '/services' Firestore collection has:
- *   { label: "Prior", value: "E" } // As per your screenshot
- *
- * Then the mapping here MUST include:
- *   'e': 'formats_prior' // key is 'e' (lowercase of "E")
  */
 export const SERVICE_FORMAT_MAPPING: { [serviceValueKey: string]: string | null } = {
   // --- IMPORTANT: Update these keys to match your Firestore /services `value` fields (in lowercase) ---
-  'e': 'formats_prior',              // For service "Prior" which has value: "E" in Firestore
-  'priority': 'formats_prior',       // Keep for flexibility if you change "E" to "priority"
-  'prior': 'formats_prior',          // Keep for flexibility
+  'e': 'formats_prior',              // Example: "Prior" service has value: "E" in Firestore
+  'priority': 'formats_prior',
+  'prior': 'formats_prior',
 
-  'c': 'formats_eco',                // Assuming "Eco" service might have value: "C" (add your actual value)
-  'economy': 'formats_eco',          // Keep for flexibility
-  'eco': 'formats_eco',              // Keep for flexibility
+  'c': 'formats_eco',                // Example: "Eco" service has value: "C" in Firestore
+  'economy': 'formats_eco',
+  'eco': 'formats_eco',
 
-  's': 'formats_s3c',                // Assuming "S3C" service might have value: "S" (add your actual value)
-  's3c': 'formats_s3c',              // Keep for flexibility
-  // Add more mappings as needed for ALL your services that have distinct format dropdowns.
-  // If a service does NOT have a specific format dropdown, you can either omit its key
-  // or map it to `null` (the ShipmentDetailForm will not show a format dropdown if the mapping is null or not found).
+  's': 'formats_s3c',                // Example: "S3C" service has value: "S" in Firestore
+  's3c': 'formats_s3c',
   // 'another_service_value': 'formats_another',
   // 'service_without_formats': null,
 };
@@ -138,6 +131,8 @@ export const BAG_WEIGHT_MULTIPLIER = 0.125; // Weight per bag in kg
 export const DASHBOARD_STATS_MAP: { [key: string]: { title: string; icon: React.ElementType; unit?: string; bgColorClass: string; textColorClass: string } } = {
   pendingShipments: { title: "Pending Shipments", icon: AlertTriangle, bgColorClass: "bg-amber-100", textColorClass: "text-amber-600" },
   completedShipments: { title: "Completed Shipments", icon: CheckCircle2, bgColorClass: "bg-green-100", textColorClass: "text-green-600" },
-  totalGrossWeight: { title: "Total Gross Weight", icon: Weight, unit: "kg", bgColorClass: "bg-blue-100", textColorClass: "text-blue-600" },
+  // totalGrossWeightSum is marked as isUnavailable: true in DashboardPage, as it requires backend aggregation.
+  totalGrossWeightSum: { title: "Total Gross Weight", icon: Weight, unit: "kg", bgColorClass: "bg-blue-100", textColorClass: "text-blue-600" },
   lastUpdated: { title: "Last Updated", icon: CalendarDays, unit: "", bgColorClass: "bg-gray-100", textColorClass: "text-gray-600" },
 };
+
