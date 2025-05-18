@@ -2,7 +2,7 @@
 "use client"; // This layout needs client-side hooks for auth and navigation
 import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
-import AppSidebar from '@/components/layout/app-sidebar'; // This will render the content for the new Sidebar
+import AppSidebar from '@/components/layout/app-sidebar';
 import AppHeader from '@/components/layout/app-header';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2 } from 'lucide-react';
 import {
   SidebarProvider,
-  Sidebar as UiConfigurableSidebar, // Renamed to avoid conflict with AppSidebar import if any
+  Sidebar as UiConfigurableSidebar,
   SidebarInset,
 } from '@/components/ui/sidebar';
 
@@ -22,9 +22,7 @@ export default function AuthenticatedAppLayout({ children }: { children: ReactNo
   const router = useRouter();
   const pathname = usePathname();
 
-  // Logging at the very start of the component function body
   console.log(`[AuthenticatedAppLayout] Render START. Path: ${pathname}, Auth Loading: ${authLoading}, User: ${currentUser?.email ?? 'None'}`);
-
 
   useEffect(() => {
     const effectId = effectExecutionCount.current++;
@@ -46,7 +44,7 @@ export default function AuthenticatedAppLayout({ children }: { children: ReactNo
 
   useEffect(() => {
     console.log(`[AuthenticatedAppLayout] Render END. Total component render duration: ${Date.now() - renderStartTime.current}ms. Path: ${pathname}`);
-    renderStartTime.current = Date.now();
+    renderStartTime.current = Date.now(); // Reset for the next render cycle measurement
   });
 
   if (authLoading) {
@@ -77,12 +75,11 @@ export default function AuthenticatedAppLayout({ children }: { children: ReactNo
         <UiConfigurableSidebar> {/* This is the Sidebar from components/ui/sidebar.tsx */}
           <AppSidebar /> {/* AppSidebar now renders the *content* for UiConfigurableSidebar */}
         </UiConfigurableSidebar>
-        <SidebarInset> {/* This wraps the main content that shifts */}
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <AppHeader /> {/* AppHeader will contain the SidebarTrigger */}
-            <main className="flex-1 overflow-y-auto bg-secondary/50 p-4 md:p-6 lg:p-8">
-              {children}
-            </main>
+        <SidebarInset> {/* SidebarInset is already a <main> tag and a flex container */}
+          <AppHeader /> {/* AppHeader will contain the SidebarTrigger */}
+          {/* This div becomes the main scrollable content area */}
+          <div className="flex-1 overflow-y-auto bg-secondary/50 p-4 md:p-6 lg:p-8">
+            {children}
           </div>
         </SidebarInset>
       </div>
