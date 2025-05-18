@@ -10,10 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, AlertTriangle, Loader2, Edit, XCircle } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Loader2, Edit, XCircle, Eye, EyeOff } from 'lucide-react';
 import ShipmentForm from '@/components/shipments/shipment-form';
+import ShipmentSummary from '@/components/shipments/shipment-summary';
 import ShipmentDetailsList from '@/components/shipments/shipment-details-list';
-import { Timestamp } from 'firebase/firestore';
+import type { Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { generatePreAlertPdf, generateCmrPdf } from '@/lib/pdfService';
 
@@ -35,13 +36,13 @@ export default function ShipmentDetailPage() {
   const [shipment, setShipment] = useState<Shipment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [isShowingFullDetails, setIsShowingFullDetails] = useState(false); // New state
   const [error, setError] = useState<string | null>(null);
   
   const previousShipmentStatusRef = useRef<ShipmentStatus | undefined | 'processing_pdf'>(undefined);
 
-
   const isAdmin = currentUser?.role === 'admin';
-  const canEdit = isEditing && (shipment?.status === 'Pending' || isAdmin);
+  const canEditForm = isEditing && isShowingFullDetails && (shipment?.status === 'Pending' || isAdmin);
 
   const fetchShipment = useCallback(async (showLoadingIndicator = true) => {
     console.log(`[ShipmentDetailPage] fetchShipment called for ID: ${shipmentId}, showLoading: ${showLoadingIndicator}`);
@@ -66,7 +67,7 @@ export default function ShipmentDetailPage() {
       } else {
         console.log(`[ShipmentDetailPage] fetchShipment: No shipment found for ID ${shipmentId}. Calling notFound().`);
         if (showLoadingIndicator) setIsLoading(false);
-        notFound();
+        notFound(); // This should trigger Next.js 404 page
         return null;
       }
     } catch (err) {
@@ -98,9 +99,16 @@ export default function ShipmentDetailPage() {
     console.log('[ShipmentDetailPage] handleUpdateShipment: Initiated. Data to save:', JSON.parse(JSON.stringify(data)));
     console.log(`[ShipmentDetailPage] handleUpdateShipment: Current shipment status (before this update attempt): ${shipment.status}`);
     
-    previousShipmentStatusRef.current = shipment.status;
-    console.log(`[ShipmentDetailPage] handleUpdateShipment: Set previousShipmentStatusRef.current to: ${previousShipmentStatusRef.current}`);
-
+    // Capture previous status only if status is part of the update and is different
+    if (data.status && data.status !== shipment.status) {
+      console.log(`[ShipmentDetailPage] handleUpdateShipment: Status change detected. FROM ${shipment.status} TO ${data.status}. Setting previousShipmentStatusRef.current to: ${shipment.status}`);
+      previousShipmentStatusRef.current = shipment.status;
+    } else {
+      console.log(`[ShipmentDetailPage] handleUpdateShipment: No status change in this update OR status field not present in update. Current: ${shipment.status}, Update data.status: ${data.status}. previousShipmentStatusRef will remain: ${previousShipmentStatusRef.current}`);
+      // Ensure ref is cleared if no relevant status change, to prevent stale triggers
+      // This might need adjustment based on desired PDF trigger re-evaluation logic
+    }
+    
     try {
       await updateShipment(shipmentId, data);
       toast({ title: "Shipment Updated", description: "Main shipment details saved successfully." });
@@ -109,14 +117,12 @@ export default function ShipmentDetailPage() {
       const updatedShipment = await fetchShipment(false); 
       console.log('[ShipmentDetailPage] handleUpdateShipment: Refetched shipment data after update:', updatedShipment ? JSON.stringify(updatedShipment).substring(0, 300) + "..." : "null/undefined");
       
-      setIsEditing(false);
+      setIsEditing(false); // Exit edit mode after successful save
 
     } catch (err) {
       console.error("[ShipmentDetailPage] handleUpdateShipment: Error updating shipment:", err);
       toast({ variant: "destructive", title: "Update Failed", description: err instanceof Error ? err.message : "Could not save shipment changes." });
-      // If update fails, clear the ref to prevent incorrect PDF trigger on next effect run
-      // previousShipmentStatusRef.current = undefined; // This will be reset in the PDF effect's finally block
-      console.log(`[ShipmentDetailPage] handleUpdateShipment: Error during update. previousShipmentStatusRef.current is still: ${previousShipmentStatusRef.current}`);
+       console.log(`[ShipmentDetailPage] handleUpdateShipment: Error during update. previousShipmentStatusRef.current is still: ${previousShipmentStatusRef.current}`);
     }
   };
 
@@ -124,14 +130,14 @@ export default function ShipmentDetailPage() {
     console.log(`[ShipmentDetailPage] PDF Effect triggered. Current shipment: ${shipment ? `ID: ${shipment.id}, Status: ${shipment.status}` : 'null'}. previousShipmentStatusRef.current was: ${previousShipmentStatusRef.current}`);
 
     const wasPending = previousShipmentStatusRef.current === 'Pending';
-    const isCompleted = shipment?.status === 'Completed';
+    const isNowCompleted = shipment?.status === 'Completed';
 
-    const shouldGeneratePdfs = shipment && wasPending && isCompleted;
+    const shouldGeneratePdfs = shipment && wasPending && isNowCompleted;
     
-    console.log(`[ShipmentDetailPage] PDF Effect: Checking condition: (shipment exists: ${!!shipment}) AND (previousShipmentStatusRef.current === 'Pending': ${wasPending}) AND (shipment.status === 'Completed': ${isCompleted}). Overall: ${shouldGeneratePdfs}`);
+    console.log(`[ShipmentDetailPage] PDF Effect: Checking condition: (shipment exists: ${!!shipment}) AND (previousShipmentStatusRef.current === 'Pending': ${wasPending}) AND (shipment.status === 'Completed': ${isNowCompleted}). Overall: ${shouldGeneratePdfs}`);
 
     if (shouldGeneratePdfs) {
-      // Synchronously mark this transition as being processed to prevent re-entry if effect runs again quickly
+      // Synchronously mark this transition as being processed to prevent re-entry
       previousShipmentStatusRef.current = 'processing_pdf'; 
       console.log(`[ShipmentDetailPage] PDF Effect: Condition MET for PDF generation. Shipment ID: ${shipment.id}. previousShipmentStatusRef.current changed to 'processing_pdf'.`);
       
@@ -162,21 +168,41 @@ export default function ShipmentDetailPage() {
           });
         } finally {
             console.log('[ShipmentDetailPage] PDF Effect (async IIFE finally): Resetting previousShipmentStatusRef.current from', previousShipmentStatusRef.current, 'to undefined.');
-            previousShipmentStatusRef.current = undefined;
+            previousShipmentStatusRef.current = undefined; // Reset after PDF generation attempt
         }
       })();
     } else {
-      console.log(`[ShipmentDetailPage] PDF Effect: Condition NOT MET. Shipment ID: ${shipment?.id}, Current Status: ${shipment?.status}, Previous Status from Ref was: ${previousShipmentStatusRef.current}`);
-      // If the condition was not met, but the ref indicates processing or was pending and current is not completed, reset it.
-      // This handles cases where the ref might have been 'processing_pdf' or 'Pending' but the shipment status didn't end up 'Completed'.
-      if (previousShipmentStatusRef.current === 'processing_pdf' || 
-         (previousShipmentStatusRef.current === 'Pending' && shipment?.status !== 'Completed')) {
-         console.log('[ShipmentDetailPage] PDF Effect (Condition NOT MET branch): Resetting previousShipmentStatusRef.current from', previousShipmentStatusRef.current, 'to undefined.');
-         previousShipmentStatusRef.current = undefined;
-      }
+        console.log(`[ShipmentDetailPage] PDF Effect: Condition NOT MET. Details - Shipment ID: ${shipment?.id}, Current Status: ${shipment?.status}, Previous Status from Ref was: ${previousShipmentStatusRef.current}`);
+        // If the condition was not met, but the ref indicates processing or was pending and current is not completed, reset it.
+        if (previousShipmentStatusRef.current === 'processing_pdf' || 
+           (previousShipmentStatusRef.current === 'Pending' && shipment?.status !== 'Completed')) {
+           console.log('[ShipmentDetailPage] PDF Effect (Condition NOT MET branch): Resetting previousShipmentStatusRef.current from', previousShipmentStatusRef.current, 'to undefined.');
+           previousShipmentStatusRef.current = undefined;
+        }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shipment, toast]); // previousShipmentStatusRef is a ref, not needed in deps. toast is stable.
+
+  const handleToggleFullDetails = () => {
+    setIsShowingFullDetails(prev => !prev);
+    if (isEditing && isShowingFullDetails) { // If hiding details while editing, cancel edit mode
+        setIsEditing(false);
+    }
+  };
+
+  const handleEditMainInfo = () => {
+    console.log("[ShipmentDetailPage] Edit Main Info button clicked.");
+    setIsShowingFullDetails(true); // Ensure full details are shown when editing
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    console.log("[ShipmentDetailPage] Cancel Edit button clicked.");
+    setIsEditing(false);
+    // Decide if full details should also be hidden on cancel. For now, keep them.
+    // setIsShowingFullDetails(false); 
+  };
+
 
   if (isLoading) {
     console.log("[ShipmentDetailPage] Rendering: Loading state.");
@@ -210,6 +236,8 @@ export default function ShipmentDetailPage() {
   }
 
   if (!shipment) {
+    // This case should ideally be handled by notFound() inside fetchShipment
+    // or if shipmentId was invalid from the start.
     console.log("[ShipmentDetailPage] Rendering: No shipment data (after loading and no error). This might mean notFound() was or should have been called.");
     return (
        <div className="space-y-6 p-4 md:p-6 lg:p-8">
@@ -228,7 +256,7 @@ export default function ShipmentDetailPage() {
     );
   }
 
-  console.log("[ShipmentDetailPage] Rendering: Main content with shipment data. isEditing:", isEditing);
+  console.log("[ShipmentDetailPage] Rendering: Main content with shipment data. isShowingFullDetails:", isShowingFullDetails, "isEditing:", isEditing);
   return (
     <div className="space-y-6 md:space-y-8">
       <Button variant="outline" onClick={() => router.push('/shipments')} className="mb-0">
@@ -238,40 +266,55 @@ export default function ShipmentDetailPage() {
       <Card className="shadow-lg rounded-xl border">
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div>
-            <CardTitle className="text-xl md:text-2xl">Shipment Details</CardTitle>
-            <CardDescription>ID: <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded">{shipment.id}</span></CardDescription>
-            {shipment.status === 'Completed' && !isAdmin && (
-              <p className="text-sm text-destructive mt-2">Shipment is completed and cannot be edited by users.</p>
+            <CardTitle className="text-xl md:text-2xl">
+              Shipment: <span className="font-mono text-lg text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{shipment.id}</span>
+            </CardTitle>
+            {/* Message for completed shipments */}
+            {shipment.status === 'Completed' && !isEditing && (
+              <p className="text-sm text-green-600 mt-1 italic">This shipment is completed.</p>
             )}
-            {shipment.status === 'Completed' && isAdmin && !isEditing && (
-              <p className="text-sm text-amber-600 mt-2">Shipment is completed. Editing enabled for Admin.</p>
+            {shipment.status === 'Completed' && isEditing && isAdmin && (
+              <p className="text-sm text-amber-600 mt-1 italic">Shipment is completed. Editing enabled for Admin.</p>
             )}
           </div>
-          <div className="flex gap-2">
-            { (shipment.status === 'Pending' || isAdmin) && !isEditing && (
-              <Button onClick={() => { console.log("[ShipmentDetailPage] Edit Main Info button clicked."); setIsEditing(true);}} variant="outline">
+          <div className="flex flex-wrap gap-2 items-center">
+            <Button onClick={handleToggleFullDetails} variant="outline" size="sm">
+              {isShowingFullDetails ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
+              {isShowingFullDetails ? 'Hide Main Details' : 'View Main Details'}
+            </Button>
+            { (shipment.status === 'Pending' || isAdmin) && ( // Edit button logic
+              <Button 
+                onClick={handleEditMainInfo} 
+                variant="default" 
+                size="sm" 
+                disabled={isEditing && isShowingFullDetails} // Disable if already editing full details
+              >
                 <Edit className="mr-2 h-4 w-4" /> Edit Main Info
               </Button>
             )}
-            {isEditing && (
-              <Button onClick={() => { console.log("[ShipmentDetailPage] Cancel Edit button clicked."); setIsEditing(false);}} variant="ghost">
+            {isEditing && isShowingFullDetails && ( // Cancel button
+              <Button onClick={handleCancelEdit} variant="ghost" size="sm">
                 <XCircle className="mr-2 h-4 w-4" /> Cancel Edit
               </Button>
             )}
           </div>
         </CardHeader>
         <CardContent>
-          <ShipmentForm
-            isAdmin={isAdmin}
-            initialData={shipment}
-            onSubmit={handleUpdateShipment}
-            isEditing={isEditing}
-            shipmentId={shipment.id}
-             onSaveSuccess={async (savedShipmentId) => { 
+          {!isShowingFullDetails && <ShipmentSummary shipment={shipment} />}
+          {isShowingFullDetails && (
+            <ShipmentForm
+              isAdmin={isAdmin}
+              initialData={shipment}
+              onSubmit={handleUpdateShipment}
+              isEditing={isEditing} // This is the crucial prop for ShipmentForm
+              shipmentId={shipment.id}
+              onSaveSuccess={async (savedShipmentId) => { 
                console.log(`[ShipmentDetailPage] ShipmentForm onSaveSuccess called for ${savedShipmentId}. Refetching shipment.`);
                await fetchShipment(false); 
+               // setIsEditing(false); // This is handled by handleUpdateShipment
              }}
-          />
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -279,4 +322,3 @@ export default function ShipmentDetailPage() {
     </div>
   );
 }
-    
