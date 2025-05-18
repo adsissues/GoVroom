@@ -1,7 +1,7 @@
 
 "use client";
 import Link from 'next/link';
-import { Bell, UserCircle, LogOut, Sun, Moon, Menu, PackageSearch, LayoutDashboard, Eye, PlusCircle, Settings, ListChecks } from 'lucide-react';
+import { Bell, UserCircle, LogOut, Sun, Moon, Menu, PackageSearch, LayoutDashboard, Eye, PlusCircle, Settings, ListChecks, UserCog, Users2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { APP_NAME } from '@/lib/constants';
 import { useRouter } from 'next/navigation';
@@ -57,18 +57,32 @@ export default function AppHeader() {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => handleNavigation('/shipments')} className="cursor-pointer">
               <Eye className="mr-2 h-4 w-4" />
-              <span>View All</span>
+              <span>View All Shipments</span>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => handleNavigation('/shipments/new')} className="cursor-pointer">
               <PlusCircle className="mr-2 h-4 w-4" />
-              <span>Add New</span>
+              <span>Add New Shipment</span>
             </DropdownMenuItem>
+            
             {currentUser?.role === 'admin' && (
               <>
                 <DropdownMenuSeparator />
+                <DropdownMenuLabel>Admin</DropdownMenuLabel>
                 <DropdownMenuItem onClick={() => handleNavigation('/admin')} className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" />
-                  <span>Admin</span>
+                  <span>Admin Dashboard</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleNavigation('/admin/dropdowns')} className="cursor-pointer">
+                  <ListChecks className="mr-2 h-4 w-4" />
+                  <span>Manage Dropdowns</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleNavigation('/admin/settings')} className="cursor-pointer">
+                  <UserCog className="mr-2 h-4 w-4" />
+                  <span>App Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleNavigation('/admin/users')} className="cursor-pointer">
+                  <Users2 className="mr-2 h-4 w-4" />
+                  <span>User Management</span>
                 </DropdownMenuItem>
               </>
             )}
