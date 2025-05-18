@@ -14,34 +14,35 @@ export const getUserDocument = async (uid: string): Promise<User | null> => {
     return null;
   }
   const userDocRef = doc(db, 'users', uid);
-  console.log(`[users.ts] Attempting to fetch user document for UID: ${uid}`);
+  console.log(`[users.ts] getUserDocument: Attempting to fetch user document for UID: ${uid}`);
   try {
     const userDocSnap = await getDoc(userDocRef);
 
     if (userDocSnap.exists()) {
       const data = userDocSnap.data();
-      console.log(`[users.ts] User document data for UID ${uid}:`, JSON.parse(JSON.stringify(data))); // Log serializable data
-      // Ensure the role is valid, default to 'user' if missing or invalid
+      // console.log(`[users.ts] getUserDocument: Raw Firestore data for UID ${uid}:`, JSON.parse(JSON.stringify(data))); // More detailed log
+      
       let role: UserRole = 'user'; // Default role
       if (data.role && ['admin', 'user'].includes(data.role)) {
         role = data.role as UserRole;
       } else {
-        console.warn(`[users.ts] Role missing or invalid for UID ${uid}. Defaulting to 'user'. Firestore data.role:`, data.role);
+        console.warn(`[users.ts] getUserDocument: Role missing or invalid for UID ${uid}. Firestore data.role: "${data.role}". Defaulting to 'user'.`);
       }
-      console.log(`[users.ts] Determined role for UID ${uid}: ${role}`);
-      return {
+      const resolvedUser: User = {
         uid,
         email: data.email || null,
         role: role,
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt : undefined,
         lastLogin: data.lastLogin instanceof Timestamp ? data.lastLogin : undefined,
-      } as User;
+      };
+      console.log(`[users.ts] getUserDocument: Successfully processed document for UID ${uid}. Determined role: "${role}". Returning user object:`, JSON.parse(JSON.stringify(resolvedUser)));
+      return resolvedUser;
     } else {
-      console.warn(`[users.ts] User document NOT FOUND in Firestore for UID: ${uid}`);
+      console.warn(`[users.ts] getUserDocument: User document NOT FOUND in Firestore for UID: ${uid}. Returning null.`);
       return null;
     }
   } catch (error) {
-     console.error(`[users.ts] Error fetching user document for UID ${uid}:`, error);
+     console.error(`[users.ts] getUserDocument: Error fetching user document for UID ${uid}:`, error);
      return null;
   }
 };
@@ -61,7 +62,7 @@ export const createUserDocument = async (uid: string, email: string | null, role
    }
    const userDocRef = doc(db, 'users', uid);
   try {
-    console.log(`[users.ts] Attempting to create/update user document for UID: ${uid} with email: ${email}, role: ${role}`);
+    console.log(`[users.ts] createUserDocument: Attempting to create/update user document for UID: ${uid} with email: ${email}, role: ${role}`);
     const docSnap = await getDoc(userDocRef);
     const dataToWrite: Partial<User> & { lastUpdated: Timestamp; email: string | null } = { // Ensure email is part of type
         uid,
@@ -71,13 +72,13 @@ export const createUserDocument = async (uid: string, email: string | null, role
     };
     if (!docSnap.exists()) {
         dataToWrite.createdAt = serverTimestamp() as Timestamp;
-        console.log(`[users.ts] User document for UID ${uid} does not exist. Will add createdAt.`);
+        console.log(`[users.ts] createUserDocument: User document for UID ${uid} does not exist. Will add createdAt.`);
     }
 
     await setDoc(userDocRef, dataToWrite, { merge: true });
-    console.log(`[users.ts] User document created/updated for UID: ${uid}`);
+    console.log(`[users.ts] createUserDocument: User document created/updated for UID: ${uid}`);
   } catch (error) {
-      console.error(`[users.ts] Error creating/updating user document for UID ${uid}:`, error);
+      console.error(`[users.ts] createUserDocument: Error creating/updating user document for UID ${uid}:`, error);
       throw error;
   }
 };
@@ -98,11 +99,11 @@ export const updateUserRole = async (uid: string, newRole: UserRole): Promise<vo
   }
   const userDocRef = doc(db, 'users', uid);
   try {
-    console.log(`[users.ts] Updating role for UID: ${uid} to ${newRole}`);
+    console.log(`[users.ts] updateUserRole: Updating role for UID: ${uid} to ${newRole}`);
     await setDoc(userDocRef, { role: newRole, lastUpdated: serverTimestamp() }, { merge: true });
-    console.log(`[users.ts] User role updated for UID: ${uid} to ${newRole}`);
+    console.log(`[users.ts] updateUserRole: User role updated for UID: ${uid} to ${newRole}`);
   } catch (error) {
-     console.error(`[users.ts] Error updating user role for UID ${uid}:`, error);
+     console.error(`[users.ts] updateUserRole: Error updating user role for UID ${uid}:`, error);
      throw error;
   }
 };
@@ -113,7 +114,7 @@ export const updateUserRole = async (uid: string, newRole: UserRole): Promise<vo
  * @returns A promise resolving to an array of User objects.
  */
 export const getAllUsers = async (): Promise<User[]> => {
-  console.log("[users.ts] Attempting to fetch all user documents...");
+  console.log("[users.ts] getAllUsers: Attempting to fetch all user documents...");
   try {
     const usersCollectionRef = collection(db, 'users');
     // Consider ordering by a field like 'createdAt' or 'email' if desired
@@ -133,10 +134,10 @@ export const getAllUsers = async (): Promise<User[]> => {
         lastLogin: data.lastLogin instanceof Timestamp ? data.lastLogin : undefined,
       } as User;
     });
-    console.log(`[users.ts] Fetched ${users.length} user documents.`);
+    console.log(`[users.ts] getAllUsers: Fetched ${users.length} user documents.`);
     return users;
   } catch (error) {
-    console.error("[users.ts] Error fetching all user documents:", error);
+    console.error("[users.ts] getAllUsers: Error fetching all user documents:", error);
     throw error;
   }
 };
@@ -154,11 +155,11 @@ export const deleteUserDocument = async (uid: string): Promise<void> => {
   }
   const userDocRef = doc(db, 'users', uid);
   try {
-    console.log(`[users.ts] Attempting to delete user document for UID: ${uid}`);
+    console.log(`[users.ts] deleteUserDocument: Attempting to delete user document for UID: ${uid}`);
     await deleteDoc(userDocRef);
-    console.log(`[users.ts] User document deleted for UID: ${uid}`);
+    console.log(`[users.ts] deleteUserDocument: User document deleted for UID: ${uid}`);
   } catch (error) {
-    console.error(`[users.ts] Error deleting user document for UID ${uid}:`, error);
+    console.error(`[users.ts] deleteUserDocument: Error deleting user document for UID ${uid}:`, error);
     throw error;
   }
 };
@@ -174,14 +175,9 @@ export const deleteUserDocument = async (uid: string): Promise<void> => {
  */
 export const adminCreateAuthUser = async (email: string, password?: string): Promise<string /* UID */> => {
   console.warn("[users.ts] adminCreateAuthUser is a placeholder. Actual Firebase Auth user creation requires Admin SDK / Cloud Function.");
-  // Simulate UID creation for client-side testing of Firestore document creation
-  // In a real scenario, this would call a Cloud Function which uses Admin SDK: admin.auth().createUser(...)
-  // For client-side development convenience, we can return a mock UID or throw an error.
-  // For now, let's return a mock UID structure.
   const mockUid = `mock-auth-uid-${Date.now()}`;
   console.log(`[users.ts] adminCreateAuthUser (placeholder) returning mock UID: ${mockUid} for email: ${email}`);
   return mockUid;
-  // throw new Error("adminCreateAuthUser not implemented. Requires backend with Firebase Admin SDK.");
 };
 
 /**
@@ -191,7 +187,4 @@ export const adminCreateAuthUser = async (email: string, password?: string): Pro
  */
 export const adminDeleteAuthUser = async (uid: string): Promise<void> => {
   console.warn(`[users.ts] adminDeleteAuthUser(${uid}) is a placeholder. Actual Firebase Auth user deletion requires Admin SDK / Cloud Function.`);
-  // In a real scenario, this would call a Cloud Function which uses Admin SDK: admin.auth().deleteUser(uid)
-  // throw new Error("adminDeleteAuthUser not implemented. Requires backend with Firebase Admin SDK.");
 };
-

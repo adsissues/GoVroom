@@ -21,44 +21,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname(); // Get current path
 
   useEffect(() => {
-    console.log("AuthProvider: Setting up auth listener...");
+    console.log("[AuthContext] AuthProvider: Setting up Firebase auth listener...");
     setLoading(true); // Ensure loading is true when listener might trigger
 
     const unsubscribe = onAuthStateChangedListener((user) => {
-      console.log("AuthProvider: Auth state changed. User:", user?.email ?? 'null');
+      console.log(`[AuthContext] AuthProvider: onAuthStateChangedListener callback received user:`, user ? JSON.parse(JSON.stringify(user)) : null);
       setCurrentUser(user);
       setLoading(false); // Set loading to false ONLY after the first callback
     });
 
     // Cleanup function
     return () => {
-        console.log("AuthProvider: Cleaning up auth listener.");
+        console.log("[AuthContext] AuthProvider: Cleaning up Firebase auth listener.");
         unsubscribe();
     }
-  }, []); // Empty dependency array ensures this runs only once on mount
+  }, []); 
+
+  // Log currentUser whenever it changes for debugging
+  useEffect(() => {
+    console.log(`[AuthContext] AuthProvider: currentUser state updated in context. CurrentUser:`, currentUser ? JSON.parse(JSON.stringify(currentUser)) : null, `Loading: ${loading}`);
+  }, [currentUser, loading]);
 
   const signOut = async () => {
-    console.log("AuthProvider: Signing out user...");
+    console.log("[AuthContext] AuthProvider: Signing out user...");
     try {
         await firebaseSignOut();
         setCurrentUser(null); // Clear user state immediately
-        console.log("AuthProvider: Sign out successful, redirecting to login.");
+        console.log("[AuthContext] AuthProvider: Sign out successful, redirecting to login.");
         router.push('/login'); // Redirect to login after sign out
     } catch (error) {
-        console.error("AuthProvider: Error signing out:", error);
-        // Optionally show a toast message here
+        console.error("[AuthContext] AuthProvider: Error signing out:", error);
     }
   };
 
-  // Memoize the context value to prevent unnecessary re-renders
   const value = useMemo(() => ({
     currentUser,
     loading,
     signOut,
-  }), [currentUser, loading]); // Include signOut if its definition could change, though unlikely here
+  }), [currentUser, loading, signOut]); // Added signOut to memo dependencies
 
-  // Render children only after the initial loading is complete.
-  // This prevents rendering protected routes before auth state is known.
   return (
       <AuthContext.Provider value={value}>
           {children}

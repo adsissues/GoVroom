@@ -16,19 +16,22 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const { toast } = useToast();
 
   useEffect(() => {
+    const userEmail = currentUser?.email ?? 'N/A';
+    const userRole = currentUser?.role ?? 'N/A';
     console.log(
-      `[AdminLayout Effect Triggered] Auth Loading: ${authLoading}, User Email: ${currentUser?.email ?? 'N/A'}, User Role: ${currentUser?.role ?? 'N/A'}`
+      `[AdminLayout Effect Triggered] Auth Loading: ${authLoading}, User Email: ${userEmail}, User Role: ${userRole}`
     );
 
     if (!authLoading) {
       console.log('[AdminLayout Effect] Auth loading is complete. Checking user role...');
       const isUserPresent = !!currentUser;
-      const userRole = currentUser?.role;
-      console.log(`[AdminLayout Effect] User Present: ${isUserPresent}, User Role (from context): ${userRole}`);
+      // Re-fetch role from context to be absolutely sure, though userRole above should be same
+      const contextUserRole = currentUser?.role; 
+      console.log(`[AdminLayout Effect] User Present: ${isUserPresent}, User Role (from context): ${contextUserRole}`);
 
-      if (!currentUser || currentUser.role !== 'admin') {
+      if (!currentUser || contextUserRole !== 'admin') {
         console.warn(
-          `[AdminLayout Effect] Access Denied. User: ${currentUser?.email ?? 'None'}, Role: ${currentUser?.role ?? 'None'}. Redirecting to /dashboard.`
+          `[AdminLayout Effect] Access Denied. User: ${userEmail}, Role (from context): ${contextUserRole}. Redirecting to /dashboard.`
         );
         toast({
           title: 'Access Denied',
@@ -53,10 +56,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // This part primarily handles the UI display while the redirect from useEffect might be happening.
-  // The useEffect is the main gatekeeper for access.
   if (!currentUser || currentUser.role !== 'admin') {
     console.log(`[AdminLayout Rendering] No current user or user is not admin after auth load. User Email: ${currentUser?.email}, Role: ${currentUser?.role}. Showing Access Denied message.`);
+    // Note: The redirect in useEffect should handle navigation, this is a fallback UI.
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)] p-4">
         <Alert variant="destructive" className="max-w-lg">
