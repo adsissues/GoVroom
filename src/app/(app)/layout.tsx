@@ -17,6 +17,11 @@ import {
 export default function AuthenticatedAppLayout({ children }: { children: ReactNode }) {
   const renderStartTime = useRef(Date.now());
   const effectExecutionCount = useRef(0);
+  // Store previous values of dependencies to log changes
+  const prevCurrentUser = useRef(useAuth().currentUser);
+  const prevAuthLoading = useRef(useAuth().loading);
+  const prevPathname = useRef(usePathname());
+
 
   const { currentUser, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -27,30 +32,33 @@ export default function AuthenticatedAppLayout({ children }: { children: ReactNo
   useEffect(() => {
     const effectId = effectExecutionCount.current++;
     const effectStartTime = Date.now();
-    // console.log(`[AuthenticatedAppLayout EFFECT #${effectId} START] Path: ${pathname}, Auth Loading: ${authLoading}, User Email: ${currentUser?.email ?? 'None'}, Dependencies: currentUser changed: ${currentUser !== prevCurrentUser.current}, authLoading changed: ${authLoading !== prevAuthLoading.current}, pathname changed: ${pathname !== prevPathname.current}`);
-    // console.log(`[AuthenticatedAppLayout EFFECT #${effectId} START] Path: ${pathname}, Auth Loading: ${authLoading}, User Email: ${currentUser?.email ?? 'None'}`);
-
+    console.log(`[AuthenticatedAppLayout EFFECT #${effectId} START] Path: ${pathname}, Auth Loading: ${authLoading}, User Email: ${currentUser?.email ?? 'None'}, User changed: ${currentUser !== prevCurrentUser.current}, AuthLoading changed: ${authLoading !== prevAuthLoading.current}, Pathname changed: ${pathname !== prevPathname.current}`);
 
     if (!authLoading && !currentUser) {
-      // console.log(`[AuthenticatedAppLayout EFFECT #${effectId}] No user found after auth check, redirecting to login from path: ${pathname}`);
+      console.log(`[AuthenticatedAppLayout EFFECT #${effectId}] No user found after auth check, redirecting to login from path: ${pathname}`);
       router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
     } else if (!authLoading && currentUser) {
-      // console.log(`[AuthenticatedAppLayout EFFECT #${effectId}] User authenticated. Email: ${currentUser.email}, Role: ${currentUser.role}`);
+      console.log(`[AuthenticatedAppLayout EFFECT #${effectId}] User authenticated. Email: ${currentUser.email}, Role: ${currentUser.role}`);
     } else if (authLoading) {
-      // console.log(`[AuthenticatedAppLayout EFFECT #${effectId}] Auth is still loading.`);
-    } else {
-      // console.log(`[AuthenticatedAppLayout EFFECT #${effectId}] Auth loaded but no user (should have been caught by redirect).`);
+      console.log(`[AuthenticatedAppLayout EFFECT #${effectId}] Auth is still loading.`);
     }
-    // console.log(`[AuthenticatedAppLayout EFFECT #${effectId} END] Duration: ${Date.now() - effectStartTime}ms`);
+
+    // Update refs for next effect run
+    prevCurrentUser.current = currentUser;
+    prevAuthLoading.current = authLoading;
+    prevPathname.current = pathname;
+
+    console.log(`[AuthenticatedAppLayout EFFECT #${effectId} END] Duration: ${Date.now() - effectStartTime}ms`);
   }, [currentUser, authLoading, router, pathname]);
 
   useEffect(() => {
-    // console.log(`[AuthenticatedAppLayout] Render END. Total component render duration: ${Date.now() - renderStartTime.current}ms. Path: ${pathname}`);
-    renderStartTime.current = Date.now(); // Reset for the next render cycle measurement
+    const currentRenderTime = Date.now();
+    console.log(`[AuthenticatedAppLayout] Render END. Total component render duration: ${currentRenderTime - renderStartTime.current}ms. Path: ${pathname}`);
+    renderStartTime.current = currentRenderTime; // Reset for the next render cycle measurement
   });
 
   if (authLoading) {
-    // console.log("[AuthenticatedAppLayout] Rendering: Auth is loading, showing Loader component...");
+    console.log("[AuthenticatedAppLayout] Rendering: Auth is loading, showing Loader component...");
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center space-y-4 p-4 text-center">
@@ -62,7 +70,7 @@ export default function AuthenticatedAppLayout({ children }: { children: ReactNo
   }
 
   if (!currentUser) {
-    // console.log("[AuthenticatedAppLayout] Rendering: No current user after auth load (redirect should be in progress). Showing redirect message.");
+    console.log("[AuthenticatedAppLayout] Rendering: No current user after auth load (redirect should be in progress). Showing redirect message.");
      return (
         <div className="flex h-screen w-screen items-center justify-center bg-background">
           <p className="text-muted-foreground">Redirecting to login...</p>
@@ -70,22 +78,20 @@ export default function AuthenticatedAppLayout({ children }: { children: ReactNo
      );
    }
 
-  // console.log(`[AuthenticatedAppLayout] Rendering: User authenticated (${currentUser.email}, Role: ${currentUser.role}), rendering main layout with children. Path: ${pathname}`);
+  console.log(`[AuthenticatedAppLayout] Rendering: User authenticated (${currentUser.email}, Role: ${currentUser.role}), rendering main layout with children. Path: ${pathname}`);
   return (
-    <SidebarProvider defaultOpen={false}> {/* Sidebar hidden by default */}
-      <div className="flex h-screen bg-background">
-        <UiConfigurableSidebar> {/* This is the Sidebar from components/ui/sidebar.tsx */}
-          <AppSidebar /> {/* AppSidebar now renders the *content* for UiConfigurableSidebar */}
+    <SidebarProvider defaultOpen={false}>
+      <div className="flex h-screen bg-background"> {/* Full screen height flex container */}
+        <UiConfigurableSidebar> {/* Sidebar component */}
+          <AppSidebar /> {/* Sidebar content */}
         </UiConfigurableSidebar>
         
-        <SidebarInset> {/* SidebarInset is a <main> tag, styled as flex-col, flex-1 (horizontally) */}
-          {/* This inner div makes AppHeader and the content area fill SidebarInset vertically */}
-          <div className="flex flex-1 flex-col overflow-hidden"> 
-            <AppHeader /> {/* AppHeader will contain the SidebarTrigger */}
-            {/* This div is for the scrollable page content itself */}
-            <div className="flex-1 overflow-y-auto bg-secondary/50 p-4 md:p-6 lg:p-8">
-              {children}
-            </div>
+        {/* SidebarInset is a <main> tag, styled as flex-col, flex-1 (horizontally) */}
+        <SidebarInset> 
+          <AppHeader /> {/* Header, fixed height. This is the first flex child of SidebarInset. */}
+          {/* This div is the second flex child and should take remaining vertical space and be scrollable */}
+          <div className="flex-1 overflow-y-auto bg-secondary/50 p-4 md:p-6 lg:p-8">
+            {children}
           </div>
         </SidebarInset>
       </div>
