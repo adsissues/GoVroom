@@ -1,11 +1,10 @@
 
 "use client";
 import Link from 'next/link';
-import { Bell, UserCircle, Search, LogOut, Sun, Moon, Menu, PackageSearch, LayoutDashboard, ListChecks, Eye, PlusCircle, Settings } from 'lucide-react';
+import { Bell, UserCircle, LogOut, Sun, Moon, Menu, PackageSearch, LayoutDashboard, Eye, PlusCircle, Settings, ListChecks } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { APP_NAME } from '@/lib/constants'; // SIDEBAR_NAV_ITEMS no longer used here directly
-import { usePathname, useRouter } from 'next/navigation';
+import { APP_NAME } from '@/lib/constants';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
@@ -17,29 +16,12 @@ import {
   DropdownMenuTrigger,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuGroup, // Added for grouping
+  DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from '../ui/skeleton';
-// SidebarTrigger is no longer needed as the sidebar is removed
-
-// const getPageTitle = (pathname: string): string => {
-//   // This function might need adjustment if page titles were heavily reliant on sidebar structure
-//   // For now, we'll simplify or use a direct approach based on current path.
-//   if (pathname.startsWith('/dashboard')) return 'Dashboard';
-//   if (pathname.startsWith('/shipments/new')) return 'Add New Shipment';
-//   if (pathname.startsWith('/shipments/')) return 'Shipment Details';
-//   if (pathname.startsWith('/shipments')) return 'Shipments';
-//   if (pathname.startsWith('/admin/dropdowns')) return 'Dropdown Management';
-//   if (pathname.startsWith('/admin/settings')) return 'Application Settings';
-//   if (pathname.startsWith('/admin/users')) return 'User Management';
-//   if (pathname.startsWith('/admin')) return 'Admin Dashboard';
-//   return APP_NAME;
-// };
 
 
 export default function AppHeader() {
-  const pathname = usePathname();
-  // const pageTitle = getPageTitle(pathname); // Simplified title logic for now
   const { currentUser, signOut, loading: authLoading } = useAuth();
   const { theme, setTheme } = useTheme();
   const router = useRouter();
@@ -58,11 +40,6 @@ export default function AppHeader() {
         </Link>
       </div>
 
-      {/* Page Title - Can be more dynamic if needed, or removed if redundant with header context */}
-      {/* <h1 className="text-lg font-semibold text-foreground md:text-xl">
-        {pageTitle}
-      </h1> */}
-
       <div className="flex items-center gap-1 md:gap-2">
         {/* Main Navigation Dropdown Menu */}
         <DropdownMenu>
@@ -78,30 +55,20 @@ export default function AppHeader() {
               <LayoutDashboard className="mr-2 h-4 w-4" />
               <span>Dashboard</span>
             </DropdownMenuItem>
-            <DropdownMenuGroup> {/* Grouping shipment related items */}
-              <DropdownMenuItem onClick={() => handleNavigation('/dashboard')} className="cursor-pointer">
-                <ListChecks className="mr-2 h-4 w-4" /> {/* Icon for Pending/Completed */}
-                <span>Pending Shipments</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleNavigation('/dashboard')} className="cursor-pointer">
-                <ListChecks className="mr-2 h-4 w-4" />
-                <span>Completed Shipments</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleNavigation('/shipments')} className="cursor-pointer">
-                <Eye className="mr-2 h-4 w-4" />
-                <span>View All Shipments</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleNavigation('/shipments/new')} className="cursor-pointer">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                <span>Add New Shipment</span>
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
+            <DropdownMenuItem onClick={() => handleNavigation('/shipments')} className="cursor-pointer">
+              <Eye className="mr-2 h-4 w-4" />
+              <span>View All</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleNavigation('/shipments/new')} className="cursor-pointer">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              <span>Add New</span>
+            </DropdownMenuItem>
             {currentUser?.role === 'admin' && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => handleNavigation('/admin')} className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" />
-                  <span>Admin Section</span>
+                  <span>Admin</span>
                 </DropdownMenuItem>
               </>
             )}
