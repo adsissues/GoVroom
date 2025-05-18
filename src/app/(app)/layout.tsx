@@ -1,24 +1,30 @@
 
 "use client"; // This layout needs client-side hooks for auth and navigation
 import type { ReactNode } from 'react';
-import { useEffect, useRef } from 'react'; // Added useRef
-import AppSidebar from '@/components/layout/app-sidebar';
+import { useEffect, useRef } from 'react';
+import AppSidebar from '@/components/layout/app-sidebar'; // This will render the content for the new Sidebar
 import AppHeader from '@/components/layout/app-header';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
-import { Skeleton } from '@/components/ui/skeleton'; // For loading state
-import { Loader2 } from 'lucide-react'; // For loading spinner
+import { Skeleton } from '@/components/ui/skeleton';
+import { Loader2 } from 'lucide-react';
+import {
+  SidebarProvider,
+  Sidebar as UiConfigurableSidebar, // Renamed to avoid conflict with AppSidebar import if any
+  SidebarInset,
+} from '@/components/ui/sidebar';
 
 export default function AuthenticatedAppLayout({ children }: { children: ReactNode }) {
   const renderStartTime = useRef(Date.now());
   const effectExecutionCount = useRef(0);
 
-  // Logging at the very start of the component function body
-  console.log(`[AuthenticatedAppLayout] Render START. Path: ${usePathname()}, Auth Loading: ${useAuth().loading}, User: ${useAuth().currentUser?.email ?? 'None'}`);
-
   const { currentUser, loading: authLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+
+  // Logging at the very start of the component function body
+  console.log(`[AuthenticatedAppLayout] Render START. Path: ${pathname}, Auth Loading: ${authLoading}, User: ${currentUser?.email ?? 'None'}`);
+
 
   useEffect(() => {
     const effectId = effectExecutionCount.current++;
@@ -36,12 +42,10 @@ export default function AuthenticatedAppLayout({ children }: { children: ReactNo
       console.log(`[AuthenticatedAppLayout EFFECT #${effectId}] Auth loaded but no user (should have been caught by redirect).`);
     }
     console.log(`[AuthenticatedAppLayout EFFECT #${effectId} END] Duration: ${Date.now() - effectStartTime}ms`);
-  }, [currentUser, authLoading, router, pathname]); // Dependencies for the effect
+  }, [currentUser, authLoading, router, pathname]);
 
-  // Log total render time for the layout component itself. Runs after every render.
   useEffect(() => {
     console.log(`[AuthenticatedAppLayout] Render END. Total component render duration: ${Date.now() - renderStartTime.current}ms. Path: ${pathname}`);
-    // Reset start time for the next potential render measurement
     renderStartTime.current = Date.now();
   });
 
@@ -68,14 +72,20 @@ export default function AuthenticatedAppLayout({ children }: { children: ReactNo
 
   console.log(`[AuthenticatedAppLayout] Rendering: User authenticated (${currentUser.email}, Role: ${currentUser.role}), rendering main layout with children. Path: ${pathname}`);
   return (
-    <div className="flex h-screen bg-background">
-      <AppSidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <AppHeader />
-        <main className="flex-1 overflow-y-auto bg-secondary/50 p-4 md:p-6 lg:p-8">
-          {children}
-        </main>
+    <SidebarProvider defaultOpen={false}> {/* Sidebar hidden by default */}
+      <div className="flex h-screen bg-background">
+        <UiConfigurableSidebar> {/* This is the Sidebar from components/ui/sidebar.tsx */}
+          <AppSidebar /> {/* AppSidebar now renders the *content* for UiConfigurableSidebar */}
+        </UiConfigurableSidebar>
+        <SidebarInset> {/* This wraps the main content that shifts */}
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <AppHeader /> {/* AppHeader will contain the SidebarTrigger */}
+            <main className="flex-1 overflow-y-auto bg-secondary/50 p-4 md:p-6 lg:p-8">
+              {children}
+            </main>
+          </div>
+        </SidebarInset>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }

@@ -1,13 +1,13 @@
 
 "use client";
-import { Bell, UserCircle, Search, LogOut, Sun, Moon } from 'lucide-react'; // Added Sun, Moon
+import { Bell, UserCircle, Search, LogOut, Sun, Moon, Menu } from 'lucide-react'; // Added Menu
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { APP_NAME, SIDEBAR_NAV_ITEMS } from '@/lib/constants';
 import type { NavItem } from '@/lib/constants';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext'; // Import useTheme
+import { useTheme } from '@/contexts/ThemeContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,26 +18,23 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
-import { Skeleton } from '../ui/skeleton'; // For loading state
+import { Skeleton } from '../ui/skeleton';
+import { SidebarTrigger } from '@/components/ui/sidebar'; // Import SidebarTrigger
 
-// Helper to get page title from path, searching through NavItems
 const getPageTitle = (pathname: string): string => {
     const findTitle = (items: NavItem[], currentPath: string): string | null => {
         for (const item of items) {
-            // Exact match or prefix match for parent items
             const isActive = item.matchExact
                 ? currentPath === item.href
                 : currentPath.startsWith(item.href);
 
             if (isActive) {
-                 // If it's a parent, prefer child match if available
                  if (item.children) {
                     const childTitle = findTitle(item.children, currentPath);
                     if (childTitle) return childTitle;
                  }
-                 return item.title; // Return parent title if no specific child matches
+                 return item.title;
             }
-            // Check children recursively even if parent isn't active (for nested paths)
             if (item.children) {
                  const childTitle = findTitle(item.children, currentPath);
                  if (childTitle) return childTitle;
@@ -48,16 +45,14 @@ const getPageTitle = (pathname: string): string => {
 
     const title = findTitle(SIDEBAR_NAV_ITEMS, pathname);
 
-    // Specific overrides if needed
     if (pathname.startsWith('/shipments/') && pathname !== '/shipments/new' && pathname !== '/shipments') {
         return 'Shipment Details';
     }
      if (pathname.startsWith('/admin/') && pathname !== '/admin/dropdowns' && pathname !== '/admin/settings') {
-         return 'Admin Dashboard'; // Default admin title
+         return 'Admin Dashboard';
      }
 
-
-    return title || APP_NAME; // Fallback to App Name
+    return title || APP_NAME;
 };
 
 
@@ -65,20 +60,22 @@ export default function AppHeader() {
   const pathname = usePathname();
   const pageTitle = getPageTitle(pathname);
   const { currentUser, signOut, loading: authLoading } = useAuth();
-  const { theme, setTheme, resolvedTheme } = useTheme(); // Get theme context
+  const { theme, setTheme } = useTheme();
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b bg-card px-4 md:px-6 shadow-sm sticky top-0 z-30">
-      {/* Page Title */}
-      <div>
+      <div className="flex items-center gap-2">
+        {/* Sidebar Trigger - will be handled by ui/sidebar's own trigger if collapsible="icon" mode is used for desktop */}
+        {/* The ui/sidebar.tsx includes a SidebarTrigger, let's use that. It can be styled or conditionally rendered. */}
+        <SidebarTrigger className="h-7 w-7 text-muted-foreground hover:text-foreground" />
+        
+        {/* Page Title */}
         <h1 className="text-lg font-semibold text-foreground md:text-xl">
           {pageTitle}
         </h1>
       </div>
 
-      {/* Right Side Actions */}
       <div className="flex items-center gap-2 md:gap-4">
-        {/* Theme Toggle Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full" aria-label="Toggle theme">
@@ -98,14 +95,11 @@ export default function AppHeader() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-
-        {/* Notification Bell */}
         <Button variant="ghost" size="icon" className="rounded-full" aria-label="Notifications">
           <Bell className="h-5 w-5 text-muted-foreground" />
           <span className="sr-only">Toggle notifications</span>
         </Button>
 
-        {/* User Profile Dropdown */}
         {authLoading ? (
              <Skeleton className="h-8 w-8 rounded-full" />
         ) : currentUser ? (
