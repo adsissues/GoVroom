@@ -16,7 +16,6 @@ import {
   DropdownMenuTrigger,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from '../ui/skeleton';
 
@@ -68,10 +67,7 @@ export default function AppHeader() {
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Admin</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => handleNavigation('/admin')} className="cursor-pointer">
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Admin Dashboard</span>
-                </DropdownMenuItem>
+                {/* Removed: Admin Dashboard link to /admin */}
                 <DropdownMenuItem onClick={() => handleNavigation('/admin/dropdowns')} className="cursor-pointer">
                   <ListChecks className="mr-2 h-4 w-4" />
                   <span>Manage Dropdowns</span>
@@ -152,3 +148,4 @@ export default function AppHeader() {
     </header>
   );
 }
+
