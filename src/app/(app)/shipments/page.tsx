@@ -28,7 +28,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
-
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
 
 const formatDate = (timestamp: Timestamp | Date | undefined): string => {
     if (!timestamp) return 'N/A';
@@ -49,22 +49,30 @@ export default function ShipmentsPage() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { toast } = useToast();
+  const { currentUser } = useAuth(); // Get current user for role check
+
+  const isAdmin = currentUser?.role === 'admin';
 
   const fetchShipments = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    try {
-      const data = await getAllShipments();
-      setAllShipments(data);
-      setFilteredShipments(data); 
-    } catch (err) {
-      console.error("Error fetching shipments:", err);
-      setError(err instanceof Error ? err.message : "Failed to load shipments.");
-      setAllShipments([]); 
-      setFilteredShipments([]);
-    } finally {
-      setIsLoading(false);
-    }
+    // Temporarily disabling fetching all shipments to test layout performance
+    // try {
+    //   const data = await getAllShipments();
+    //   setAllShipments(data);
+    //   setFilteredShipments(data); 
+    // } catch (err) {
+    //   console.error("Error fetching shipments:", err);
+    //   setError(err instanceof Error ? err.message : "Failed to load shipments.");
+    //   setAllShipments([]); 
+    //   setFilteredShipments([]);
+    // } finally {
+    //   setIsLoading(false);
+    // }
+    console.log("ShipmentsPage: Fetching has been temporarily disabled for performance testing. Using empty array.");
+    setAllShipments([]);
+    setFilteredShipments([]);
+    setIsLoading(false);
   }, []); 
 
   useEffect(() => {
@@ -111,9 +119,20 @@ export default function ShipmentsPage() {
     setFilteredShipments(result);
   }, [allShipments]); 
 
- const handleDelete = async (id: string) => {
+ const handleDelete = async (shipmentToConfirmDelete: Shipment) => {
+    if (!shipmentToConfirmDelete) return;
+    const { id, status } = shipmentToConfirmDelete;
+
+    if (status === 'Completed' && !isAdmin) {
+      toast({
+        variant: "destructive",
+        title: "Deletion Denied",
+        description: "Completed shipments can only be deleted by an administrator.",
+      });
+      return;
+    }
+
     try {
-      // Check if shipment has details before deleting
       const detailsCount = await getShipmentDetailsCount(id);
       if (detailsCount > 0) {
         toast({
@@ -195,7 +214,7 @@ export default function ShipmentsPage() {
                         {filteredShipments.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                                No shipments found matching your criteria.
+                                No shipments found matching your criteria. (Or fetching is currently disabled for testing).
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -225,7 +244,13 @@ export default function ShipmentsPage() {
                                     </Link>
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" title="Delete">
+                                            <Button 
+                                              variant="ghost" 
+                                              size="icon" 
+                                              className="text-destructive hover:text-destructive hover:bg-destructive/10" 
+                                              title="Delete"
+                                              disabled={shipment.status === 'Completed' && !isAdmin && (allShipments.find(s => s.id === shipment.id)?.totalItems ?? 0) > 0} // Example, actual disabling logic might be more complex
+                                            >
                                                 <Trash2 className="h-4 w-4" />
                                                  <span className="sr-only">Delete</span>
                                             </Button>
@@ -235,14 +260,16 @@ export default function ShipmentsPage() {
                                                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                                 <AlertDialogDescription>
                                                     This action cannot be undone. This will permanently delete the shipment{' '}
-                                                    <strong className="break-all">{shipment.id}</strong> and all its associated details (if any).
+                                                    <strong className="break-all">{shipment.id}</strong>.
+                                                    {shipment.status === 'Completed' && !isAdmin && " Regular users cannot delete completed shipments."}
                                                 </AlertDialogDescription>
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
                                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                 <AlertDialogAction
-                                                    onClick={() => handleDelete(shipment.id)}
+                                                    onClick={() => handleDelete(shipment)}
                                                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                    disabled={shipment.status === 'Completed' && !isAdmin}
                                                 >
                                                     Delete Shipment
                                                 </AlertDialogAction>
@@ -263,3 +290,4 @@ export default function ShipmentsPage() {
     </div>
   );
 }
+
