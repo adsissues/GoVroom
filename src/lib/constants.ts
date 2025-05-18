@@ -22,45 +22,35 @@ import {
   UserCog, // For User Management (Admin) & App Settings
   Sheet, // For CSV Import/Export icon
   Users2, // Icon for User Management
+  ListChecks, // Icon for Dropdown Management in AppHeader
+  Menu // Icon for main navigation menu
 } from 'lucide-react';
 import type React from 'react'; // Import React for type React.ElementType
 
 
 export const APP_NAME = "GoVroom";
 
-// For sidebar navigation
-export interface NavItem {
+// For main navigation menu in AppHeader
+export interface NavMenuItem {
   title: string;
   href: string;
   icon: React.ElementType;
   adminOnly?: boolean;
-  children?: NavItem[];
-  matchExact?: boolean; // Optional: for precise active link matching
 }
 
-export const SIDEBAR_NAV_ITEMS: NavItem[] = [
-  { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, matchExact: true },
-  {
-    title: 'Shipments',
-    href: '/shipments',
-    icon: Truck,
-    children: [
-      { title: 'View All', href: '/shipments', icon: List, matchExact: true },
-      { title: 'Add New', href: '/shipments/new', icon: PlusCircle, matchExact: true },
-    ],
-  },
-  {
-    title: 'Admin',
-    href: '/admin',
-    icon: Settings,
-    adminOnly: true,
-    children: [
-      { title: 'Dropdowns', href: '/admin/dropdowns', icon: List, adminOnly: true },
-      { title: 'Settings', href: '/admin/settings', icon: UserCog, adminOnly: true },
-      { title: 'User Management', href: '/admin/users', icon: Users2, adminOnly: true },
-    ]
-  },
+export const HEADER_NAV_ITEMS: NavMenuItem[] = [
+  { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { title: 'View All Shipments', href: '/shipments', icon: List },
+  { title: 'Add New Shipment', href: '/shipments/new', icon: PlusCircle },
 ];
+
+export const ADMIN_NAV_ITEMS: NavMenuItem[] = [
+  // { title: 'Admin Dashboard', href: '/admin', icon: Settings, adminOnly: true }, // Removed as per user request
+  { title: 'Manage Dropdowns', href: '/admin/dropdowns', icon: ListChecks, adminOnly: true },
+  { title: 'App Settings', href: '/admin/settings', icon: UserCog, adminOnly: true },
+  { title: 'User Management', href: '/admin/users', icon: Users2, adminOnly: true },
+];
+
 
 // Constants for Dropdown Management (used in Admin UI and Forms)
 export interface DropdownCollectionConfig {
@@ -76,41 +66,45 @@ export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
   { id: 'services', name: 'Services', description: 'Manage shipment service types', icon: Wrench },
   // These are the collections that will hold the format options specific to each service.
   // The 'id' here MUST match the value used in SERVICE_FORMAT_MAPPING below.
-  { id: 'formats_prior', name: 'Formats (Priority)', description: 'Manage formats for "Priority" service', icon: Boxes },
-  { id: 'formats_eco', name: 'Formats (Economy)', description: 'Manage formats for "Economy" service', icon: Boxes },
-  { id: 'formats_s3c', name: 'Formats (S3C)', description: 'Manage formats for "S3C" service', icon: Boxes },
+  { id: 'formats_prior', name: 'Formats (Priority)', description: 'Manage formats for "Priority" service (e.g., service value "e", "prior", "priority")', icon: Boxes },
+  { id: 'formats_eco', name: 'Formats (Economy)', description: 'Manage formats for "Economy" service (e.g., service value "c", "eco", "economy")', icon: Boxes },
+  { id: 'formats_s3c', name: 'Formats (S3C)', description: 'Manage formats for "S3C" service (e.g., service value "s", "s3c")', icon: Boxes },
   { id: 'doe', name: 'DOE', description: 'Manage Date of Entry options', icon: CalendarDays },
 ];
 
 /**
  * Mapping for service-specific format collections.
- * IMPORTANT: The keys in this object MUST match the *value* field (converted to lowercase)
+ * The keys in this object MUST match the *value* field (converted to lowercase)
  * from your '/services' Firestore collection.
- *
  * The application code will convert the selected service's value to lowercase before
  * looking it up in this map.
  *
  * Example:
- * If a service document in your '/services' Firestore collection has:
- *   { label: "Priority Express Mail", value: "priority_express_mail" } // value field
+ * If a service document in your '/services' Firestore collection for "Priority" has:
+ *   { label: "Priority Express Mail", value: "PRIORITY_EXPRESS_MAIL" }
  *
- * Then the mapping here MUST include:
- *   'priority_express_mail': 'formats_prior' // key is the lowercase version of the value field
+ * Then the mapping here MUST include a key that is the lowercase version:
+ *   'priority_express_mail': 'formats_prior'
  */
 export const SERVICE_FORMAT_MAPPING: { [serviceValueKey: string]: string | null } = {
-  // --- IMPORTANT: Update these keys to match your Firestore /services `value` fields (in lowercase) ---
-  'e': 'formats_prior',              // Example: "Prior" service has value: "E" in Firestore
-  'priority': 'formats_prior',
+  // --- IMPORTANT: Update these keys to match YOUR Firestore /services `value` fields (in lowercase) ---
+  // Example for "Prior" service (if its Firestore `value` is "E" or "prior" or "priority")
+  'e': 'formats_prior',
   'prior': 'formats_prior',
+  'priority': 'formats_prior',
 
-  'c': 'formats_eco',                // Example: "Eco" service has value: "C" in Firestore
-  'economy': 'formats_eco',
+  // Example for "Economy" service (if its Firestore `value` is "C" or "eco" or "economy")
+  'c': 'formats_eco',
   'eco': 'formats_eco',
+  'economy': 'formats_eco',
 
-  's': 'formats_s3c',                // Example: "S3C" service has value: "S" in Firestore
+  // Example for "S3C" service (if its Firestore `value` is "S" or "s3c")
+  's': 'formats_s3c',
   's3c': 'formats_s3c',
-  // 'another_service_value': 'formats_another',
-  // 'service_without_formats': null,
+
+  // Add other service value mappings here as needed:
+  // 'another_service_value_lowercase': 'formats_another_service_collection_id',
+  // 'service_without_formats_lowercase': null, // For services that don't have formats
 };
 
 
@@ -118,9 +112,9 @@ export const SERVICE_FORMAT_MAPPING: { [serviceValueKey: string]: string | null 
 export const DEFAULT_SENDER_ADDRESS = "Asendia UK, Unit 5, The Hub, Solent Business Park, Fareham, PO15 7FH";
 export const DEFAULT_CONSIGNEE_ADDRESS = "La Poste, Avenue de la Poste, 75000 Paris, France";
 
-// Value for Asendia customer (used in Shipment Calculations feature)
-// Ensure this value matches a 'value' in your 'customers' Firestore collection.
-export const ASENDIA_CUSTOMER_VALUE = "asendia";
+// Value for Asendia customer (used in ShipmentDetailForm for defaults)
+// Ensure this value EXACTLY matches a 'value' in your 'customers' Firestore collection for "Asendia UK".
+export const ASENDIA_CUSTOMER_VALUE = "12345678"; // Updated as per your last input
 
 
 // Constants for calculations (used in Details Form & Shipment Calculations features)
@@ -128,11 +122,14 @@ export const TARE_WEIGHT_DEFAULT = 25.7; // Default tare weight if no bags
 export const BAG_WEIGHT_MULTIPLIER = 0.125; // Weight per bag in kg
 
 // For dashboard summary cards
-export const DASHBOARD_STATS_MAP: { [key: string]: { title: string; icon: React.ElementType; unit?: string; bgColorClass: string; textColorClass: string } } = {
-  pendingShipments: { title: "Pending Shipments", icon: AlertTriangle, bgColorClass: "bg-amber-100", textColorClass: "text-amber-600" },
-  completedShipments: { title: "Completed Shipments", icon: CheckCircle2, bgColorClass: "bg-green-100", textColorClass: "text-green-600" },
-  // totalGrossWeightSum is marked as isUnavailable: true in DashboardPage, as it requires backend aggregation.
-  totalGrossWeightSum: { title: "Total Gross Weight", icon: Weight, unit: "kg", bgColorClass: "bg-blue-100", textColorClass: "text-blue-600" },
-  lastUpdated: { title: "Last Updated", icon: CalendarDays, unit: "", bgColorClass: "bg-gray-100", textColorClass: "text-gray-600" },
+export const DASHBOARD_STATS_MAP: { [key: string]: { title: string; icon: React.ElementType; unit?: string; bgColorClass: string; textColorClass: string, isUnavailable?: boolean } } = {
+  pendingCount: { title: "Pending Shipments", icon: AlertTriangle, bgColorClass: "bg-amber-100", textColorClass: "text-amber-600" },
+  completedCount: { title: "Completed Shipments", icon: CheckCircle2, bgColorClass: "bg-green-100", textColorClass: "text-green-600" },
+  totalGrossWeightSum: { title: "Total Gross Weight", icon: Weight, unit: "kg", bgColorClass: "bg-blue-100", textColorClass: "text-blue-600", isUnavailable: true }, // Requires backend aggregation
+  lastUpdateTimestamp: { title: "Last Updated", icon: CalendarDays, unit: "", bgColorClass: "bg-gray-100", textColorClass: "text-gray-600" },
 };
 
+// Value for the default "Prior" service in the ShipmentDetailForm
+// Ensure this matches the 'value' field of your "Prior" service document in Firestore.
+// Common values might be "prior", "e", "priority", etc.
+export const DEFAULT_PRIOR_SERVICE_ID = "prior";
