@@ -14,11 +14,11 @@ export default function AdminRootPage() {
                <Settings className="h-6 w-6 text-primary" />
               <CardTitle className="text-2xl">Admin Dashboard</CardTitle>
            </div>
-          <CardDescription>Welcome to the administration area. Use the sidebar to manage application settings and data.</CardDescription>
+          <CardDescription>Welcome to the administration area. Use the main navigation menu (top-right) to manage application settings and data.</CardDescription>
         </CardHeader>
         <CardContent>
           <p>
-            Select an option from the Admin menu in the sidebar to manage dropdowns, settings, or other administrative tasks.
+            Select an option like "Dropdowns", "Settings", or "User Management" from the "Admin" section of the main navigation menu to manage administrative tasks.
           </p>
           {/* Add links or quick actions here later if needed */}
           {/* Example:
