@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Edit, Trash2, AlertTriangle, Eye, Loader2 } from 'lucide-react';
+import { PlusCircle, Eye, Trash2, AlertTriangle, Loader2 } from 'lucide-react'; // Removed Edit icon as it's not used here
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SearchFilterBar from '@/components/shipments/search-filter-bar';
@@ -49,30 +49,25 @@ export default function ShipmentsPage() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { toast } = useToast();
-  const { currentUser } = useAuth(); // Get current user for role check
+  const { currentUser } = useAuth(); 
 
   const isAdmin = currentUser?.role === 'admin';
 
   const fetchShipments = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    // Temporarily disabling fetching all shipments to test layout performance
-    // try {
-    //   const data = await getAllShipments();
-    //   setAllShipments(data);
-    //   setFilteredShipments(data); 
-    // } catch (err) {
-    //   console.error("Error fetching shipments:", err);
-    //   setError(err instanceof Error ? err.message : "Failed to load shipments.");
-    //   setAllShipments([]); 
-    //   setFilteredShipments([]);
-    // } finally {
-    //   setIsLoading(false);
-    // }
-    console.log("ShipmentsPage: Fetching has been temporarily disabled for performance testing. Using empty array.");
-    setAllShipments([]);
-    setFilteredShipments([]);
-    setIsLoading(false);
+    try {
+      const data = await getAllShipments();
+      setAllShipments(data);
+      setFilteredShipments(data); 
+    } catch (err) {
+      console.error("Error fetching shipments:", err);
+      setError(err instanceof Error ? err.message : "Failed to load shipments.");
+      setAllShipments([]); 
+      setFilteredShipments([]);
+    } finally {
+      setIsLoading(false);
+    }
   }, []); 
 
   useEffect(() => {
@@ -90,9 +85,9 @@ export default function ShipmentsPage() {
       const term = filters.searchTerm.toLowerCase().trim();
       if (term) {
         result = result.filter(s =>
-          s.id.toLowerCase().includes(term) ||
-          s.carrierId?.toLowerCase().includes(term) ||
-          s.driverName?.toLowerCase().includes(term)
+          (s.id || '').toLowerCase().includes(term) || // Ensure s.id is not null
+          (s.carrierId || '').toLowerCase().includes(term) ||
+          (s.driverName || '').toLowerCase().includes(term)
         );
       }
     }
@@ -145,9 +140,9 @@ export default function ShipmentsPage() {
 
       await deleteShipment(id);
       toast({ title: "Shipment Deleted", description: `Shipment ${id} removed successfully.` });
-      const updatedShipments = allShipments.filter(s => s.id !== id);
-      setAllShipments(updatedShipments);
-      setFilteredShipments(updatedShipments); 
+      // Refetch or filter out locally
+      setAllShipments(prev => prev.filter(s => s.id !== id));
+      setFilteredShipments(prev => prev.filter(s => s.id !== id)); 
     } catch (error: any) {
       console.error("Error deleting shipment:", error);
       toast({
@@ -214,7 +209,7 @@ export default function ShipmentsPage() {
                         {filteredShipments.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                                No shipments found matching your criteria. (Or fetching is currently disabled for testing).
+                                No shipments found matching your criteria.
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -249,7 +244,7 @@ export default function ShipmentsPage() {
                                               size="icon" 
                                               className="text-destructive hover:text-destructive hover:bg-destructive/10" 
                                               title="Delete"
-                                              disabled={shipment.status === 'Completed' && !isAdmin && (allShipments.find(s => s.id === shipment.id)?.totalItems ?? 0) > 0} // Example, actual disabling logic might be more complex
+                                              disabled={(shipment.status === 'Completed' && !isAdmin)}
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                                  <span className="sr-only">Delete</span>
@@ -261,7 +256,8 @@ export default function ShipmentsPage() {
                                                 <AlertDialogDescription>
                                                     This action cannot be undone. This will permanently delete the shipment{' '}
                                                     <strong className="break-all">{shipment.id}</strong>.
-                                                    {shipment.status === 'Completed' && !isAdmin && " Regular users cannot delete completed shipments."}
+                                                    {(shipment.status === 'Completed' && !isAdmin) && " Regular users cannot delete completed shipments."}
+                                                    {(shipment.status === 'Completed' && isAdmin) && " This is a completed shipment."}
                                                 </AlertDialogDescription>
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
@@ -269,7 +265,7 @@ export default function ShipmentsPage() {
                                                 <AlertDialogAction
                                                     onClick={() => handleDelete(shipment)}
                                                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                    disabled={shipment.status === 'Completed' && !isAdmin}
+                                                    disabled={(shipment.status === 'Completed' && !isAdmin)}
                                                 >
                                                     Delete Shipment
                                                 </AlertDialogAction>
