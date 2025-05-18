@@ -10,9 +10,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { List, CheckCircle2, AlertTriangle, Loader2, Weight } from 'lucide-react'; // Icons for sections
+import { Button } from '@/components/ui/button'; // Import Button
+import { List, CheckCircle2, AlertTriangle, Loader2, Weight, CalendarDays, ChevronDown, ChevronUp } from 'lucide-react'; // Icons for sections + Chevron
 import type { Shipment } from '@/lib/types';
-import { shipmentFromFirestore, getDashboardStats } from '@/lib/firebase/shipmentsService'; // Import helper
+import { shipmentFromFirestore, getDashboardStats } from '@/lib/firebase/shipmentsService';
 import { DASHBOARD_STATS_MAP } from '@/lib/constants';
 import { format } from 'date-fns';
 
@@ -67,7 +68,7 @@ export default function DashboardPage() {
   const [dashboardStats, setDashboardStats] = useState<{
       pendingCount: number | null;
       completedCount: number | null;
-      totalGrossWeightSum: number | null; // Will be null from the service
+      totalGrossWeightSum: number | null;
       lastUpdateTimestamp: Timestamp | null;
   }>({ pendingCount: null, completedCount: null, totalGrossWeightSum: null, lastUpdateTimestamp: null });
 
@@ -77,6 +78,9 @@ export default function DashboardPage() {
   const [errorPending, setErrorPending] = useState<string | null>(null);
   const [errorCompleted, setErrorCompleted] = useState<string | null>(null);
   const [errorStats, setErrorStats] = useState<string | null>(null);
+
+  const [showAllPending, setShowAllPending] = useState(false);
+  const [showAllCompleted, setShowAllCompleted] = useState(false);
 
    // Fetch Dashboard Stats (once on load)
    useEffect(() => {
@@ -89,11 +93,10 @@ export default function DashboardPage() {
       .catch(err => {
         console.error("Error fetching dashboard stats:", err);
         setErrorStats("Failed to load dashboard statistics.");
-        // Set default/null stats on error
         setDashboardStats({ pendingCount: null, completedCount: null, totalGrossWeightSum: null, lastUpdateTimestamp: null });
       })
       .finally(() => setIsLoadingStats(false));
-  }, []); // Empty dependency array means fetch once
+  }, []);
 
 
   // Real-time listener for Pending Shipments
@@ -104,7 +107,7 @@ export default function DashboardPage() {
         collection(db, 'shipments'),
         where('status', '==', 'Pending'),
         orderBy('lastUpdated', 'desc'),
-        limit(5) // Limit to latest 5 pending
+        limit(5) // Fetch recent 5
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => shipmentFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
@@ -116,7 +119,7 @@ export default function DashboardPage() {
       setIsLoadingPending(false);
     });
 
-    return () => unsubscribe(); // Cleanup listener on unmount
+    return () => unsubscribe();
   }, []);
 
    // Real-time listener for Completed Shipments
@@ -127,7 +130,7 @@ export default function DashboardPage() {
         collection(db, 'shipments'),
         where('status', '==', 'Completed'),
         orderBy('lastUpdated', 'desc'),
-        limit(5) // Limit to latest 5 completed
+        limit(5) // Fetch recent 5
      );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => shipmentFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
@@ -139,11 +142,18 @@ export default function DashboardPage() {
       setIsLoadingCompleted(false);
     });
 
-    return () => unsubscribe(); // Cleanup listener on unmount
+    return () => unsubscribe();
   }, []);
 
 
-  const renderShipmentList = (shipments: Shipment[], isLoading: boolean, error: string | null, status: 'Pending' | 'Completed') => {
+  const renderShipmentList = (
+    shipments: Shipment[], 
+    isLoading: boolean, 
+    error: string | null, 
+    status: 'Pending' | 'Completed',
+    showAll: boolean,
+    toggleShowAll: () => void
+  ) => {
     if (isLoading) {
       return (
         <div className="space-y-4">
@@ -161,34 +171,59 @@ export default function DashboardPage() {
         </Alert>
       );
     }
-    if (shipments.length === 0) {
-      return <p className="text-muted-foreground text-center py-4">No {status.toLowerCase()} shipments found.</p>;
+    
+    const itemsToShow = showAll ? shipments : shipments.slice(0, 2);
+
+    if (itemsToShow.length === 0 && shipments.length === 0) {
+        return <p className="text-muted-foreground text-center py-4">No {status.toLowerCase()} shipments found.</p>;
     }
+    
+    if (itemsToShow.length === 0 && shipments.length > 0) {
+        // This case implies all items are hidden by "Show Less" but there are items.
+        // Should still show the "View All" button if applicable.
+    }
+
+
     return (
-      <ul className="space-y-3">
-        {shipments.map((shipment) => (
-          <li key={shipment.id}>
-            <Link href={`/shipments/${shipment.id}`}>
-              <Card className="hover:shadow-md transition-shadow duration-150 cursor-pointer border hover:border-primary/50">
-                <CardContent className="p-3 flex justify-between items-center">
-                  <div>
-                    <p className="font-semibold text-sm truncate">{shipment.carrierId} - {shipment.driverName}</p>
-                    <p className="text-xs text-muted-foreground">
-                        Departed: {formatTimestamp(shipment.departureDate)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                        Last Update: {formatTimestamp(shipment.lastUpdated)}
-                    </p>
-                  </div>
-                   <Badge variant={status === 'Completed' ? 'default' : 'secondary'} className={status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}>
-                     {shipment.status}
-                   </Badge>
-                </CardContent>
-              </Card>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <>
+        {itemsToShow.length > 0 ? (
+          <ul className="space-y-3">
+            {itemsToShow.map((shipment) => (
+              <li key={shipment.id}>
+                <Link href={`/shipments/${shipment.id}`}>
+                  <Card className="hover:shadow-md transition-shadow duration-150 cursor-pointer border hover:border-primary/50">
+                    <CardContent className="p-3 flex justify-between items-center">
+                      <div>
+                        <p className="font-semibold text-sm truncate">{shipment.carrierId} - {shipment.driverName}</p>
+                        <p className="text-xs text-muted-foreground">
+                            Departed: {formatTimestamp(shipment.departureDate)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            Last Update: {formatTimestamp(shipment.lastUpdated)}
+                        </p>
+                      </div>
+                       <Badge variant={status === 'Completed' ? 'default' : 'secondary'} className={status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}>
+                         {shipment.status}
+                       </Badge>
+                    </CardContent>
+                  </Card>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          shipments.length > 0 && !showAll && <p className="text-muted-foreground text-center py-4">Click "View All" to see shipments.</p>
+        )}
+
+        {shipments.length > 2 && (
+          <div className="mt-4 flex justify-center">
+            <Button variant="outline" onClick={toggleShowAll} size="sm">
+              {showAll ? <ChevronUp className="mr-2 h-4 w-4" /> : <ChevronDown className="mr-2 h-4 w-4" />}
+              {showAll ? 'Show Less' : `View All (${shipments.length > 5 ? '5+' : shipments.length})`}
+            </Button>
+          </div>
+        )}
+      </>
     );
   };
 
@@ -207,40 +242,18 @@ export default function DashboardPage() {
              </Alert>
          )}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-             <StatCard
-                 title={DASHBOARD_STATS_MAP.pendingShipments.title}
-                 value={dashboardStats.pendingCount}
-                 icon={DASHBOARD_STATS_MAP.pendingShipments.icon}
-                 bgColorClass={DASHBOARD_STATS_MAP.pendingShipments.bgColorClass}
-                 textColorClass={DASHBOARD_STATS_MAP.pendingShipments.textColorClass}
-                 isLoading={isLoadingStats}
-             />
-              <StatCard
-                 title={DASHBOARD_STATS_MAP.completedShipments.title}
-                 value={dashboardStats.completedCount}
-                 icon={DASHBOARD_STATS_MAP.completedShipments.icon}
-                 bgColorClass={DASHBOARD_STATS_MAP.completedShipments.bgColorClass}
-                 textColorClass={DASHBOARD_STATS_MAP.completedShipments.textColorClass}
-                 isLoading={isLoadingStats}
-              />
-              <StatCard
-                 title={DASHBOARD_STATS_MAP.totalGrossWeight.title}
-                 value={dashboardStats.totalGrossWeightSum} // This will be null
-                 icon={DASHBOARD_STATS_MAP.totalGrossWeight.icon}
-                 unit={DASHBOARD_STATS_MAP.totalGrossWeight.unit}
-                 bgColorClass={DASHBOARD_STATS_MAP.totalGrossWeight.bgColorClass}
-                 textColorClass={DASHBOARD_STATS_MAP.totalGrossWeight.textColorClass}
-                 isLoading={isLoadingStats}
-                 isUnavailable={dashboardStats.totalGrossWeightSum === null && !isLoadingStats} // Show N/A message if null and not loading
-              />
-               <StatCard
-                 title={DASHBOARD_STATS_MAP.lastUpdated.title}
-                 value={formatTimestamp(dashboardStats.lastUpdateTimestamp)}
-                 icon={DASHBOARD_STATS_MAP.lastUpdated.icon}
-                 bgColorClass={DASHBOARD_STATS_MAP.lastUpdated.bgColorClass}
-                 textColorClass={DASHBOARD_STATS_MAP.lastUpdated.textColorClass}
-                 isLoading={isLoadingStats}
-               />
+            {/* Removed Pending Count, Completed Count, Total Gross Weight StatCards */}
+            {/* Keep Last Updated StatCard if DASHBOARD_STATS_MAP.lastUpdated is defined */}
+            {DASHBOARD_STATS_MAP.lastUpdated && (
+                 <StatCard
+                   title={DASHBOARD_STATS_MAP.lastUpdated.title}
+                   value={formatTimestamp(dashboardStats.lastUpdateTimestamp)}
+                   icon={DASHBOARD_STATS_MAP.lastUpdated.icon || CalendarDays} // Fallback icon
+                   bgColorClass={DASHBOARD_STATS_MAP.lastUpdated.bgColorClass}
+                   textColorClass={DASHBOARD_STATS_MAP.lastUpdated.textColorClass}
+                   isLoading={isLoadingStats}
+                 />
+            )}
         </div>
 
 
@@ -256,7 +269,7 @@ export default function DashboardPage() {
                 <CardDescription>Shipments awaiting completion.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                {renderShipmentList(pendingShipments, isLoadingPending, errorPending, 'Pending')}
+                {renderShipmentList(pendingShipments, isLoadingPending, errorPending, 'Pending', showAllPending, () => setShowAllPending(!showAllPending))}
                 </CardContent>
             </Card>
 
@@ -270,11 +283,10 @@ export default function DashboardPage() {
                 <CardDescription>Recently finalized shipments.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                {renderShipmentList(completedShipments, isLoadingCompleted, errorCompleted, 'Completed')}
+                {renderShipmentList(completedShipments, isLoadingCompleted, errorCompleted, 'Completed', showAllCompleted, () => setShowAllCompleted(!showAllCompleted))}
                 </CardContent>
             </Card>
         </div>
     </div>
   );
 }
-
