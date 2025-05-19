@@ -8,12 +8,10 @@ import * as z from 'zod';
 import { Timestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from '@/components/ui/dialog';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label as ShadcnLabel } from "@/components/ui/label"; // Renamed to avoid conflict with RHF Label
-
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from '@/components/ui/dialog';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import type { ShipmentDetail, DropdownItem } from '@/lib/types';
 import { getDropdownOptions } from '@/lib/firebase/dropdownService';
@@ -24,7 +22,7 @@ import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 
 // Define default DOE ID
-const DEFAULT_DOE_ID_VALUE = "UZ";
+const DEFAULT_DOE_ID_VALUE = "UZ1";
 
 // Updated Zod schema
 const detailFormSchema = z.object({
@@ -98,7 +96,7 @@ export default function ShipmentDetailForm({
     tareWeight: TARE_WEIGHT_DEFAULT,
     grossWeight: 0,
     dispatchNumber: '',
-    doeId: DEFAULT_DOE_ID_VALUE, // Set default DOE ID
+    doeId: DEFAULT_DOE_ID_VALUE, // Use the constant for default DOE ID
   }), []);
 
   const formHook = useForm<DetailFormValues>({
@@ -153,10 +151,6 @@ export default function ShipmentDetailForm({
       }
     } else { // Bag Mode
       setValue('numPallets', 0, { shouldValidate: false });
-      // If switching to bag mode and bags are 0, default bags to 0 (user will input)
-      // if (getValues('numBags') === 0) {
-      //    setValue('numBags', 0, { shouldValidate: false });
-      // }
     }
   }, [setValue, getValues]);
 
@@ -193,7 +187,7 @@ export default function ShipmentDetailForm({
   }, [isOpen, detail, reset, newFormDefaults, isLoadingCustomers, isLoadingServices, isLoadingDoes, syncPalletBagRHFValues]);
 
 
-  // Effect to sync RHF values when mode changes via button
+  // Effect to sync RHF values when mode changes via button OR input changes
   useEffect(() => {
     // console.log('[MODE SYNC EFFECT] showPalletInputMode changed to:', showPalletInputMode);
     syncPalletBagRHFValues(showPalletInputMode);
@@ -208,12 +202,11 @@ export default function ShipmentDetailForm({
     } else { // Bag Mode
         if (numBagsWatched > 0) {
             newTareWeight = parseFloat((numBagsWatched * BAG_WEIGHT_MULTIPLIER).toFixed(3));
-        } else { // Bag mode, 0 bags (Tare Weight is editable, defaults to TARE_WEIGHT_DEFAULT)
+        } else { // Bag mode, 0 bags
             if (detail && detail.numPallets === 0 && detail.numBags === 0 && typeof detail.tareWeight === 'number') {
-                 // If editing an item specifically saved with 0 pallets, 0 bags, and a manual tare
-                newTareWeight = detail.tareWeight;
+                newTareWeight = detail.tareWeight; // Preserve manually entered tare for existing 0-pallet, 0-bag items
             } else {
-                newTareWeight = TARE_WEIGHT_DEFAULT;
+                newTareWeight = TARE_WEIGHT_DEFAULT; // Default to pallet tare if 0 bags, making it editable from this default
             }
         }
     }
@@ -410,24 +403,38 @@ export default function ShipmentDetailForm({
                             render={({ field }) => (
                                 <FormItem>
                                 <FormLabel>Customer *</FormLabel>
-                                <Select
-                                    onValueChange={field.onChange}
-                                    value={field.value || ""} // Ensure Select always gets a string
-                                    disabled={isSaving || isLoadingCustomers}
-                                >
-                                    <FormControl>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select a customer" />
-                                    </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                    {validCustomerOptions.map((option) => (
-                                        <SelectItem key={option.id} value={option.value}>
-                                        {option.label}
-                                        </SelectItem>
-                                    ))}
-                                    </SelectContent>
-                                </Select>
+                                {/* Reverted to Select as per user initial screenshots */}
+                                <Controller
+                                  name="customerId"
+                                  control={control}
+                                  render={({ field: controllerField }) => (
+                                    <ShadcnLabel // Using ShadcnLabel to avoid conflict, actual Select will be here
+                                        className={cn(
+                                            "block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+                                            isLoadingCustomers || isSaving ? "cursor-not-allowed opacity-50" : ""
+                                        )}
+                                        aria-disabled={isLoadingCustomers || isSaving}
+                                    >
+                                        <select
+                                            {...controllerField}
+                                            value={controllerField.value || ""}
+                                            disabled={isSaving || isLoadingCustomers}
+                                            className="w-full bg-transparent outline-none appearance-none"
+                                            onChange={(e) => {
+                                                controllerField.onChange(e.target.value);
+                                                // console.log('[CUSTOMER SELECT] Value changed to:', e.target.value);
+                                            }}
+                                        >
+                                            <option value="" disabled hidden>{isLoadingCustomers ? "Loading..." : "Select a customer"}</option>
+                                            {validCustomerOptions.map((option) => (
+                                            <option key={option.id} value={option.value}>
+                                                {option.label}
+                                            </option>
+                                            ))}
+                                        </select>
+                                    </ShadcnLabel>
+                                  )}
+                                />
                                 {errorCustomers && <p className="text-xs text-destructive">Error loading customers.</p>}
                                 <FormMessage />
                                 </FormItem>
@@ -525,7 +532,7 @@ export default function ShipmentDetailForm({
                                      <FormLabel>Tare Weight *</FormLabel>
                                      <FormControl>
                                         <Input type="number" step="0.001" min="0" {...field}
-                                               disabled={isSaving} // Always editable except when saving
+                                               disabled={isSaving}
                                         />
                                      </FormControl>
                                      {showPalletInputMode && <p className="text-xs text-muted-foreground pt-1">Default for pallets: {TARE_WEIGHT_DEFAULT} kg. Editable.</p>}
@@ -549,7 +556,7 @@ export default function ShipmentDetailForm({
                                         placeholder="Enter gross weight"
                                         {...field}
                                         value={
-                                          field.value === 0 && !formHook.getFieldState(field.name).isTouched
+                                          field.value === 0 && !formHook.getFieldState(field.name).isTouched && !detail // Only show empty for new items if 0 and untouched
                                             ? ""
                                             : field.value
                                         }
