@@ -45,7 +45,7 @@ export const HEADER_NAV_ITEMS: NavMenuItem[] = [
 ];
 
 export const ADMIN_NAV_ITEMS: NavMenuItem[] = [
-  // { title: 'Admin Dashboard', href: '/admin', icon: Settings, adminOnly: true }, // Removed as per user request
+  // { title: 'Admin Dashboard', href: '/admin', icon: Settings, adminOnly: true },
   { title: 'Manage Dropdowns', href: '/admin/dropdowns', icon: ListChecks, adminOnly: true },
   { title: 'App Settings', href: '/admin/settings', icon: UserCog, adminOnly: true },
   { title: 'User Management', href: '/admin/users', icon: Users2, adminOnly: true },
@@ -81,25 +81,28 @@ export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
  *
  * Example:
  * If a service document in your '/services' Firestore collection for "Priority" has:
- *   { label: "Priority Express Mail", value: "PRIORITY_EXPRESS_MAIL" }
+ *   { label: "Priority Express Mail", value: "E" } // Or "PRIORITY_EXPRESS_MAIL"
  *
- * Then the mapping here MUST include a key that is the lowercase version:
- *   'priority_express_mail': 'formats_prior'
+ * Then the mapping here MUST include a key that is the lowercase version of that value:
+ *   'e': 'formats_prior', // If value is "E"
+ *   // OR
+ *   // 'priority_express_mail': 'formats_prior', // If value is "PRIORITY_EXPRESS_MAIL"
  */
 export const SERVICE_FORMAT_MAPPING: { [serviceValueKey: string]: string | null } = {
-  // --- IMPORTANT: Update these keys to match YOUR Firestore /services `value` fields (in lowercase) ---
-  // Example for "Prior" service (if its Firestore `value` is "E" or "prior" or "priority")
-  'e': 'formats_prior', // Matches Firestore `value: "E"` for Prior service
-  'prior': 'formats_prior',
-  'priority': 'formats_prior',
+  // --- IMPORTANT: Ensure these keys match YOUR Firestore /services `value` fields (in lowercase) ---
 
-  // Example for "Economy" service (if its Firestore `value` is "C" or "eco" or "economy")
-  'c': 'formats_eco', // Assuming "C" is the value for Eco service
+  // For "Prior" service (assuming its Firestore `value` is "E")
+  'e': 'formats_prior',
+  'prior': 'formats_prior',     // For flexibility if value is "prior"
+  'priority': 'formats_prior', // For flexibility if value is "priority"
+
+  // For "Economy" service (assuming its Firestore `value` is "C" or "eco" or "economy")
+  'c': 'formats_eco',
   'eco': 'formats_eco',
   'economy': 'formats_eco',
 
-  // Example for "S3C" service (if its Firestore `value` is "S" or "s3c")
-  's': 'formats_s3c', // Assuming "S" is the value for S3C service
+  // For "S3C" service (assuming its Firestore `value` is "S" or "s3c")
+  's': 'formats_s3c',
   's3c': 'formats_s3c',
 
   // Add other service value mappings here as needed:
@@ -131,4 +134,5 @@ export const DASHBOARD_STATS_MAP: { [key: string]: { title: string; icon: React.
 
 // Value for the default "Prior" service in the ShipmentDetailForm
 // This value MUST EXACTLY match the 'value' field of your "Prior" service document in Firestore.
-export const DEFAULT_PRIOR_SERVICE_ID = "E";
+export const DEFAULT_PRIOR_SERVICE_ID = "E"; // Updated to "E" as per user feedback
+
