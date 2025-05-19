@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
+import dynamic from 'next/dynamic'; // Import next/dynamic
 import {
   collection,
   query,
@@ -23,7 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PlusCircle, Edit, Trash2, AlertTriangle, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
-import ShipmentDetailForm from './shipment-detail-form';
+// import ShipmentDetailForm from './shipment-detail-form'; // Comment out direct import
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -40,6 +41,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getDropdownOptionsMap } from '@/lib/firebase/dropdownService';
 import { SERVICE_FORMAT_MAPPING } from '@/lib/constants';
 import { useQuery } from '@tanstack/react-query';
+
+// Dynamically import ShipmentDetailForm
+const ShipmentDetailForm = dynamic(() => import('./shipment-detail-form'), {
+  loading: () => <div className="p-4 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto" /> Loading form...</div>,
+  ssr: false // Important for components with client-side hooks used heavily
+});
 
 interface ShipmentDetailsListProps {
   shipmentId: string;
@@ -64,10 +71,10 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
   const { toast } = useToast();
 
   const isParentCompleted = parentStatus === 'Completed';
-  console.log(`[ShipmentDetailsList DEBUG] Component Render/Re-render. shipmentId: ${shipmentId}, parentStatus: ${parentStatus}, isParentCompleted: ${isParentCompleted}, current details.length: ${details.length}, showAllItems: ${showAllItems}`);
+  // console.log(`[ShipmentDetailsList DEBUG] Component Render/Re-render. shipmentId: ${shipmentId}, parentStatus: ${parentStatus}, isParentCompleted: ${isParentCompleted}, current details.length: ${details.length}, showAllItems: ${showAllItems}`);
 
    const { data: dropdownMaps = {}, isLoading: isLoadingLabels, error: errorLabels } = useQuery({
-       queryKey: ['dropdownMapsForAllDetails'], // More specific query key
+       queryKey: ['dropdownMapsForAllDetails'], 
        queryFn: fetchAllDropdownMaps,
        staleTime: 15 * 60 * 1000,
        gcTime: 30 * 60 * 1000,
@@ -91,7 +98,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
         console.error("ShipmentDetailsList: shipmentId is missing.");
         return;
     }
-    console.log(`[ShipmentDetailsList] Effect: Setting up listener for shipment ${shipmentId}`);
+    // console.log(`[ShipmentDetailsList] Effect: Setting up listener for shipment ${shipmentId}`);
     setIsLoading(true);
     setError(null);
 
@@ -100,7 +107,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
 
     const unsubscribe = onSnapshot(q,
       (snapshot) => {
-        console.log(`[ShipmentDetailsList] Snapshot received: ${snapshot.docs.length} details for shipment ${shipmentId}`);
+        // console.log(`[ShipmentDetailsList] Snapshot received: ${snapshot.docs.length} details for shipment ${shipmentId}`);
         const fetchedDetails: ShipmentDetail[] = snapshot.docs.map(doc => detailFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
         setDetails(fetchedDetails);
         setIsLoading(false);
@@ -114,7 +121,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
     );
 
     return () => {
-        console.log(`[ShipmentDetailsList] Effect Cleanup: Cleaning up listener for shipment ${shipmentId}`);
+        // console.log(`[ShipmentDetailsList] Effect Cleanup: Cleaning up listener for shipment ${shipmentId}`);
         unsubscribe();
     };
   }, [shipmentId]);
@@ -127,7 +134,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
   }, [details, showAllItems]);
 
   const handleAddDetail = () => {
-    console.log(`[ShipmentDetailsList] handleAddDetail called. isParentCompleted: ${isParentCompleted}`);
+    // console.log(`[ShipmentDetailsList] handleAddDetail called. isParentCompleted: ${isParentCompleted}`);
     if (isParentCompleted) {
          toast({ variant: "destructive", title: "Action Denied", description: "Cannot add items to a completed shipment." });
          return;
@@ -137,7 +144,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
   };
 
   const handleEditDetail = (detail: ShipmentDetail) => {
-    console.log(`[ShipmentDetailsList] handleEditDetail called for detail ID: ${detail.id}. isParentCompleted: ${isParentCompleted}`);
+    // console.log(`[ShipmentDetailsList] handleEditDetail called for detail ID: ${detail.id}. isParentCompleted: ${isParentCompleted}`);
      if (isParentCompleted) {
           toast({ variant: "destructive", title: "Action Denied", description: "Cannot edit items in a completed shipment." });
          return;
@@ -147,7 +154,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
   };
 
   const handleSaveDetail = async (data: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated'>) => {
-    console.log(`[ShipmentDetailsList] handleSaveDetail called. isParentCompleted: ${isParentCompleted}. Editing detail ID: ${editingDetail?.id}`);
+    // console.log(`[ShipmentDetailsList] handleSaveDetail called. isParentCompleted: ${isParentCompleted}. Editing detail ID: ${editingDetail?.id}`);
     if (isParentCompleted) {
         toast({ variant: "destructive", title: "Cannot Save", description: "Shipment is already completed." });
         setIsFormOpen(false);
@@ -157,10 +164,10 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
     try {
         let action: Promise<any>;
         if (editingDetail) {
-            console.log(`[ShipmentDetailsList] Saving existing detail ${editingDetail.id} for shipment ${shipmentId}`);
+            // console.log(`[ShipmentDetailsList] Saving existing detail ${editingDetail.id} for shipment ${shipmentId}`);
             action = updateShipmentDetail(shipmentId, editingDetail.id, data);
         } else {
-            console.log(`[ShipmentDetailsList] Adding new detail for shipment ${shipmentId}`);
+            // console.log(`[ShipmentDetailsList] Adding new detail for shipment ${shipmentId}`);
             action = addShipmentDetail(shipmentId, data);
         }
          await action;
@@ -173,12 +180,12 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
   };
 
   const handleDeleteDetail = async (detailId: string) => {
-     console.log(`[ShipmentDetailsList] handleDeleteDetail called for detail ID: ${detailId}. isParentCompleted: ${isParentCompleted}, details.length: ${details.length}`);
+     // console.log(`[ShipmentDetailsList DEBUG] handleDeleteDetail called for detail ID: ${detailId}. isParentCompleted: ${isParentCompleted}, details.length: ${details.length}`);
      if (isParentCompleted) {
         toast({ variant: "destructive", title: "Cannot Delete", description: "Cannot delete items from a completed shipment." });
         return;
      }
-     console.log(`[ShipmentDetailsList] Attempting to delete detail ${detailId} from shipment ${shipmentId}`);
+     // console.log(`[ShipmentDetailsList] Attempting to delete detail ${detailId} from shipment ${shipmentId}`);
      try {
          await deleteShipmentDetail(shipmentId, detailId);
          toast({ title: "Detail Deleted", description: "Shipment item removed successfully." });
@@ -261,7 +268,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
               <TableBody>
                 {displayedDetails.map((detail) => {
                   const isDeleteDisabled = isParentCompleted;
-                  console.log(`[ShipmentDetailsList DEBUG] Rendering detail ID: ${detail.id}. parentStatus: ${parentStatus}, isParentCompleted: ${isParentCompleted}, details.length: ${details.length}, isDeleteDisabled: ${isDeleteDisabled}`);
+                  // console.log(`[ShipmentDetailsList DEBUG] Rendering detail ID: ${detail.id}. parentStatus: ${parentStatus}, isParentCompleted: ${isParentCompleted}, details.length: ${details.length}, isDeleteDisabled: ${isDeleteDisabled}`);
                   return (
                     <TableRow key={detail.id} className="hover:bg-muted/50">
                       <TableCell>{getLabel('customers', detail.customerId)}</TableCell>
@@ -334,13 +341,17 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
         )}
       </CardContent>
 
-      <ShipmentDetailForm
-            shipmentId={shipmentId}
-            detail={editingDetail}
-            isOpen={isFormOpen}
-            onClose={() => setIsFormOpen(false)}
-            onSave={handleSaveDetail}
-       />
+      {isFormOpen && ( /* Conditionally render ShipmentDetailForm only when isOpen is true */
+        <ShipmentDetailForm
+              shipmentId={shipmentId}
+              detail={editingDetail}
+              isOpen={isFormOpen}
+              onClose={() => setIsFormOpen(false)}
+              onSave={handleSaveDetail}
+        />
+      )}
     </Card>
   );
 }
+
+    
