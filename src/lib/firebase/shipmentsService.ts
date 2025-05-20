@@ -258,7 +258,8 @@ export const deleteShipmentDetailsBatch = async (shipmentId: string, detailIds: 
   try {
     await batch.commit();
     await recalculateShipmentTotals(shipmentId);
-  } catch (error) {
+  } catch (error)
+{
     console.error(`Error batch deleting details for shipment ${shipmentId}:`, error);
     throw error;
   }
@@ -283,9 +284,11 @@ export const getShipmentDetailsCount = async (shipmentId: string): Promise<numbe
 
 export const recalculateShipmentTotals = async (shipmentId: string): Promise<void> => {
   if (!shipmentId) {
-    console.warn("recalculateShipmentTotals called with invalid shipmentId:", shipmentId);
+    console.warn("[ShipmentService DEBUG] recalculateShipmentTotals called with invalid shipmentId:", shipmentId);
     return;
   }
+  console.log(`[ShipmentService DEBUG] Recalculating totals for shipment: ${shipmentId}. Using PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN: "${PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN}"`);
+
   const shipmentRef = doc(db, 'shipments', shipmentId);
   const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
 
@@ -293,6 +296,7 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
     await runTransaction(db, async (transaction) => {
       const detailsQuerySnapshot = await getDocs(query(detailsCollectionRef));
       const details: ShipmentDetail[] = detailsQuerySnapshot.docs.map(d => detailFromFirestore(d as QueryDocumentSnapshot<DocumentData>));
+      console.log(`[ShipmentService DEBUG] Shipment ${shipmentId}: Found ${details.length} detail items.`);
 
       let totalPallets = 0;
       let totalBags = 0;
@@ -303,7 +307,8 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
       let primaryAsendiaTareWeight = 0;
       let primaryAsendiaNetWeight = 0;
 
-      details.forEach(detail => {
+      details.forEach((detail, index) => {
+        console.log(`[ShipmentService DEBUG] Detail item ${index + 1} (ID: ${detail.id}): Customer ID: "${detail.customerId}", Gross: ${detail.grossWeight}, Tare: ${detail.tareWeight}, Net: ${detail.netWeight}`);
         totalPallets += detail.numPallets || 0;
         totalBags += detail.numBags || 0;
         totalGrossWeight += detail.grossWeight || 0;
@@ -312,11 +317,16 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
         totalNetWeight += currentNetWeight;
 
         if (detail.customerId === PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN) {
+          console.log(`[ShipmentService DEBUG] Detail item ${index + 1} MATCHED PRIMARY_ASENDIA_CUSTOMER_ID. Adding to asendiaNetWeight.`);
           primaryAsendiaGrossWeight += detail.grossWeight || 0;
           primaryAsendiaTareWeight += detail.tareWeight || 0;
           primaryAsendiaNetWeight += currentNetWeight;
+        } else {
+          console.log(`[ShipmentService DEBUG] Detail item ${index + 1} DID NOT MATCH PRIMARY_ASENDIA_CUSTOMER_ID. (Detail CustID: "${detail.customerId}", Primary Const: "${PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN}")`);
         }
       });
+
+      console.log(`[ShipmentService DEBUG] Calculated Totals - totalNetWeight: ${totalNetWeight.toFixed(3)}, primaryAsendiaNetWeight: ${primaryAsendiaNetWeight.toFixed(3)}`);
 
       const updates = {
         totalPallets: totalPallets,
@@ -324,15 +334,17 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
         totalGrossWeight: parseFloat(totalGrossWeight.toFixed(3)),
         totalTareWeight: parseFloat(totalTareWeight.toFixed(3)),
         totalNetWeight: parseFloat(totalNetWeight.toFixed(3)),
-        asendiaGrossWeight: parseFloat(primaryAsendiaGrossWeight.toFixed(3)), // Note: this field in Firestore is now for the primary Asendia customer
-        asendiaTareWeight: parseFloat(primaryAsendiaTareWeight.toFixed(3)),   // Note: this field in Firestore is now for the primary Asendia customer
-        asendiaNetWeight: parseFloat(primaryAsendiaNetWeight.toFixed(3)),    // Note: this field in Firestore is now for the primary Asendia customer
+        asendiaGrossWeight: parseFloat(primaryAsendiaGrossWeight.toFixed(3)),
+        asendiaTareWeight: parseFloat(primaryAsendiaTareWeight.toFixed(3)),
+        asendiaNetWeight: parseFloat(primaryAsendiaNetWeight.toFixed(3)),
         lastUpdated: serverTimestamp(),
       };
+      console.log(`[ShipmentService DEBUG] Updating shipment ${shipmentId} with:`, updates);
       transaction.update(shipmentRef, updates);
     });
+    console.log(`[ShipmentService DEBUG] Successfully recalculated totals for shipment ${shipmentId}.`);
   } catch (error) {
-    console.error(`Error recalculating totals for shipment ${shipmentId}:`, error);
+    console.error(`[ShipmentService DEBUG] Error recalculating totals for shipment ${shipmentId}:`, error);
     throw error;
   }
 };
@@ -343,7 +355,7 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
 export const getDashboardStats = async (): Promise<{
     pendingCount: number | null;
     completedCount: number | null;
-    totalGrossWeightSum: number | null; // This remains null as it needs backend aggregation
+    totalGrossWeightSum: number | null;
     lastUpdateTimestamp: Timestamp | null;
 }> => {
     const shipmentsCollection = collection(db, 'shipments');
@@ -359,10 +371,10 @@ export const getDashboardStats = async (): Promise<{
         const lastUpdatedQuery = query(shipmentsCollection, orderBy('lastUpdated', 'desc'), limit(1));
         const lastUpdatedSnapshot = await getDocs(lastUpdatedQuery);
         const lastUpdateTimestamp = lastUpdatedSnapshot.empty ? null : (lastUpdatedSnapshot.docs[0].data().lastUpdated as Timestamp);
-
+        
         // Total gross weight sum is best handled by backend aggregation (e.g., Cloud Function)
-        // Returning null here as per previous decisions to avoid client-side full collection scan.
-        const totalGrossWeightSum = null; 
+        // For now, we return null and the dashboard will display N/A or a placeholder.
+        const totalGrossWeightSum = null;
 
         return {
             pendingCount: pendingSnapshot.data().count,
