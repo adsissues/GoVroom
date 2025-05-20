@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import dynamic from 'next/dynamic'; // Import next/dynamic
+import dynamic from 'next/dynamic';
 import {
   collection,
   query,
@@ -17,14 +17,15 @@ import {
     addShipmentDetail,
     updateShipmentDetail,
     deleteShipmentDetail,
+    deleteShipmentDetailsBatch, // New import
     detailFromFirestore,
 } from '@/lib/firebase/shipmentsService';
 import type { ShipmentDetail, ShipmentStatus, DropdownItem } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from "@/components/ui/checkbox"; // New import
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PlusCircle, Edit, Trash2, AlertTriangle, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
-// import ShipmentDetailForm from './shipment-detail-form'; // Comment out direct import
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -40,12 +41,11 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { getDropdownOptionsMap } from '@/lib/firebase/dropdownService';
 import { SERVICE_FORMAT_MAPPING } from '@/lib/constants';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query'; // Added useQueryClient
 
-// Dynamically import ShipmentDetailForm
 const ShipmentDetailForm = dynamic(() => import('./shipment-detail-form'), {
   loading: () => <div className="p-4 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto" /> Loading form...</div>,
-  ssr: false // Important for components with client-side hooks used heavily
+  ssr: false
 });
 
 interface ShipmentDetailsListProps {
@@ -67,14 +67,16 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
   const [error, setError] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingDetail, setEditingDetail] = useState<ShipmentDetail | null>(null);
-  const [showAllItems, setShowAllItems] = useState(false); // New state
+  const [showAllItems, setShowAllItems] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient(); // For query invalidation
+
+  const [selectedDetails, setSelectedDetails] = useState<Record<string, boolean>>({});
 
   const isParentCompleted = parentStatus === 'Completed';
-  // console.log(`[ShipmentDetailsList DEBUG] Component Render/Re-render. shipmentId: ${shipmentId}, parentStatus: ${parentStatus}, isParentCompleted: ${isParentCompleted}, current details.length: ${details.length}, showAllItems: ${showAllItems}`);
 
    const { data: dropdownMaps = {}, isLoading: isLoadingLabels, error: errorLabels } = useQuery({
-       queryKey: ['dropdownMapsForAllDetails'], 
+       queryKey: ['dropdownMapsForAllDetails'],
        queryFn: fetchAllDropdownMaps,
        staleTime: 15 * 60 * 1000,
        gcTime: 30 * 60 * 1000,
@@ -95,10 +97,10 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
     if (!shipmentId) {
         setError("Shipment ID not provided for details list.");
         setIsLoading(false);
-        console.error("ShipmentDetailsList: shipmentId is missing.");
+        console.error("[ShipmentDetailsList DEBUG] shipmentId is missing.");
         return;
     }
-    // console.log(`[ShipmentDetailsList] Effect: Setting up listener for shipment ${shipmentId}`);
+    // console.log(`[ShipmentDetailsList DEBUG] Effect: Setting up listener for shipment ${shipmentId}`);
     setIsLoading(true);
     setError(null);
 
@@ -107,21 +109,21 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
 
     const unsubscribe = onSnapshot(q,
       (snapshot) => {
-        // console.log(`[ShipmentDetailsList] Snapshot received: ${snapshot.docs.length} details for shipment ${shipmentId}`);
+        // console.log(`[ShipmentDetailsList DEBUG] Snapshot received: ${snapshot.docs.length} details for shipment ${shipmentId}`);
         const fetchedDetails: ShipmentDetail[] = snapshot.docs.map(doc => detailFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
         setDetails(fetchedDetails);
         setIsLoading(false);
         setError(null);
       },
       (err) => {
-        console.error(`Error fetching shipment details for ${shipmentId}:`, err);
+        console.error(`[ShipmentDetailsList DEBUG] Error fetching shipment details for ${shipmentId}:`, err);
         setError("Failed to load shipment items. Please try again later.");
         setIsLoading(false);
       }
     );
 
     return () => {
-        // console.log(`[ShipmentDetailsList] Effect Cleanup: Cleaning up listener for shipment ${shipmentId}`);
+        // console.log(`[ShipmentDetailsList DEBUG] Effect Cleanup: Cleaning up listener for shipment ${shipmentId}`);
         unsubscribe();
     };
   }, [shipmentId]);
@@ -134,7 +136,6 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
   }, [details, showAllItems]);
 
   const handleAddDetail = () => {
-    // console.log(`[ShipmentDetailsList] handleAddDetail called. isParentCompleted: ${isParentCompleted}`);
     if (isParentCompleted) {
          toast({ variant: "destructive", title: "Action Denied", description: "Cannot add items to a completed shipment." });
          return;
@@ -144,7 +145,6 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
   };
 
   const handleEditDetail = (detail: ShipmentDetail) => {
-    // console.log(`[ShipmentDetailsList] handleEditDetail called for detail ID: ${detail.id}. isParentCompleted: ${isParentCompleted}`);
      if (isParentCompleted) {
           toast({ variant: "destructive", title: "Action Denied", description: "Cannot edit items in a completed shipment." });
          return;
@@ -154,46 +154,69 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
   };
 
   const handleSaveDetail = async (data: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated'>) => {
-    // console.log(`[ShipmentDetailsList] handleSaveDetail called. isParentCompleted: ${isParentCompleted}. Editing detail ID: ${editingDetail?.id}`);
     if (isParentCompleted) {
         toast({ variant: "destructive", title: "Cannot Save", description: "Shipment is already completed." });
         setIsFormOpen(false);
         return;
     }
-
     try {
         let action: Promise<any>;
         if (editingDetail) {
-            // console.log(`[ShipmentDetailsList] Saving existing detail ${editingDetail.id} for shipment ${shipmentId}`);
             action = updateShipmentDetail(shipmentId, editingDetail.id, data);
         } else {
-            // console.log(`[ShipmentDetailsList] Adding new detail for shipment ${shipmentId}`);
             action = addShipmentDetail(shipmentId, data);
         }
          await action;
          toast({ title: editingDetail ? "Detail Updated" : "Detail Added", description: "Shipment item saved successfully." });
          setIsFormOpen(false);
+         // Invalidate queries related to shipment totals if necessary
+         queryClient.invalidateQueries({ queryKey: ['shipment', shipmentId] });
     } catch (error) {
-        console.error("[ShipmentDetailsList] Error saving shipment detail:", error);
+        console.error("[ShipmentDetailsList DEBUG] Error saving shipment detail:", error);
         toast({ variant: "destructive", title: "Save Failed", description: error instanceof Error ? error.message : "Could not save item." });
     }
   };
 
   const handleDeleteDetail = async (detailId: string) => {
-     // console.log(`[ShipmentDetailsList DEBUG] handleDeleteDetail called for detail ID: ${detailId}. isParentCompleted: ${isParentCompleted}, details.length: ${details.length}`);
      if (isParentCompleted) {
         toast({ variant: "destructive", title: "Cannot Delete", description: "Cannot delete items from a completed shipment." });
         return;
      }
-     // console.log(`[ShipmentDetailsList] Attempting to delete detail ${detailId} from shipment ${shipmentId}`);
      try {
          await deleteShipmentDetail(shipmentId, detailId);
          toast({ title: "Detail Deleted", description: "Shipment item removed successfully." });
+         queryClient.invalidateQueries({ queryKey: ['shipment', shipmentId] });
      } catch (error) {
-         console.error("[ShipmentDetailsList] Error deleting shipment detail:", error);
+         console.error("[ShipmentDetailsList DEBUG] Error deleting shipment detail:", error);
          toast({ variant: "destructive", title: "Deletion Failed", description: error instanceof Error ? error.message : "Could not remove item." });
      }
   };
+
+  const handleBatchDelete = async () => {
+    if (isParentCompleted) {
+        toast({ variant: "destructive", title: "Cannot Delete", description: "Cannot delete items from a completed shipment." });
+        return;
+    }
+    const idsToDelete = Object.entries(selectedDetails)
+        .filter(([, isSelected]) => isSelected)
+        .map(([id]) => id);
+
+    if (idsToDelete.length === 0) {
+        toast({ title: "No Items Selected", description: "Please select items to delete." });
+        return;
+    }
+
+    try {
+        await deleteShipmentDetailsBatch(shipmentId, idsToDelete);
+        toast({ title: "Items Deleted", description: `${idsToDelete.length} item(s) removed successfully.` });
+        setSelectedDetails({}); // Clear selection
+        queryClient.invalidateQueries({ queryKey: ['shipment', shipmentId] });
+    } catch (error) {
+        console.error("[ShipmentDetailsList DEBUG] Error batch deleting shipment details:", error);
+        toast({ variant: "destructive", title: "Batch Deletion Failed", description: error instanceof Error ? error.message : "Could not remove items." });
+    }
+  };
+
 
   const getLabel = (collectionId: string, value: string | undefined): string => {
       if (!value) return 'N/A';
@@ -206,9 +229,22 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
        if (isLoadingLabels) return 'Loading...';
        const serviceKey = serviceId.toLowerCase();
        const formatCollectionId = SERVICE_FORMAT_MAPPING[serviceKey];
-       if (!formatCollectionId) return formatId; // Return raw formatId if no mapping
+       if (!formatCollectionId) return formatId;
        return dropdownMaps[formatCollectionId]?.[formatId] || formatId;
    };
+
+  const numSelected = Object.values(selectedDetails).filter(Boolean).length;
+  const isAllSelected = details.length > 0 && numSelected === details.length;
+  const isIndeterminate = numSelected > 0 && numSelected < details.length;
+
+  const handleSelectAll = (checked: boolean | "indeterminate") => {
+    const newSelectedDetails: Record<string, boolean> = {};
+    if (checked === true) {
+      details.forEach(detail => newSelectedDetails[detail.id] = true);
+    }
+    setSelectedDetails(newSelectedDetails);
+  };
+
 
   return (
     <Card className="shadow-lg rounded-xl border">
@@ -219,12 +255,37 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
               {details.length} item(s) total. {displayedDetails.length < details.length ? `Showing first ${ITEMS_TO_SHOW_INITIALLY}.` : (details.length > 0 ? 'Showing all items.' : '')}
             </CardDescription>
         </div>
-        {!isParentCompleted && (
-          <Button onClick={handleAddDetail} size="sm" disabled={isParentCompleted || isLoading}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Add Item
-          </Button>
-        )}
-         {isParentCompleted && (
+        <div className="flex gap-2">
+            {numSelected > 0 && !isParentCompleted && (
+                 <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm">
+                            <Trash2 className="mr-2 h-4 w-4" /> Delete Selected ({numSelected})
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Selected Items?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Are you sure you want to delete {numSelected} selected items? This action cannot be undone.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleBatchDelete} className="bg-destructive hover:bg-destructive/90">
+                                Delete Selected
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            )}
+            {!isParentCompleted && (
+            <Button onClick={handleAddDetail} size="sm" disabled={isParentCompleted || isLoading}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Item
+            </Button>
+            )}
+        </div>
+         {isParentCompleted && !isLoading && (
             <p className="text-sm text-muted-foreground italic">Shipment completed. Items locked.</p>
          )}
       </CardHeader>
@@ -249,11 +310,19 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
           <p className="text-center text-muted-foreground py-6">No items have been added to this shipment yet.</p>
         )}
 
-        {!isLoading && !error && displayedDetails.length > 0 && (
+        {!isLoading && !error && details.length > 0 && (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[50px]">
+                    <Checkbox
+                        checked={isAllSelected ? true : (isIndeterminate ? "indeterminate" : false)}
+                        onCheckedChange={handleSelectAll}
+                        aria-label="Select all items"
+                        disabled={isParentCompleted}
+                    />
+                  </TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Service</TableHead>
                   <TableHead>Format</TableHead>
@@ -268,9 +337,18 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
               <TableBody>
                 {displayedDetails.map((detail) => {
                   const isDeleteDisabled = isParentCompleted;
-                  // console.log(`[ShipmentDetailsList DEBUG] Rendering detail ID: ${detail.id}. parentStatus: ${parentStatus}, isParentCompleted: ${isParentCompleted}, details.length: ${details.length}, isDeleteDisabled: ${isDeleteDisabled}`);
                   return (
-                    <TableRow key={detail.id} className="hover:bg-muted/50">
+                    <TableRow key={detail.id} data-state={selectedDetails[detail.id] ? "selected" : ""}>
+                      <TableCell>
+                        <Checkbox
+                            checked={selectedDetails[detail.id] || false}
+                            onCheckedChange={(checked) => {
+                                setSelectedDetails(prev => ({...prev, [detail.id]: checked === true}));
+                            }}
+                            aria-label={`Select item ${detail.id}`}
+                            disabled={isParentCompleted}
+                        />
+                      </TableCell>
                       <TableCell>{getLabel('customers', detail.customerId)}</TableCell>
                       <TableCell>{getLabel('services', detail.serviceId)}</TableCell>
                       <TableCell>{getFormatLabel(detail.serviceId, detail.formatId)}</TableCell>
@@ -330,7 +408,6 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
             </Table>
           </div>
         )}
-         {/* "View All" / "Show Less" Button */}
         {!isLoading && !error && details.length > ITEMS_TO_SHOW_INITIALLY && (
           <div className="mt-4 flex justify-center">
             <Button variant="outline" onClick={() => setShowAllItems(prev => !prev)}>
@@ -341,7 +418,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
         )}
       </CardContent>
 
-      {isFormOpen && ( /* Conditionally render ShipmentDetailForm only when isOpen is true */
+      {isFormOpen && (
         <ShipmentDetailForm
               shipmentId={shipmentId}
               detail={editingDetail}
@@ -353,5 +430,3 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
     </Card>
   );
 }
-
-    
