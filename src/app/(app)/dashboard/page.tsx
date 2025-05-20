@@ -11,7 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { List, CheckCircle2, AlertTriangle, Loader2, Weight, CalendarDays, ChevronDown, ChevronUp, ShoppingCart, Users } from 'lucide-react'; // Added ShoppingCart, Users
+import { CheckCircle2, AlertTriangle, Loader2, CalendarDays, ChevronDown, ChevronUp, ShoppingCart, Users } from 'lucide-react';
 import type { Shipment } from '@/lib/types';
 import { shipmentFromFirestore, getDashboardStats } from '@/lib/firebase/shipmentsService';
 import { DASHBOARD_STATS_MAP } from '@/lib/constants';
@@ -66,7 +66,7 @@ export default function DashboardPage() {
   const [dashboardStats, setDashboardStats] = useState<{
       pendingCount: number | null;
       completedCount: number | null;
-      totalGrossWeightSum: number | null; // This remains null as per previous changes
+      totalGrossWeightSum: number | null;
       lastUpdateTimestamp: Timestamp | null;
   }>({ pendingCount: null, completedCount: null, totalGrossWeightSum: null, lastUpdateTimestamp: null });
 
@@ -148,8 +148,8 @@ export default function DashboardPage() {
     if (isLoading) {
       return (
         <div className="space-y-4">
-          <Skeleton className="h-16 w-full rounded-lg" />
-          <Skeleton className="h-16 w-full rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-lg" />
            <Skeleton className="h-8 w-1/2 mt-4" />
            <Skeleton className="h-8 w-1/2 mt-2" />
         </div>
@@ -167,14 +167,13 @@ export default function DashboardPage() {
     
     const itemsToShow = showAll ? shipments : shipments.slice(0, 2);
 
-    // Calculate net weights based on the full 'shipments' array (recent 5)
-    let totalAsendiaNetWeight = 0;
-    let totalOtherNetWeight = 0;
+    let overallTotalAsendiaNetWeight = 0;
+    let overallTotalOtherNetWeight = 0;
 
     if (shipments && shipments.length > 0) {
         shipments.forEach(shipment => {
-            totalAsendiaNetWeight += shipment.asendiaNetWeight || 0;
-            totalOtherNetWeight += (shipment.totalNetWeight || 0) - (shipment.asendiaNetWeight || 0);
+            overallTotalAsendiaNetWeight += shipment.asendiaNetWeight || 0;
+            overallTotalOtherNetWeight += (shipment.totalNetWeight || 0) - (shipment.asendiaNetWeight || 0);
         });
     }
 
@@ -190,19 +189,31 @@ export default function DashboardPage() {
               <li key={shipment.id}>
                 <Link href={`/shipments/${shipment.id}`}>
                   <Card className="hover:shadow-md transition-shadow duration-150 cursor-pointer border hover:border-primary/50">
-                    <CardContent className="p-3 flex justify-between items-center">
-                      <div>
-                        <p className="font-semibold text-sm truncate">{shipment.carrierId} - {shipment.driverName}</p>
-                        <p className="text-xs text-muted-foreground">
-                            Departed: {formatTimestamp(shipment.departureDate)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                            Last Update: {formatTimestamp(shipment.lastUpdated)}
-                        </p>
+                    <CardContent className="p-3">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-semibold text-sm truncate">{shipment.carrierId} - {shipment.driverName}</p>
+                          <p className="text-xs text-muted-foreground">
+                              Departed: {formatTimestamp(shipment.departureDate)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                              Last Update: {formatTimestamp(shipment.lastUpdated)}
+                          </p>
+                        </div>
+                        <Badge variant={status === 'Completed' ? 'default' : 'secondary'} className={status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}>
+                          {shipment.status}
+                        </Badge>
                       </div>
-                       <Badge variant={status === 'Completed' ? 'default' : 'secondary'} className={status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}>
-                         {shipment.status}
-                       </Badge>
+                      <div className="mt-2 pt-2 border-t border-muted/50 text-xs space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground flex items-center"><ShoppingCart className="mr-1.5 h-3.5 w-3.5 text-primary/70" /> Asendia Net:</span>
+                          <span className="font-medium">{shipment.asendiaNetWeight?.toFixed(2) ?? '0.00'} kg</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground flex items-center"><Users className="mr-1.5 h-3.5 w-3.5 text-primary/70" /> Other Cust. Net:</span>
+                          <span className="font-medium">{( (shipment.totalNetWeight || 0) - (shipment.asendiaNetWeight || 0) ).toFixed(2)} kg</span>
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
                 </Link>
@@ -220,16 +231,16 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Display Net Weights */}
+        {/* Display Aggregate Net Weights for the recent X shipments */}
         <div className="mt-6 border-t pt-4 space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground">Net Weight Totals (Recent {shipments.length}):</h4>
+            <h4 className="text-sm font-medium text-muted-foreground">Aggregate Net Weight Totals (Recent {shipments.length}):</h4>
             <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center"><ShoppingCart className="mr-2 h-4 w-4 text-primary/70" /> Asendia A/C:</span>
-                <span className="font-semibold">{totalAsendiaNetWeight.toFixed(2)} kg</span>
+                <span className="font-semibold">{overallTotalAsendiaNetWeight.toFixed(2)} kg</span>
             </div>
             <div className="flex items-center justify-between text-sm">
                  <span className="flex items-center"><Users className="mr-2 h-4 w-4 text-primary/70" /> Other Customers:</span>
-                <span className="font-semibold">{totalOtherNetWeight.toFixed(2)} kg</span>
+                <span className="font-semibold">{overallTotalOtherNetWeight.toFixed(2)} kg</span>
             </div>
         </div>
       </>
@@ -248,13 +259,13 @@ export default function DashboardPage() {
              </Alert>
          )}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {DASHBOARD_STATS_MAP.lastUpdated && (
+            {DASHBOARD_STATS_MAP.lastUpdateTimestamp && (
                  <StatCard
-                   title={DASHBOARD_STATS_MAP.lastUpdated.title}
+                   title={DASHBOARD_STATS_MAP.lastUpdateTimestamp.title}
                    value={formatTimestamp(dashboardStats.lastUpdateTimestamp)}
-                   icon={DASHBOARD_STATS_MAP.lastUpdated.icon || CalendarDays}
-                   bgColorClass={DASHBOARD_STATS_MAP.lastUpdated.bgColorClass}
-                   textColorClass={DASHBOARD_STATS_MAP.lastUpdated.textColorClass}
+                   icon={DASHBOARD_STATS_MAP.lastUpdateTimestamp.icon || CalendarDays}
+                   bgColorClass={DASHBOARD_STATS_MAP.lastUpdateTimestamp.bgColorClass}
+                   textColorClass={DASHBOARD_STATS_MAP.lastUpdateTimestamp.textColorClass}
                    isLoading={isLoadingStats}
                  />
             )}
