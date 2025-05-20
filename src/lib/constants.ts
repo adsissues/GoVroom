@@ -96,18 +96,14 @@ export const SERVICE_FORMAT_MAPPING: { [serviceValueKey: string]: string | null 
   'prior': 'formats_prior',     // For flexibility if value is "prior"
   'priority': 'formats_prior', // For flexibility if value is "priority"
 
-  // For "Economy" service (assuming its Firestore `value` is "C" or "eco" or "economy")
-  'c': 'formats_eco',
-  'eco': 'formats_eco',
-  'economy': 'formats_eco',
+  // For "Economy" service (assuming its Firestore `value` is "C", "eco", or "economy")
+  'c': 'formats_eco',       // Assuming Firestore value "C" for Eco
+  'eco': 'formats_eco',     // For flexibility
+  'economy': 'formats_eco', // For flexibility
 
   // For "S3C" service (assuming its Firestore `value` is "S" or "s3c")
-  's': 'formats_s3c',
-  's3c': 'formats_s3c',
-
-  // Add other service value mappings here as needed:
-  // 'another_service_value_lowercase': 'formats_another_service_collection_id',
-  // 'service_without_formats_lowercase': null, // For services that don't have formats
+  's': 'formats_s3c',       // Assuming Firestore value "S" for S3C
+  's3c': 'formats_s3c',     // For flexibility
 };
 
 
@@ -119,8 +115,7 @@ export const DEFAULT_CONSIGNEE_ADDRESS = "La Poste, Avenue de la Poste, 75000 Pa
 // and used in the `recalculateShipmentTotals` function.
 // *** IMPORTANT: You MUST update this string to the Firestore 'value' (Internal ID) ***
 // *** of your "Asendia A/C" customer for the dashboard breakdown to be correct. ***
-// The previous value "12345678" was for "Asendia UK".
-export const PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN = "12345678"; // <<<< USER MUST CHANGE THIS TO "Asendia A/C" ID
+export const PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN = "12345678"; // This was for "Asendia UK", CHANGE THIS to "Asendia A/C" ID
 
 
 // Constants for calculations (used in Details Form & Shipment Calculations features)
@@ -135,4 +130,8 @@ export const DASHBOARD_STATS_MAP: { [key: string]: { title: string; icon: React.
 
 // Value for the default "Prior" service in the ShipmentDetailForm
 // This value MUST EXACTLY match the 'value' field of your "Prior" service document in Firestore.
-export const DEFAULT_PRIOR_SERVICE_ID = "E";
+export const DEFAULT_PRIOR_SERVICE_ID = "E"; // Updated based on user feedback
+
+// Value for the default "DOE" (Date of Entry) in the ShipmentDetailForm
+// This value MUST EXACTLY match the 'value' field of your default DOE document in Firestore.
+export const DEFAULT_DOE_ID = "UZ1"; // Added based on user feedback
