@@ -10,8 +10,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button'; // Import Button
-import { List, CheckCircle2, AlertTriangle, Loader2, Weight, CalendarDays, ChevronDown, ChevronUp } from 'lucide-react'; // Icons for sections + Chevron
+import { Button } from '@/components/ui/button';
+import { List, CheckCircle2, AlertTriangle, Loader2, Weight, CalendarDays, ChevronDown, ChevronUp, ShoppingCart, Users } from 'lucide-react'; // Added ShoppingCart, Users
 import type { Shipment } from '@/lib/types';
 import { shipmentFromFirestore, getDashboardStats } from '@/lib/firebase/shipmentsService';
 import { DASHBOARD_STATS_MAP } from '@/lib/constants';
@@ -21,15 +21,13 @@ import { format } from 'date-fns';
 const formatTimestamp = (timestamp: Timestamp | null | undefined): string => {
   if (!timestamp) return 'N/A';
   try {
-    // Format as date and time, adjust format string as needed
-    return format(timestamp.toDate(), "PPpp"); // Example: Sep 24, 2023, 10:30:00 AM
+    return format(timestamp.toDate(), "PPpp");
   } catch (error) {
     console.error("Error formatting timestamp:", error);
     return 'Invalid Date';
   }
 };
 
-// Component for individual stat card
 const StatCard = ({ title, value, icon: Icon, unit, bgColorClass, textColorClass, isLoading, isUnavailable }: {
   title: string;
   value: string | number | null;
@@ -68,7 +66,7 @@ export default function DashboardPage() {
   const [dashboardStats, setDashboardStats] = useState<{
       pendingCount: number | null;
       completedCount: number | null;
-      totalGrossWeightSum: number | null;
+      totalGrossWeightSum: number | null; // This remains null as per previous changes
       lastUpdateTimestamp: Timestamp | null;
   }>({ pendingCount: null, completedCount: null, totalGrossWeightSum: null, lastUpdateTimestamp: null });
 
@@ -82,7 +80,6 @@ export default function DashboardPage() {
   const [showAllPending, setShowAllPending] = useState(false);
   const [showAllCompleted, setShowAllCompleted] = useState(false);
 
-   // Fetch Dashboard Stats (once on load)
    useEffect(() => {
     setIsLoadingStats(true);
     setErrorStats(null);
@@ -98,8 +95,6 @@ export default function DashboardPage() {
       .finally(() => setIsLoadingStats(false));
   }, []);
 
-
-  // Real-time listener for Pending Shipments
   useEffect(() => {
     setIsLoadingPending(true);
     setErrorPending(null);
@@ -107,7 +102,7 @@ export default function DashboardPage() {
         collection(db, 'shipments'),
         where('status', '==', 'Pending'),
         orderBy('lastUpdated', 'desc'),
-        limit(5) // Fetch recent 5
+        limit(5)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => shipmentFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
@@ -118,11 +113,9 @@ export default function DashboardPage() {
       setErrorPending("Failed to load pending shipments.");
       setIsLoadingPending(false);
     });
-
     return () => unsubscribe();
   }, []);
 
-   // Real-time listener for Completed Shipments
    useEffect(() => {
     setIsLoadingCompleted(true);
     setErrorCompleted(null);
@@ -130,7 +123,7 @@ export default function DashboardPage() {
         collection(db, 'shipments'),
         where('status', '==', 'Completed'),
         orderBy('lastUpdated', 'desc'),
-        limit(5) // Fetch recent 5
+        limit(5)
      );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => shipmentFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
@@ -141,10 +134,8 @@ export default function DashboardPage() {
       setErrorCompleted("Failed to load completed shipments.");
       setIsLoadingCompleted(false);
     });
-
     return () => unsubscribe();
   }, []);
-
 
   const renderShipmentList = (
     shipments: Shipment[], 
@@ -159,6 +150,8 @@ export default function DashboardPage() {
         <div className="space-y-4">
           <Skeleton className="h-16 w-full rounded-lg" />
           <Skeleton className="h-16 w-full rounded-lg" />
+           <Skeleton className="h-8 w-1/2 mt-4" />
+           <Skeleton className="h-8 w-1/2 mt-2" />
         </div>
       );
     }
@@ -174,19 +167,24 @@ export default function DashboardPage() {
     
     const itemsToShow = showAll ? shipments : shipments.slice(0, 2);
 
-    if (itemsToShow.length === 0 && shipments.length === 0) {
-        return <p className="text-muted-foreground text-center py-4">No {status.toLowerCase()} shipments found.</p>;
-    }
-    
-    if (itemsToShow.length === 0 && shipments.length > 0) {
-        // This case implies all items are hidden by "Show Less" but there are items.
-        // Should still show the "View All" button if applicable.
-    }
+    // Calculate net weights based on the full 'shipments' array (recent 5)
+    let totalAsendiaNetWeight = 0;
+    let totalOtherNetWeight = 0;
 
+    if (shipments && shipments.length > 0) {
+        shipments.forEach(shipment => {
+            totalAsendiaNetWeight += shipment.asendiaNetWeight || 0;
+            totalOtherNetWeight += (shipment.totalNetWeight || 0) - (shipment.asendiaNetWeight || 0);
+        });
+    }
 
     return (
       <>
-        {itemsToShow.length > 0 ? (
+        {itemsToShow.length === 0 && shipments.length === 0 ? (
+            <p className="text-muted-foreground text-center py-4">No {status.toLowerCase()} shipments found.</p>
+        ) : itemsToShow.length === 0 && shipments.length > 0 ? (
+             <p className="text-muted-foreground text-center py-4">Click "View All" to see shipments.</p>
+        ) : (
           <ul className="space-y-3">
             {itemsToShow.map((shipment) => (
               <li key={shipment.id}>
@@ -211,29 +209,37 @@ export default function DashboardPage() {
               </li>
             ))}
           </ul>
-        ) : (
-          shipments.length > 0 && !showAll && <p className="text-muted-foreground text-center py-4">Click "View All" to see shipments.</p>
         )}
 
         {shipments.length > 2 && (
           <div className="mt-4 flex justify-center">
             <Button variant="outline" onClick={toggleShowAll} size="sm">
               {showAll ? <ChevronUp className="mr-2 h-4 w-4" /> : <ChevronDown className="mr-2 h-4 w-4" />}
-              {showAll ? 'Show Less' : `View All (${shipments.length > 5 ? '5+' : shipments.length})`}
+              {showAll ? 'Show Less' : `View All (${shipments.length})`}
             </Button>
           </div>
         )}
+
+        {/* Display Net Weights */}
+        <div className="mt-6 border-t pt-4 space-y-2">
+            <h4 className="text-sm font-medium text-muted-foreground">Net Weight Totals (Recent {shipments.length}):</h4>
+            <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center"><ShoppingCart className="mr-2 h-4 w-4 text-primary/70" /> Asendia A/C:</span>
+                <span className="font-semibold">{totalAsendiaNetWeight.toFixed(2)} kg</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+                 <span className="flex items-center"><Users className="mr-2 h-4 w-4 text-primary/70" /> Other Customers:</span>
+                <span className="font-semibold">{totalOtherNetWeight.toFixed(2)} kg</span>
+            </div>
+        </div>
       </>
     );
   };
 
-
   return (
     <div className="space-y-6 md:space-y-8">
-        {/* Welcome Message */}
         <h1 className="text-2xl md:text-3xl font-bold">Welcome, {currentUser?.email || 'User'}!</h1>
 
-        {/* Dashboard Stats Grid */}
          {errorStats && (
              <Alert variant="destructive">
                  <AlertTriangle className="h-4 w-4" />
@@ -242,13 +248,11 @@ export default function DashboardPage() {
              </Alert>
          )}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {/* Removed Pending Count, Completed Count, Total Gross Weight StatCards */}
-            {/* Keep Last Updated StatCard if DASHBOARD_STATS_MAP.lastUpdated is defined */}
             {DASHBOARD_STATS_MAP.lastUpdated && (
                  <StatCard
                    title={DASHBOARD_STATS_MAP.lastUpdated.title}
                    value={formatTimestamp(dashboardStats.lastUpdateTimestamp)}
-                   icon={DASHBOARD_STATS_MAP.lastUpdated.icon || CalendarDays} // Fallback icon
+                   icon={DASHBOARD_STATS_MAP.lastUpdated.icon || CalendarDays}
                    bgColorClass={DASHBOARD_STATS_MAP.lastUpdated.bgColorClass}
                    textColorClass={DASHBOARD_STATS_MAP.lastUpdated.textColorClass}
                    isLoading={isLoadingStats}
@@ -256,15 +260,12 @@ export default function DashboardPage() {
             )}
         </div>
 
-
-        {/* Pending and Completed Shipments Sections */}
         <div className="grid gap-6 md:grid-cols-2">
-            {/* Pending Shipments */}
             <Card className="shadow-lg rounded-xl">
                 <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <AlertTriangle className="h-5 w-5 text-amber-500" />
-                    Pending Shipments (Recent 5)
+                    Pending Shipments (Recent {pendingShipments.length})
                 </CardTitle>
                 <CardDescription>Shipments awaiting completion.</CardDescription>
                 </CardHeader>
@@ -273,12 +274,11 @@ export default function DashboardPage() {
                 </CardContent>
             </Card>
 
-            {/* Completed Shipments */}
             <Card className="shadow-lg rounded-xl">
                 <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    Completed Shipments (Recent 5)
+                    Completed Shipments (Recent {completedShipments.length})
                 </CardTitle>
                 <CardDescription>Recently finalized shipments.</CardDescription>
                 </CardHeader>
@@ -290,3 +290,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
