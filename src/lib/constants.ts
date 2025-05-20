@@ -113,9 +113,8 @@ export const DEFAULT_CONSIGNEE_ADDRESS = "La Poste, Avenue de la Poste, 75000 Pa
 
 // Value for the primary Asendia customer whose weight is tracked separately on the dashboard
 // and used in the `recalculateShipmentTotals` function.
-// *** IMPORTANT: You MUST update this string to the Firestore 'value' (Internal ID) ***
-// *** of your "Asendia A/C" customer for the dashboard breakdown to be correct. ***
-export const PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN = "12345678"; // This was for "Asendia UK", CHANGE THIS to "Asendia A/C" ID
+// *** IMPORTANT: This value has been updated with the ID for "Asendia A/C". ***
+export const PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN = "123456789";
 
 
 // Constants for calculations (used in Details Form & Shipment Calculations features)
