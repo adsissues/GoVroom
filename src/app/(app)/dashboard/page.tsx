@@ -167,12 +167,12 @@ export default function DashboardPage() {
     
     const itemsToShow = showAll ? shipments : shipments.slice(0, 2);
 
-    let overallTotalAsendiaNetWeight = 0;
+    let overallTotalAsendiaACNetWeight = 0;
     let overallTotalOtherNetWeight = 0;
 
     if (shipments && shipments.length > 0) {
         shipments.forEach(shipment => {
-            overallTotalAsendiaNetWeight += shipment.asendiaNetWeight || 0;
+            overallTotalAsendiaACNetWeight += shipment.asendiaNetWeight || 0; // This field will represent "Asendia A/C" if PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN is set correctly
             overallTotalOtherNetWeight += (shipment.totalNetWeight || 0) - (shipment.asendiaNetWeight || 0);
         });
     }
@@ -206,12 +206,14 @@ export default function DashboardPage() {
                       </div>
                       <div className="mt-2 pt-2 border-t border-muted/50 text-xs space-y-1">
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground flex items-center"><ShoppingCart className="mr-1.5 h-3.5 w-3.5 text-primary/70" /> Asendia Net:</span>
+                          {/* The 'asendiaNetWeight' field is now assumed to represent "Asendia A/C" or primary Asendia account,
+                              based on PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN constant in constants.ts */}
+                          <span className="text-muted-foreground flex items-center"><ShoppingCart className="mr-1.5 h-3.5 w-3.5 text-primary/70" /> Asendia A/C Net:</span>
                           <span className="font-medium">{shipment.asendiaNetWeight?.toFixed(2) ?? '0.00'} kg</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground flex items-center"><Users className="mr-1.5 h-3.5 w-3.5 text-primary/70" /> Other Cust. Net:</span>
-                          <span className="font-medium">{( (shipment.totalNetWeight || 0) - (shipment.asendiaNetWeight || 0) ).toFixed(2)} kg</span>
+                          <span className="font-medium">{((shipment.totalNetWeight || 0) - (shipment.asendiaNetWeight || 0)).toFixed(2)} kg</span>
                         </div>
                       </div>
                     </CardContent>
@@ -236,7 +238,7 @@ export default function DashboardPage() {
             <h4 className="text-sm font-medium text-muted-foreground">Aggregate Net Weight Totals (Recent {shipments.length}):</h4>
             <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center"><ShoppingCart className="mr-2 h-4 w-4 text-primary/70" /> Asendia A/C:</span>
-                <span className="font-semibold">{overallTotalAsendiaNetWeight.toFixed(2)} kg</span>
+                <span className="font-semibold">{overallTotalAsendiaACNetWeight.toFixed(2)} kg</span>
             </div>
             <div className="flex items-center justify-between text-sm">
                  <span className="flex items-center"><Users className="mr-2 h-4 w-4 text-primary/70" /> Other Customers:</span>

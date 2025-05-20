@@ -115,9 +115,12 @@ export const SERVICE_FORMAT_MAPPING: { [serviceValueKey: string]: string | null 
 export const DEFAULT_SENDER_ADDRESS = "Asendia UK, Unit 5, The Hub, Solent Business Park, Fareham, PO15 7FH";
 export const DEFAULT_CONSIGNEE_ADDRESS = "La Poste, Avenue de la Poste, 75000 Paris, France";
 
-// Value for Asendia customer (used in ShipmentDetailForm for defaults)
-// This value MUST EXACTLY match a 'value' in your 'customers' Firestore collection for "Asendia UK".
-export const ASENDIA_CUSTOMER_VALUE = "12345678";
+// Value for the primary Asendia customer whose weight is tracked separately on the dashboard
+// and used in the `recalculateShipmentTotals` function.
+// *** IMPORTANT: You MUST update this string to the Firestore 'value' (Internal ID) ***
+// *** of your "Asendia A/C" customer for the dashboard breakdown to be correct. ***
+// The previous value "12345678" was for "Asendia UK".
+export const PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN = "12345678"; // <<<< USER MUST CHANGE THIS TO "Asendia A/C" ID
 
 
 // Constants for calculations (used in Details Form & Shipment Calculations features)
@@ -126,13 +129,10 @@ export const BAG_WEIGHT_MULTIPLIER = 0.125; // Weight per bag in kg
 
 // For dashboard summary cards
 export const DASHBOARD_STATS_MAP: { [key: string]: { title: string; icon: React.ElementType; unit?: string; bgColorClass: string; textColorClass: string, isUnavailable?: boolean } } = {
-  pendingCount: { title: "Pending Shipments", icon: AlertTriangle, bgColorClass: "bg-amber-100", textColorClass: "text-amber-600" },
-  completedCount: { title: "Completed Shipments", icon: CheckCircle2, bgColorClass: "bg-green-100", textColorClass: "text-green-600" },
-  totalGrossWeightSum: { title: "Total Gross Weight", icon: Weight, unit: "kg", bgColorClass: "bg-blue-100", textColorClass: "text-blue-600", isUnavailable: true }, // Requires backend aggregation
+  // pendingCount, completedCount, and totalGrossWeightSum are now handled by on-the-fly queries in dashboard page or planned for backend aggregation
   lastUpdateTimestamp: { title: "Last Updated", icon: CalendarDays, unit: "", bgColorClass: "bg-gray-100", textColorClass: "text-gray-600" },
 };
 
 // Value for the default "Prior" service in the ShipmentDetailForm
 // This value MUST EXACTLY match the 'value' field of your "Prior" service document in Firestore.
-export const DEFAULT_PRIOR_SERVICE_ID = "E"; // Updated to "E" as per user feedback
-
+export const DEFAULT_PRIOR_SERVICE_ID = "E";

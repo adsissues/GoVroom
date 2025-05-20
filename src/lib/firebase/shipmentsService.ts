@@ -25,7 +25,7 @@ import {
   getCountFromServer,
 } from 'firebase/firestore';
 import type { Shipment, ShipmentDetail, ShipmentStatus, DropdownItem } from '@/lib/types';
-import { ASENDIA_CUSTOMER_VALUE } from '@/lib/constants';
+import { PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN } from '@/lib/constants';
 
 // --- Helper Functions ---
 
@@ -299,9 +299,9 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
       let totalGrossWeight = 0;
       let totalTareWeight = 0;
       let totalNetWeight = 0;
-      let asendiaGrossWeight = 0;
-      let asendiaTareWeight = 0;
-      let asendiaNetWeight = 0;
+      let primaryAsendiaGrossWeight = 0;
+      let primaryAsendiaTareWeight = 0;
+      let primaryAsendiaNetWeight = 0;
 
       details.forEach(detail => {
         totalPallets += detail.numPallets || 0;
@@ -311,10 +311,10 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
         const currentNetWeight = detail.netWeight !== undefined ? detail.netWeight : parseFloat(((detail.grossWeight || 0) - (detail.tareWeight || 0)).toFixed(3));
         totalNetWeight += currentNetWeight;
 
-        if (detail.customerId === ASENDIA_CUSTOMER_VALUE) {
-          asendiaGrossWeight += detail.grossWeight || 0;
-          asendiaTareWeight += detail.tareWeight || 0;
-          asendiaNetWeight += currentNetWeight;
+        if (detail.customerId === PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN) {
+          primaryAsendiaGrossWeight += detail.grossWeight || 0;
+          primaryAsendiaTareWeight += detail.tareWeight || 0;
+          primaryAsendiaNetWeight += currentNetWeight;
         }
       });
 
@@ -324,9 +324,9 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
         totalGrossWeight: parseFloat(totalGrossWeight.toFixed(3)),
         totalTareWeight: parseFloat(totalTareWeight.toFixed(3)),
         totalNetWeight: parseFloat(totalNetWeight.toFixed(3)),
-        asendiaGrossWeight: parseFloat(asendiaGrossWeight.toFixed(3)),
-        asendiaTareWeight: parseFloat(asendiaTareWeight.toFixed(3)),
-        asendiaNetWeight: parseFloat(asendiaNetWeight.toFixed(3)),
+        asendiaGrossWeight: parseFloat(primaryAsendiaGrossWeight.toFixed(3)), // Note: this field in Firestore is now for the primary Asendia customer
+        asendiaTareWeight: parseFloat(primaryAsendiaTareWeight.toFixed(3)),   // Note: this field in Firestore is now for the primary Asendia customer
+        asendiaNetWeight: parseFloat(primaryAsendiaNetWeight.toFixed(3)),    // Note: this field in Firestore is now for the primary Asendia customer
         lastUpdated: serverTimestamp(),
       };
       transaction.update(shipmentRef, updates);
@@ -343,7 +343,7 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
 export const getDashboardStats = async (): Promise<{
     pendingCount: number | null;
     completedCount: number | null;
-    totalGrossWeightSum: number | null;
+    totalGrossWeightSum: number | null; // This remains null as it needs backend aggregation
     lastUpdateTimestamp: Timestamp | null;
 }> => {
     const shipmentsCollection = collection(db, 'shipments');
@@ -360,7 +360,9 @@ export const getDashboardStats = async (): Promise<{
         const lastUpdatedSnapshot = await getDocs(lastUpdatedQuery);
         const lastUpdateTimestamp = lastUpdatedSnapshot.empty ? null : (lastUpdatedSnapshot.docs[0].data().lastUpdated as Timestamp);
 
-        const totalGrossWeightSum = null;
+        // Total gross weight sum is best handled by backend aggregation (e.g., Cloud Function)
+        // Returning null here as per previous decisions to avoid client-side full collection scan.
+        const totalGrossWeightSum = null; 
 
         return {
             pendingCount: pendingSnapshot.data().count,
@@ -378,3 +380,4 @@ export const getDashboardStats = async (): Promise<{
         };
     }
 };
+
