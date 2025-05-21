@@ -32,10 +32,8 @@ import { PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN } from '@/lib/const
 export const shipmentFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): Shipment => {
   const data = docSnap.data();
   if (!data) {
-    // This case should ideally not happen if docSnap.exists() is checked before calling
     console.error(`Document data missing for snapshot ID: ${docSnap.id}`);
-    // Return a minimal Shipment object or throw an error
-    return { id: docSnap.id } as Shipment; // Or handle more gracefully
+    return { id: docSnap.id } as Shipment; 
   }
   return {
     id: docSnap.id,
@@ -77,7 +75,7 @@ export const detailFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): Sh
 
     return {
         id: docSnap.id,
-        shipmentId: docSnap.ref.parent.parent?.id || '', // Get parent shipmentId
+        shipmentId: docSnap.ref.parent.parent?.id || '', 
         numPallets: typeof data.numPallets === 'number' ? data.numPallets : 0,
         numBags: typeof data.numBags === 'number' ? data.numBags : 0,
         customerId: data.customerId || '',
@@ -85,7 +83,7 @@ export const detailFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): Sh
         formatId: data.formatId || '',
         tareWeight: tareWeight,
         grossWeight: grossWeight,
-        netWeight: netWeight, // Calculated net weight
+        netWeight: netWeight, 
         dispatchNumber: data.dispatchNumber || undefined,
         doeId: data.doeId || undefined,
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(),
@@ -100,10 +98,8 @@ export const addShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'c
   try {
     const docRef = await addDoc(collection(db, 'shipments'), {
       ...shipmentData,
-      // Ensure dates are Timestamps if they are Date objects
       departureDate: shipmentData.departureDate instanceof Date ? Timestamp.fromDate(shipmentData.departureDate) : shipmentData.departureDate,
       arrivalDate: shipmentData.arrivalDate instanceof Date ? Timestamp.fromDate(shipmentData.arrivalDate) : shipmentData.arrivalDate,
-      // Initialize totals
       totalPallets: 0,
       totalBags: 0,
       totalGrossWeight: 0,
@@ -112,14 +108,14 @@ export const addShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'c
       asendiaGrossWeight: 0,
       asendiaTareWeight: 0,
       asendiaNetWeight: 0,
-      status: shipmentData.status || 'Pending', // Default status
+      status: shipmentData.status || 'Pending', 
       createdAt: serverTimestamp(),
       lastUpdated: serverTimestamp(),
     });
     return docRef.id;
   } catch (error) {
     console.error("Error adding shipment:", error);
-    throw error; // Re-throw to be handled by the caller
+    throw error; 
   }
 };
 
@@ -127,14 +123,13 @@ export const updateShipment = async (shipmentId: string, updates: Partial<Omit<S
   const shipmentRef = doc(db, 'shipments', shipmentId);
   try {
     const dataToUpdate: DocumentData = { ...updates };
-    // Convert Date objects to Timestamps if present
     if (updates.departureDate instanceof Date) {
       dataToUpdate.departureDate = Timestamp.fromDate(updates.departureDate);
     }
      if (updates.arrivalDate instanceof Date) {
        dataToUpdate.arrivalDate = Timestamp.fromDate(updates.arrivalDate);
     }
-    dataToUpdate.lastUpdated = serverTimestamp(); // Always update lastUpdated timestamp
+    dataToUpdate.lastUpdated = serverTimestamp(); 
 
     await updateDoc(shipmentRef, dataToUpdate);
   } catch (error) {
@@ -289,6 +284,7 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
     console.warn("[ShipmentService DEBUG] recalculateShipmentTotals called with invalid shipmentId:", shipmentId);
     return;
   }
+  // Log the constant value BEING USED in this specific execution of the function
   console.log(`[ShipmentService DEBUG] Recalculating totals for shipment: ${shipmentId}. Using PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN: "${PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN}"`);
 
   const shipmentRef = doc(db, 'shipments', shipmentId);
@@ -323,7 +319,7 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
         totalNetWeight += itemNetWeight;
 
         if (detail.customerId === PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN) {
-          console.log(`[ShipmentService DEBUG]   ^-- Item MATCHED PRIMARY_ASENDIA_CUSTOMER_ID. Adding its Net Wt: ${itemNetWeight.toFixed(3)} to primaryAsendiaNetWeight.`);
+          console.log(`[ShipmentService DEBUG]   ^-- Item MATCHED PRIMARY_ASENDIA_CUSTOMER_ID. Adding its Gross: ${itemGrossWeight.toFixed(3)}, Tare: ${itemTareWeight.toFixed(3)}, Net Wt: ${itemNetWeight.toFixed(3)} to primary Asendia totals.`);
           primaryAsendiaGrossWeight += itemGrossWeight;
           primaryAsendiaTareWeight += itemTareWeight;
           primaryAsendiaNetWeight += itemNetWeight;
@@ -332,7 +328,7 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
         }
       });
 
-      console.log(`[ShipmentService DEBUG] Calculated FINAL Totals - totalNetWeight: ${totalNetWeight.toFixed(3)}, primaryAsendiaNetWeight: ${primaryAsendiaNetWeight.toFixed(3)}`);
+      console.log(`[ShipmentService DEBUG] Calculated FINAL Totals - totalNetWeight: ${totalNetWeight.toFixed(3)}, primaryAsendiaNetWeight: ${primaryAsendiaNetWeight.toFixed(3)}, primaryAsendiaGrossWeight: ${primaryAsendiaGrossWeight.toFixed(3)}, primaryAsendiaTareWeight: ${primaryAsendiaTareWeight.toFixed(3)}`);
 
       const updates = {
         totalPallets: totalPallets,
@@ -385,7 +381,7 @@ export const getDashboardStats = async (): Promise<{
         return {
             pendingCount: pendingSnapshot.data().count,
             completedCount: completedSnapshot.data().count,
-            totalGrossWeightSum: totalGrossWeightSum,
+            totalGrossWeightSum: totalGrossWeightSum, // Placeholder, requires backend aggregation
             lastUpdateTimestamp: lastUpdateTimestamp,
         };
     } catch (error) {

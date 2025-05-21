@@ -64,8 +64,6 @@ export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
   { id: 'subcarriers', name: 'Subcarriers', description: 'Manage specific sub-carrier services', icon: Truck },
   { id: 'customers', name: 'Customers', description: 'Manage customer accounts', icon: Users },
   { id: 'services', name: 'Services', description: 'Manage shipment service types', icon: Wrench },
-  // These are the collections that will hold the format options specific to each service.
-  // The 'id' here MUST match the value used in SERVICE_FORMAT_MAPPING below.
   { id: 'formats_prior', name: 'Formats (Priority)', description: 'Manage formats for "Priority" service (e.g., service value "E", "prior", "priority")', icon: Boxes },
   { id: 'formats_eco', name: 'Formats (Economy)', description: 'Manage formats for "Economy" service (e.g., service value "C", "eco", "economy")', icon: Boxes },
   { id: 'formats_s3c', name: 'Formats (S3C)', description: 'Manage formats for "S3C" service (e.g., service value "S", "s3c")', icon: Boxes },
@@ -76,33 +74,16 @@ export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
  * Mapping for service-specific format collections.
  * The keys in this object MUST match the *value* field (converted to lowercase)
  * from your '/services' Firestore collection.
- * The application code will convert the selected service's value to lowercase before
- * looking it up in this map.
- *
- * Example:
- * If a service document in your '/services' Firestore collection for "Priority" has:
- *   { label: "Priority Express Mail", value: "E" } // Or "PRIORITY_EXPRESS_MAIL"
- *
- * Then the mapping here MUST include a key that is the lowercase version of that value:
- *   'e': 'formats_prior', // If value is "E"
- *   'priority_express_mail': 'formats_prior', // if value is "PRIORITY_EXPRESS_MAIL"
  */
 export const SERVICE_FORMAT_MAPPING: { [serviceValueKey: string]: string | null } = {
-  // --- IMPORTANT: Ensure these keys match YOUR Firestore /services `value` fields (in lowercase) ---
-
-  // For "Prior" service (assuming its Firestore `value` is "E")
   'e': 'formats_prior',
-  'prior': 'formats_prior',     // For flexibility if value is "prior"
-  'priority': 'formats_prior', // For flexibility if value is "priority"
-
-  // For "Economy" service (assuming its Firestore `value` is "C", "eco", or "economy")
-  'c': 'formats_eco',       // Assuming Firestore value "C" for Eco
-  'eco': 'formats_eco',     // For flexibility
-  'economy': 'formats_eco', // For flexibility
-
-  // For "S3C" service (assuming its Firestore `value` is "S" or "s3c")
-  's': 'formats_s3c',       // Assuming Firestore value "S" for S3C
-  's3c': 'formats_s3c',     // For flexibility
+  'prior': 'formats_prior',
+  'priority': 'formats_prior',
+  'c': 'formats_eco',
+  'eco': 'formats_eco',
+  'economy': 'formats_eco',
+  's': 'formats_s3c',
+  's3c': 'formats_s3c',
 };
 
 
@@ -113,7 +94,7 @@ export const DEFAULT_CONSIGNEE_ADDRESS = "La Poste, Avenue de la Poste, 75000 Pa
 // Value for the primary Asendia customer whose weight is tracked separately on the dashboard
 // and used in the `recalculateShipmentTotals` function.
 // *** THIS MUST BE THE Firestore 'value' (Internal ID) OF YOUR "Asendia A/C" CUSTOMER. ***
-// Based on your input, this should be "123456789".
+// You confirmed this ID is "123456789".
 export const PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN = "123456789";
 
 
@@ -126,12 +107,12 @@ export const DASHBOARD_STATS_MAP: { [key: string]: { title: string; icon: React.
   lastUpdateTimestamp: { title: "Last Updated", icon: CalendarDays, unit: "", bgColorClass: "bg-gray-100", textColorClass: "text-gray-600" },
 };
 
-// Value for the default "Prior" service in the ShipmentDetailForm
+// Default "Prior" service VALUE (Internal ID) for ShipmentDetailForm
 // This value MUST EXACTLY match the 'value' field of your "Prior" service document in Firestore.
-// Based on your input, this should be "E".
+// You indicated this is "E".
 export const DEFAULT_PRIOR_SERVICE_ID = "E";
 
-// Value for the default "DOE" (Date of Entry) in the ShipmentDetailForm
+// Default "DOE" (Date of Entry) VALUE (Internal ID) for ShipmentDetailForm
 // This value MUST EXACTLY match the 'value' field of your default DOE document in Firestore.
-// Based on your input, this should be "UZ1".
+// You indicated this is "UZ1".
 export const DEFAULT_DOE_ID = "UZ1";
