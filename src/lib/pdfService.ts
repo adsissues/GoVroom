@@ -16,7 +16,7 @@ import {
 } from 'firebase/firestore';
 import { detailFromFirestore } from '@/lib/firebase/shipmentsService';
 import { getDropdownOptionsMap } from '@/lib/firebase/dropdownService';
-import { SERVICE_FORMAT_MAPPING, BAG_WEIGHT_MULTIPLIER } from '@/lib/constants'; // Import BAG_WEIGHT_MULTIPLIER
+import { SERVICE_FORMAT_MAPPING } from '@/lib/constants';
 import { format } from 'date-fns';
 
 // Helper function to trigger download via data URI
@@ -76,10 +76,10 @@ const formatDateForPdf = (timestamp?: Timestamp): string => {
   }
 };
 
-const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
+const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined | null, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
   if (!value) return defaultValueIfNotFoundOrValueMissing;
-  if (!map) return value; // Fallback to value if map is not loaded
-  return map[value] || value; // Fallback to value if specific key not in map
+  if (!map) return value;
+  return map[value] || value;
 };
 
 const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
@@ -92,15 +92,14 @@ const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
     doc.rect(x, y, logoWidth, logoHeight, 'F');
 
     doc.setFontSize(textFontSize);
-    doc.setFont('helvetica', 'normal'); // Using 'normal' as sample text doesn't look particularly bold
+    doc.setFont('helvetica', 'normal');
     doc.setTextColor(255, 255, 255); // White text
 
-    // Calculate text position to center it within the box
     const textMetrics = doc.getTextDimensions(text, { fontSize: textFontSize });
     const textX = x + (logoWidth - textMetrics.w) / 2;
     const textY = y + (logoHeight / 2) + (textMetrics.h / 3.5); // Adjusted for better vertical centering
 
-    doc.text(text, textX, textY, { baseline: 'middle', align: 'left' }); // Using align:left and calculating X for center
+    doc.text(text, textX, textY, { baseline: 'middle', align: 'center' }); // Use align: 'center'
 
     doc.setTextColor(0, 0, 0); // Reset text color
 };
@@ -113,7 +112,7 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
     return [];
   }
   const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
-  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc'));
+  const q = query(detailsCollectionRef, orderBy('createdAt', 'asc')); // Added orderBy import
   try {
     const snapshot = await getDocs(q);
     const details = snapshot.docs.map(doc => detailFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
@@ -128,24 +127,27 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
 export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => {
   const pdfType = "Pre-Alert";
   const filename = `pre-alert-${shipment.id || 'shipment'}.pdf`;
-  console.log(`[PDFService] ${pdfType} PDF: Full shipment data for ${shipment.id}:`, JSON.stringify(shipment, null, 2));
+  console.log(`[PDFService] ${pdfType} PDF: Full shipment data:`, JSON.stringify(shipment, null, 2));
   console.log(`[PDFService] ${pdfType}: generatePreAlertPdf CALLED. Attempting to generate: ${filename}`);
 
   try {
+    console.log(`[PDFService] ${pdfType}: Creating new jsPDF instance...`);
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-    const pageMargin = 10;
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const contentWidth = pageWidth - 2 * pageMargin;
-    let currentY = pageMargin;
+    console.log(`[PDFService] ${pdfType}: jsPDF instance created successfully.`);
 
     const details = await getShipmentDetails(shipment.id);
-    const allFormatCollectionIds = Object.values(SERVICE_FORMAT_MAPPING).filter(Boolean) as string[];
-    const dropdownCollectionNames = [...new Set(['carriers', 'services', 'customers', 'doe', ...allFormatCollectionIds])];
-    const dropdownMaps = await getDropdownOptionsMap(dropdownCollectionNames);
+    console.log(`[PDFService] ${pdfType}: Fetched ${details.length} shipment details for table.`);
 
-    // Colors
-    const lightYellowBg: [number, number, number] = [255, 248, 220]; // Example: AntiqueWhite
+    const allFormatCollectionIds = Object.values(SERVICE_FORMAT_MAPPING).filter(Boolean) as string[];
+    const dropdownCollectionNames = [...new Set(['carriers', 'subcarriers', 'customers', 'services', 'doe', ...allFormatCollectionIds])];
+    const dropdownMaps = await getDropdownOptionsMap(dropdownCollectionNames);
+    console.log(`[PDFService] ${pdfType}: Fetched dropdown maps for labels.`);
+
+    const pageMargin = 10;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    // const pageHeight = doc.internal.pageSize.getHeight(); // Not used explicitly yet
+    const contentWidth = pageWidth - 2 * pageMargin;
+    let currentY = pageMargin;
 
     // Helper to draw styled box with centered text
     const drawStyledBox = (text: string, x: number, y: number, width: number, height: number, options: {
@@ -171,7 +173,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
       doc.setFont('helvetica', fontStyle);
       doc.setTextColor(...textColor);
       
-      const textX = halign === 'center' ? x + width / 2 : (halign === 'right' ? x + width - 2 : x + 2);
+      const textX = halign === 'center' ? x + width / 2 : (halign === 'right' ? x + width - 2 : x + 2); // -2 for right align padding
       doc.text(text, textX, y + height / 2, { align: halign, baseline: 'middle' });
     };
 
@@ -181,22 +183,23 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text("SHIPMENT REPORT / ASENDIA UK", pageWidth / 2, currentY + 7, { align: 'center' });
-    currentY += 5; // Adjust Y based on logo height and title
+    currentY += 5; 
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     const dateDepartureText = `Date de départ: ${formatDateForPdf(shipment.departureDate)}`;
     const dateArrivalText = `Date d'arrivée: ${formatDateForPdf(shipment.arrivalDate)}`;
     const dateTextWidth = Math.max(doc.getTextWidth(dateDepartureText), doc.getTextWidth(dateArrivalText));
-    doc.text(dateDepartureText, pageWidth - pageMargin - dateTextWidth, currentY - 2);
-    doc.text(dateArrivalText, pageWidth - pageMargin - dateTextWidth, currentY + 3);
+    doc.text(dateDepartureText, pageWidth - pageMargin - dateTextWidth, currentY - 2); // Adjust Y to align better
+    doc.text(dateArrivalText, pageWidth - pageMargin - dateTextWidth, currentY + 3); // Adjust Y
     currentY += 15;
 
 
     // --- Shipment Information Block ---
+    const lightYellowBg: [number, number, number] = [255, 248, 220];
     const infoBlockLabels = ["Transporteur", "Driver Name", "Truck Reg No", "Trailer Reg No", "Seal Number"];
     const infoBlockValues = [
-      getLabelFromMap(dropdownMaps['carriers'], shipment.carrierId),
+      getLabelFromMap(dropdownMaps['carriers'], shipment.carrierId, shipment.carrierId),
       shipment.driverName || 'N/A',
       shipment.truckRegistration || 'N/A',
       shipment.trailerRegistration || 'N/A',
@@ -213,7 +216,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     infoBlockValues.forEach((value, index) => {
       drawStyledBox(value, pageMargin + index * infoColWidth, currentY, infoColWidth, infoRowHeight, { fillColor: lightYellowBg, fontSize: 7, halign: 'left', border: true });
     });
-    currentY += infoRowHeight + 5; // Space after block
+    currentY += infoRowHeight + 5;
 
     // --- Totals Block ---
     const totalsBlockLabels = ["Total Pallets", "Total Bags", "Total Net Weight", "Total Gross Weight"];
@@ -233,26 +236,26 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     totalsBlockValues.forEach((value, index) => {
       drawStyledBox(value, pageMargin + index * totalsColWidth, currentY, totalsColWidth, infoRowHeight, { fillColor: lightYellowBg, fontSize: 7, halign: 'left', border: true });
     });
-    currentY += infoRowHeight + 5; // Space after block
+    currentY += infoRowHeight + 5;
 
     // --- Service Type Header Block ---
     const serviceHubText = "ROISSY HUB & Cellule S3C";
     const serviceBoxHeight = 7;
     const serviceBoxY = currentY;
-    const firstColWidth = contentWidth * 0.30; // Adjusted for "ROISSY HUB" text
-    const serviceTypeBoxWidth = contentWidth * 0.15;
-    const weightKgBoxWidth = contentWidth - firstColWidth - (3 * serviceTypeBoxWidth);
+    const firstColWidthForServiceHub = contentWidth * 0.30;
+    const serviceTypeBoxWidth = contentWidth * 0.15; // For Prio, Eco, S3C boxes
+    const weightKgBoxWidth = contentWidth - firstColWidthForServiceHub - (3 * serviceTypeBoxWidth);
 
-    drawStyledBox(serviceHubText, pageMargin, serviceBoxY, firstColWidth, serviceBoxHeight, {fillColor: lightYellowBg, fontStyle: 'bold', fontSize: 7, halign: 'left'});
+    drawStyledBox(serviceHubText, pageMargin, serviceBoxY, firstColWidthForServiceHub, serviceBoxHeight, {fillColor: lightYellowBg, fontStyle: 'bold', fontSize: 7, halign: 'left'});
     
-    let currentX = pageMargin + firstColWidth;
-    drawStyledBox("Prio", currentX, serviceBoxY, serviceTypeBoxWidth, serviceBoxHeight, {fillColor: [0,0,255], textColor: [255,255,255], fontStyle: 'bold', fontSize: 7});
-    currentX += serviceTypeBoxWidth;
-    drawStyledBox("Eco", currentX, serviceBoxY, serviceTypeBoxWidth, serviceBoxHeight, {fillColor: [255,255,0], textColor: [0,0,0], fontStyle: 'bold', fontSize: 7});
-    currentX += serviceTypeBoxWidth;
-    drawStyledBox("S3C", currentX, serviceBoxY, serviceTypeBoxWidth, serviceBoxHeight, {fillColor: [255,190,0], textColor: [0,0,0], fontStyle: 'bold', fontSize: 7});
-    currentX += serviceTypeBoxWidth;
-    drawStyledBox("Weight Kg", currentX, serviceBoxY, weightKgBoxWidth, serviceBoxHeight, {fillColor: lightYellowBg, fontStyle: 'bold', fontSize: 7});
+    let currentXForServiceTypes = pageMargin + firstColWidthForServiceHub;
+    drawStyledBox("Prio", currentXForServiceTypes, serviceBoxY, serviceTypeBoxWidth, serviceBoxHeight, {fillColor: [0,0,255], textColor: [255,255,255], fontStyle: 'bold', fontSize: 7});
+    currentXForServiceTypes += serviceTypeBoxWidth;
+    drawStyledBox("Eco", currentXForServiceTypes, serviceBoxY, serviceTypeBoxWidth, serviceBoxHeight, {fillColor: [255,255,0], textColor: [0,0,0], fontStyle: 'bold', fontSize: 7});
+    currentXForServiceTypes += serviceTypeBoxWidth;
+    drawStyledBox("S3C", currentXForServiceTypes, serviceBoxY, serviceTypeBoxWidth, serviceBoxHeight, {fillColor: [255,190,0], textColor: [0,0,0], fontStyle: 'bold', fontSize: 7});
+    currentXForServiceTypes += serviceTypeBoxWidth;
+    drawStyledBox("Weight Kg", currentXForServiceTypes, serviceBoxY, weightKgBoxWidth, serviceBoxHeight, {fillColor: lightYellowBg, fontStyle: 'bold', fontSize: 7});
     currentY += serviceBoxHeight;
 
 
@@ -261,19 +264,18 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     const tableBody = details.map(detail => {
       const customerLabel = getLabelFromMap(dropdownMaps['customers'], detail.customerId, detail.customerId);
       const dispatchNo = detail.dispatchNumber || 'N/A';
-      const doeLabel = getLabelFromMap(dropdownMaps['doe'], detail.doeId, detail.doeId || 'N/A');
+      const doeLabel = getLabelFromMap(dropdownMaps['doe'], detail.doeId, detail.doeId); // Using detail.doeId as fallback
       
       const serviceKey = detail.serviceId?.toLowerCase();
       let formatPrio = '', formatEco = '', formatS3C = '';
 
-      const serviceMapping = SERVICE_FORMAT_MAPPING[serviceKey || ''] || null;
+      const formatCollectionId = serviceKey && SERVICE_FORMAT_MAPPING[serviceKey] ? SERVICE_FORMAT_MAPPING[serviceKey] : null;
       let formatDisplayValue = detail.formatId || '';
-      if (serviceMapping && detail.formatId) {
-          formatDisplayValue = getLabelFromMap(dropdownMaps[serviceMapping], detail.formatId, detail.formatId);
-      } else if (detail.formatId) {
-          formatDisplayValue = detail.formatId; // Fallback if mapping is complex or formatId is generic
+      if (formatCollectionId && detail.formatId) {
+          formatDisplayValue = getLabelFromMap(dropdownMaps[formatCollectionId], detail.formatId, detail.formatId);
+      } else if (detail.formatId === '') {
+          formatDisplayValue = ''; // Ensure empty string if no format
       }
-
 
       if (serviceKey === 'e' || serviceKey === 'prior' || serviceKey === 'priority') {
         formatPrio = formatDisplayValue;
@@ -296,7 +298,6 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
       ];
     });
 
-    const columnStyles: { [key: number]: any } = {};
     const cellStyles = {
         fillColor: lightYellowBg, 
         textColor: [0,0,0], 
@@ -304,28 +305,25 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
         cellPadding: 1.5,
         halign: 'left',
         valign: 'middle',
-        border: '格', // Ensure borders are drawn for cells
         lineColor: [150,150,150],
         lineWidth: 0.1
     };
 
-    autoTable(doc, {
+    autoTable(doc, { // Changed from (doc as any).autoTable
       head: tableHead,
       body: tableBody,
       startY: currentY,
-      theme: 'plain', // Use 'plain' and apply custom styles
-      styles: cellStyles, // Base styles for all cells
+      theme: 'plain',
+      styles: cellStyles,
       headStyles: {
-        fillColor: lightYellowBg, // Header background
-        textColor: [0,0,0],       // Header text color
+        fillColor: lightYellowBg,
+        textColor: [0,0,0],
         fontStyle: 'bold',
         halign: 'center',
         lineWidth: 0.1,
         lineColor: [150,150,150]
       },
-      columnStyles: columnStyles, // Apply specific column styles if needed later
       didDrawPage: (data: any) => {
-        // Redraw logo on new pages if table spans multiple pages
         if (data.pageNumber > 1) {
              addAsendiaStyleLogo(doc, pageMargin, pageMargin);
         }
@@ -343,25 +341,29 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
   }
 };
 
-// --- Original CMR PDF (Simple Placeholder) ---
+
+// --- Simple Placeholder CMR PDF ---
 export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
   const pdfType = "CMR";
   const filename = `cmr-${shipment.id || 'shipment'}.pdf`;
-  console.log(`[PDFService] ${pdfType} PDF: Full shipment data for ${shipment.id}:`, JSON.stringify(shipment, null, 2));
+  console.log(`[PDFService] ${pdfType} PDF: Full shipment data:`, JSON.stringify(shipment, null, 2));
   console.log(`[PDFService] ${pdfType}: generateCmrPdf CALLED. Attempting to generate: ${filename}`);
 
   try {
+    console.log(`[PDFService] ${pdfType}: Creating new jsPDF instance...`);
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    console.log(`[PDFService] ${pdfType}: jsPDF instance created successfully.`);
+
     const pageMargin = 15;
     let currentY = pageMargin;
 
     console.log(`[PDFService] ${pdfType}: Adding Asendia Style Logo...`);
     addAsendiaStyleLogo(doc, pageMargin, currentY);
-    // Position title next to the logo
+    
     const logoHeight = 10; // from addAsendiaStyleLogo
     const logoWidth = 35;  // from addAsendiaStyleLogo
-    let titleX = pageMargin + logoWidth + 5; // 5mm gap after logo
-    let titleY = currentY + logoHeight / 2; // Vertically centered with logo
+    let titleX = pageMargin + logoWidth + 5; 
+    let titleY = currentY + logoHeight / 2; 
 
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
@@ -392,4 +394,3 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
 };
-    
