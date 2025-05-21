@@ -64,15 +64,9 @@ export default function DashboardPage() {
   const [pendingShipments, setPendingShipments] = useState<Shipment[]>([]);
   const [completedShipments, setCompletedShipments] = useState<Shipment[]>([]);
   const [dashboardStats, setDashboardStats] = useState<{
-      // pendingCount: number | null; // Removed
-      // completedCount: number | null; // Removed
       lastUpdateTimestamp: Timestamp | null;
-      // totalGrossWeightSum: number | null; // Removed
   }>({ 
-      // pendingCount: null, // Removed
-      // completedCount: null, // Removed
       lastUpdateTimestamp: null, 
-      // totalGrossWeightSum: null // Removed
   });
 
   const [isLoadingPending, setIsLoadingPending] = useState(true);
@@ -96,10 +90,7 @@ export default function DashboardPage() {
         console.error("Error fetching dashboard stats:", err);
         setErrorStats("Failed to load dashboard statistics.");
         setDashboardStats({ 
-            // pendingCount: null, // Removed
-            // completedCount: null, // Removed
             lastUpdateTimestamp: null, 
-            // totalGrossWeightSum: null // Removed
         });
       })
       .finally(() => setIsLoadingStats(false));
@@ -177,18 +168,12 @@ export default function DashboardPage() {
     
     const itemsToShow = showAll ? shipments : shipments.slice(0, 2); 
 
-    let overallTotalAsendiaACNetWeight = 0;
-    let overallTotalOtherNetWeight = 0;
-
-
-    if (shipments && shipments.length > 0) {
-        shipments.forEach(shipment => {
-            overallTotalAsendiaACNetWeight += shipment.asendiaACNetWeight || 0; 
-            overallTotalOtherNetWeight += (shipment.asendiaUKNetWeight || 0) + 
-                                         (shipment.transitLightNetWeight || 0) + 
-                                         (shipment.remainingCustomersNetWeight || 0);
-        });
-    }
+    // Calculate "Other" net weight for display purposes within each card
+    const calculateOtherNetWeight = (shipment: Shipment) => {
+      return (shipment.asendiaUKNetWeight || 0) + 
+             (shipment.transitLightNetWeight || 0) + 
+             (shipment.remainingCustomersNetWeight || 0);
+    };
 
     return (
       <>
@@ -199,9 +184,7 @@ export default function DashboardPage() {
         ) : (
           <ul className="space-y-3">
             {itemsToShow.map((shipment) => {
-              const shipmentOtherNetWeight = (shipment.asendiaUKNetWeight || 0) + 
-                                             (shipment.transitLightNetWeight || 0) + 
-                                             (shipment.remainingCustomersNetWeight || 0);
+              const shipmentOtherNetWeight = calculateOtherNetWeight(shipment);
               return (
                 <li key={shipment.id}>
                   <Link href={`/shipments/${shipment.id}`}>
@@ -249,25 +232,28 @@ export default function DashboardPage() {
             </Button>
           </div>
         )}
-
-        <div className="mt-6 border-t pt-4 space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground">Aggregate Net Weight Totals (Recent {shipments.length}):</h4>
-            <div className="flex items-center justify-between text-sm">
-                <span className="flex items-center"><ShoppingCart className="mr-2 h-4 w-4 text-primary/70" /> Asendia A/C:</span>
-                <span className="font-semibold">{overallTotalAsendiaACNetWeight.toFixed(2)} kg</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-                 <span className="flex items-center"><Users className="mr-2 h-4 w-4 text-slate-500/70" /> Other:</span>
-                <span className="font-semibold">{overallTotalOtherNetWeight.toFixed(2)} kg</span>
-            </div>
-        </div>
       </>
     );
   };
 
   return (
     <div className="space-y-6 md:space-y-8">
-        <h1 className="text-2xl md:text-3xl font-bold">Welcome, {currentUser?.email || 'User'}!</h1>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+             <h1 className="text-2xl md:text-3xl font-bold">Welcome, {currentUser?.email || 'User'}!</h1>
+             {/* Only "Last Updated" card remains from the original stat cards */}
+             {DASHBOARD_STATS_MAP.lastUpdateTimestamp && ( 
+                 <StatCard
+                   title={DASHBOARD_STATS_MAP.lastUpdateTimestamp.title}
+                   value={formatTimestamp(dashboardStats.lastUpdateTimestamp)}
+                   icon={DASHBOARD_STATS_MAP.lastUpdateTimestamp.icon || CalendarDays}
+                   bgColorClass={DASHBOARD_STATS_MAP.lastUpdateTimestamp.bgColorClass}
+                   textColorClass={DASHBOARD_STATS_MAP.lastUpdateTimestamp.textColorClass}
+                   isLoading={isLoadingStats}
+                   isUnavailable={!dashboardStats.lastUpdateTimestamp && !isLoadingStats}
+                 />
+            )}
+        </div>
+
 
          {errorStats && (
              <Alert variant="destructive">
@@ -277,22 +263,9 @@ export default function DashboardPage() {
              </Alert>
          )}
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {/* Only "Last Updated" card remains from the original stat cards */}
-            {DASHBOARD_STATS_MAP.lastUpdateTimestamp && ( 
-                 <StatCard
-                   title={DASHBOARD_STATS_MAP.lastUpdateTimestamp.title}
-                   value={formatTimestamp(dashboardStats.lastUpdateTimestamp)}
-                   icon={DASHBOARD_STATS_MAP.lastUpdateTimestamp.icon || CalendarDays}
-                   bgColorClass={DASHBOARD_STATS_MAP.lastUpdateTimestamp.bgColorClass}
-                   textColorClass={DASHBOARD_STATS_MAP.lastUpdateTimestamp.textColorClass}
-                   isLoading={isLoadingStats}
-                 />
-            )}
-        </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-            <Card className="shadow-lg rounded-xl">
+        <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-2"> {/* Adjusted for better prominence */}
+            <Card className="shadow-lg rounded-xl border">
                 <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <AlertTriangle className="h-5 w-5 text-amber-500" />
@@ -305,7 +278,7 @@ export default function DashboardPage() {
                 </CardContent>
             </Card>
 
-            <Card className="shadow-lg rounded-xl">
+            <Card className="shadow-lg rounded-xl border">
                 <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <CheckCircle2 className="h-5 w-5 text-green-500" />
@@ -321,3 +294,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
