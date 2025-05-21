@@ -64,10 +64,16 @@ export default function DashboardPage() {
   const [pendingShipments, setPendingShipments] = useState<Shipment[]>([]);
   const [completedShipments, setCompletedShipments] = useState<Shipment[]>([]);
   const [dashboardStats, setDashboardStats] = useState<{
-      pendingCount: number | null;
-      completedCount: number | null;
+      // pendingCount: number | null; // Removed
+      // completedCount: number | null; // Removed
       lastUpdateTimestamp: Timestamp | null;
-  }>({ pendingCount: null, completedCount: null, lastUpdateTimestamp: null });
+      // totalGrossWeightSum: number | null; // Removed
+  }>({ 
+      // pendingCount: null, // Removed
+      // completedCount: null, // Removed
+      lastUpdateTimestamp: null, 
+      // totalGrossWeightSum: null // Removed
+  });
 
   const [isLoadingPending, setIsLoadingPending] = useState(true);
   const [isLoadingCompleted, setIsLoadingCompleted] = useState(true);
@@ -89,7 +95,12 @@ export default function DashboardPage() {
       .catch(err => {
         console.error("Error fetching dashboard stats:", err);
         setErrorStats("Failed to load dashboard statistics.");
-        setDashboardStats({ pendingCount: null, completedCount: null, lastUpdateTimestamp: null });
+        setDashboardStats({ 
+            // pendingCount: null, // Removed
+            // completedCount: null, // Removed
+            lastUpdateTimestamp: null, 
+            // totalGrossWeightSum: null // Removed
+        });
       })
       .finally(() => setIsLoadingStats(false));
   }, []);
@@ -167,17 +178,15 @@ export default function DashboardPage() {
     const itemsToShow = showAll ? shipments : shipments.slice(0, 2); 
 
     let overallTotalAsendiaACNetWeight = 0;
-    let overallTotalAsendiaUKNetWeight = 0;
-    let overallTotalTransitLightNetWeight = 0;
-    let overallTotalRemainingCustomersNetWeight = 0;
+    let overallTotalOtherNetWeight = 0;
 
 
     if (shipments && shipments.length > 0) {
         shipments.forEach(shipment => {
             overallTotalAsendiaACNetWeight += shipment.asendiaACNetWeight || 0; 
-            overallTotalAsendiaUKNetWeight += shipment.asendiaUKNetWeight || 0;
-            overallTotalTransitLightNetWeight += shipment.transitLightNetWeight || 0;
-            overallTotalRemainingCustomersNetWeight += shipment.remainingCustomersNetWeight || 0;
+            overallTotalOtherNetWeight += (shipment.asendiaUKNetWeight || 0) + 
+                                         (shipment.transitLightNetWeight || 0) + 
+                                         (shipment.remainingCustomersNetWeight || 0);
         });
     }
 
@@ -189,49 +198,46 @@ export default function DashboardPage() {
              <p className="text-muted-foreground text-center py-4">Click "View All" to see shipments.</p>
         ) : (
           <ul className="space-y-3">
-            {itemsToShow.map((shipment) => (
-              <li key={shipment.id}>
-                <Link href={`/shipments/${shipment.id}`}>
-                  <Card className="hover:shadow-md transition-shadow duration-150 cursor-pointer border hover:border-primary/50">
-                    <CardContent className="p-3">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-semibold text-sm truncate">{shipment.carrierId} - {shipment.driverName}</p>
-                          <p className="text-xs text-muted-foreground">
-                              Departed: {formatTimestamp(shipment.departureDate)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                              Last Update: {formatTimestamp(shipment.lastUpdated)}
-                          </p>
+            {itemsToShow.map((shipment) => {
+              const shipmentOtherNetWeight = (shipment.asendiaUKNetWeight || 0) + 
+                                             (shipment.transitLightNetWeight || 0) + 
+                                             (shipment.remainingCustomersNetWeight || 0);
+              return (
+                <li key={shipment.id}>
+                  <Link href={`/shipments/${shipment.id}`}>
+                    <Card className="hover:shadow-md transition-shadow duration-150 cursor-pointer border hover:border-primary/50">
+                      <CardContent className="p-3">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="font-semibold text-sm truncate">{shipment.carrierId} - {shipment.driverName}</p>
+                            <p className="text-xs text-muted-foreground">
+                                Departed: {formatTimestamp(shipment.departureDate)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                Last Update: {formatTimestamp(shipment.lastUpdated)}
+                            </p>
+                          </div>
+                          <Badge variant={status === 'Completed' ? 'default' : 'secondary'} className={status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}>
+                            {shipment.status}
+                          </Badge>
                         </div>
-                        <Badge variant={status === 'Completed' ? 'default' : 'secondary'} className={status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}>
-                          {shipment.status}
-                        </Badge>
-                      </div>
-                      {/* Net weight breakdown per shipment card */}
-                      <div className="mt-2 pt-2 border-t border-muted/50 text-xs space-y-1">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground flex items-center"><ShoppingCart className="mr-1.5 h-3.5 w-3.5 text-primary/70" /> Asendia A/C Net:</span>
-                          <span className="font-medium">{(shipment.asendiaACNetWeight || 0).toFixed(2)} kg</span>
+                        {/* Net weight breakdown per shipment card */}
+                        <div className="mt-2 pt-2 border-t border-muted/50 text-xs space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground flex items-center"><ShoppingCart className="mr-1.5 h-3.5 w-3.5 text-primary/70" /> Asendia A/C Net:</span>
+                            <span className="font-medium">{(shipment.asendiaACNetWeight || 0).toFixed(2)} kg</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground flex items-center"><Users className="mr-1.5 h-3.5 w-3.5 text-slate-500/70" /> Other Net:</span>
+                            <span className="font-medium">{shipmentOtherNetWeight.toFixed(2)} kg</span>
+                          </div>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground flex items-center"><Plane className="mr-1.5 h-3.5 w-3.5 text-sky-600/70" /> Asendia UK Net:</span>
-                          <span className="font-medium">{(shipment.asendiaUKNetWeight || 0).toFixed(2)} kg</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground flex items-center"><Anchor className="mr-1.5 h-3.5 w-3.5 text-orange-500/70" /> Transit Light Net:</span>
-                          <span className="font-medium">{(shipment.transitLightNetWeight || 0).toFixed(2)} kg</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground flex items-center"><Users className="mr-1.5 h-3.5 w-3.5 text-slate-500/70" /> Other Customers Net:</span>
-                          <span className="font-medium">{(shipment.remainingCustomersNetWeight || 0).toFixed(2)} kg</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              </li>
-            ))}
+                      </CardContent>
+                    </Card>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         )}
 
@@ -251,16 +257,8 @@ export default function DashboardPage() {
                 <span className="font-semibold">{overallTotalAsendiaACNetWeight.toFixed(2)} kg</span>
             </div>
             <div className="flex items-center justify-between text-sm">
-                 <span className="flex items-center"><Plane className="mr-2 h-4 w-4 text-sky-600/70" /> Asendia UK:</span>
-                <span className="font-semibold">{overallTotalAsendiaUKNetWeight.toFixed(2)} kg</span>
-            </div>
-             <div className="flex items-center justify-between text-sm">
-                 <span className="flex items-center"><Anchor className="mr-2 h-4 w-4 text-orange-500/70" /> Transit Light:</span>
-                <span className="font-semibold">{overallTotalTransitLightNetWeight.toFixed(2)} kg</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-                 <span className="flex items-center"><Users className="mr-2 h-4 w-4 text-slate-500/70" /> Remaining Customers:</span>
-                <span className="font-semibold">{overallTotalRemainingCustomersNetWeight.toFixed(2)} kg</span>
+                 <span className="flex items-center"><Users className="mr-2 h-4 w-4 text-slate-500/70" /> Other:</span>
+                <span className="font-semibold">{overallTotalOtherNetWeight.toFixed(2)} kg</span>
             </div>
         </div>
       </>
@@ -280,6 +278,7 @@ export default function DashboardPage() {
          )}
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {/* Only "Last Updated" card remains from the original stat cards */}
             {DASHBOARD_STATS_MAP.lastUpdateTimestamp && ( 
                  <StatCard
                    title={DASHBOARD_STATS_MAP.lastUpdateTimestamp.title}
