@@ -9,17 +9,17 @@ import {
     collection,
     getDocs,
     query,
+    orderBy,
     type QueryDocumentSnapshot,
     type DocumentData,
     Timestamp,
-    orderBy
 } from 'firebase/firestore';
 import { detailFromFirestore } from '@/lib/firebase/shipmentsService';
 import { getDropdownOptionsMap } from '@/lib/firebase/dropdownService';
-import { SERVICE_FORMAT_MAPPING, BAG_WEIGHT_MULTIPLIER } from '@/lib/constants'; // Import BAG_WEIGHT_MULTIPLIER
+import { SERVICE_FORMAT_MAPPING, BAG_WEIGHT_MULTIPLIER } from '@/lib/constants';
 import { format } from 'date-fns';
 
-// Helper function to trigger download via data URI
+// Helper function to trigger download (no changes from previous, just ensuring it's here)
 const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void => {
   console.log(`[PDFService] ${pdfType}: triggerDownload CALLED for: ${filename}`);
   try {
@@ -34,8 +34,8 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
     const isValidBase64PdfDataUri =
       pdfDataUriType === 'string' &&
       pdfDataUriLength > 100 &&
-      pdfDataUri.startsWith('data:application/pdf;') &&
-      pdfDataUri.includes(';base64,');
+      pdfDataUri.includes(';base64,') && // More flexible check
+      pdfDataUri.startsWith('data:application/pdf;');
 
     if (!isValidBase64PdfDataUri) {
       const errorMsg = `CRITICAL ERROR - pdfDataUri for ${filename} is invalid or too short. Length: ${pdfDataUriLength}. Starts with: ${pdfDataUri?.substring(0, 50)}. Contains ';base64,': ${pdfDataUri?.includes(';base64,')}`;
@@ -76,9 +76,9 @@ const formatDateForPdf = (timestamp?: Timestamp): string => {
   }
 };
 
-const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
+const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined | null, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
   if (!value) return defaultValueIfNotFoundOrValueMissing;
-  if (!map) return value;
+  if (!map) return value; // Fallback to value if map is undefined
   return map[value] || value;
 };
 
@@ -86,20 +86,21 @@ const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
     const logoWidth = 35; // mm
     const logoHeight = 10; // mm
     const text = "asendia";
-    const textFontSize = 11;
+    const textFontSize = 11; // Adjusted for potentially better fit
 
     doc.setFillColor(0, 90, 106); // Dark Teal
     doc.rect(x, y, logoWidth, logoHeight, 'F');
 
     doc.setFontSize(textFontSize);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('helvetica', 'normal'); // Changed from bold to normal
     doc.setTextColor(255, 255, 255); // White text
 
+    // Calculate text width to center it
     const textMetrics = doc.getTextDimensions(text, { fontSize: textFontSize });
     const textX = x + (logoWidth - textMetrics.w) / 2;
-    const textY = y + (logoHeight / 2) + (textMetrics.h / 3.5); // Adjusted for better vertical centering
+    const textY = y + (logoHeight / 2) + (textMetrics.h / 3.5); // Minor adjustment for vertical centering
 
-    doc.text(text, textX, textY, { baseline: 'middle', align: 'left' });
+    doc.text(text, textX, textY, { baseline: 'middle', align: 'left'}); // Use align: 'left' after calculating centered X
 
     doc.setTextColor(0, 0, 0); // Reset text color
 };
@@ -124,6 +125,24 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
   }
 };
 
+// Helper to determine service category for placing formatId in the correct column
+const getServiceCategory = (serviceId: string | undefined): "Prio" | "Eco" | "S3C" | "Other" => {
+    if (!serviceId) return "Other";
+    const sIdLower = serviceId.toLowerCase();
+    // Check against keys in SERVICE_FORMAT_MAPPING or more specific values
+    if (['e', 'prior', 'priority'].some(key => SERVICE_FORMAT_MAPPING[key] === 'formats_prior' && sIdLower === key)) return "Prio";
+    if (['c', 'eco', 'economy'].some(key => SERVICE_FORMAT_MAPPING[key] === 'formats_eco' && sIdLower === key)) return "Eco";
+    if (['s', 's3c'].some(key => SERVICE_FORMAT_MAPPING[key] === 'formats_s3c' && sIdLower === key)) return "S3C";
+    
+    // Fallback if direct key match isn't found but service might map to a known format collection
+    if (SERVICE_FORMAT_MAPPING[sIdLower] === 'formats_prior') return "Prio";
+    if (SERVICE_FORMAT_MAPPING[sIdLower] === 'formats_eco') return "Eco";
+    if (SERVICE_FORMAT_MAPPING[sIdLower] === 'formats_s3c') return "S3C";
+
+    return "Other";
+};
+
+
 export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => {
   const pdfType = "Pre-Alert";
   const filename = `pre-alert-${shipment.id || 'shipment'}.pdf`;
@@ -143,110 +162,189 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     const dropdownMaps = await getDropdownOptionsMap(dropdownCollectionNames);
     console.log(`[PDFService] ${pdfType}: Fetched dropdown maps for labels.`);
 
-    const pageMargin = 15;
+    const pageMargin = 10;
     const pageWidth = doc.internal.pageSize.getWidth();
+    const contentWidth = pageWidth - 2 * pageMargin;
     let currentY = pageMargin;
+    const lightYellowBg = [255, 248, 220]; // RGB for light yellow
+    const cellHeight = 8;
+    const valueRowHeight = 8;
+    const smallFontSize = 8;
+    const headerFontSize = 9;
 
+    // === Header Section ===
     addAsendiaStyleLogo(doc, pageMargin, currentY);
-    currentY += 10 + 10;
 
-    doc.setFontSize(18);
+    doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text("Shipment Completion Report", pageWidth / 2, currentY, { align: 'center' });
-    currentY += 15;
+    const reportTitle = "SHIPMENT REPORT / ASENDIA UK";
+    const titleWidth = doc.getStringUnitWidth(reportTitle) * 12 / doc.internal.scaleFactor;
+    doc.text(reportTitle, (pageWidth - titleWidth) / 2, currentY + 7);
 
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text("Main Shipment Details:", pageMargin, currentY);
-    currentY += 7;
-
-    doc.setFontSize(10);
+    doc.setFontSize(smallFontSize);
     doc.setFont('helvetica', 'normal');
-    const labelValuePairs = [
-      { label: "Date Departure:", value: formatDateForPdf(shipment.departureDate) },
-      { label: "Arrival Date:", value: formatDateForPdf(shipment.arrivalDate) },
-      { label: "Carrier:", value: getLabelFromMap(dropdownMaps['carriers'], shipment.carrierId, shipment.carrierId) },
-      { label: "Subcarrier:", value: getLabelFromMap(dropdownMaps['subcarriers'], shipment.subcarrierId, shipment.subcarrierId || 'N/A') },
-      { label: "Driver Name:", value: shipment.driverName || 'N/A' },
-      { label: "Truck Reg No:", value: shipment.truckRegistration || 'N/A' },
-      { label: "Trailer Reg No:", value: shipment.trailerRegistration || 'N/A' },
-      { label: "Seal No:", value: shipment.sealNumber || 'N/A' },
-      { label: "Total Gross Weight:", value: `${(shipment.totalGrossWeight || 0).toFixed(2)} kg` },
-      { label: "Total Net Weight:", value: `${(shipment.totalNetWeight || 0).toFixed(2)} kg` },
-      { label: "Total Pallets:", value: (shipment.totalPallets || 0).toString() },
-      { label: "Total Bags:", value: (shipment.totalBags || 0).toString() },
+    const dateTextX = pageWidth - pageMargin - 40; // Adjust X for right alignment
+    doc.text(`Date de départ: ${formatDateForPdf(shipment.departureDate)}`, dateTextX, currentY + 5, { align: 'left' });
+    doc.text(`Date d'arrivée: ${formatDateForPdf(shipment.arrivalDate)}`, dateTextX, currentY + 5 + 5, { align: 'left' });
+    currentY += 15; // Space after header
+
+    // === First Table (Shipment Info) ===
+    const shipmentInfoHeaders = ["Transporteur", "Driver Name", "Truck Reg No", "Trailer Reg No", "Seal Number"];
+    const shipmentInfoValues = [
+      getLabelFromMap(dropdownMaps['carriers'], shipment.carrierId, shipment.carrierId),
+      shipment.driverName || 'N/A',
+      shipment.truckRegistration || 'N/A',
+      shipment.trailerRegistration || 'N/A',
+      shipment.sealNumber || 'N/A'
     ];
+    const colWidthShipmentInfo = contentWidth / shipmentInfoHeaders.length;
 
-    const firstColX = pageMargin;
-    const secondColX = pageMargin + 45;
-    const lineHeight = 6;
-
-    labelValuePairs.forEach(pair => {
-      if (currentY > doc.internal.pageSize.getHeight() - pageMargin - lineHeight) {
-        doc.addPage();
-        currentY = pageMargin;
-        addAsendiaStyleLogo(doc, pageMargin, currentY);
-        currentY += 10 + 10;
-      }
-      doc.text(pair.label, firstColX, currentY);
-      doc.text(pair.value, secondColX, currentY);
-      currentY += lineHeight;
-    });
-    currentY += 5;
-
-    if (currentY > doc.internal.pageSize.getHeight() - 50) {
-        doc.addPage();
-        currentY = pageMargin;
-        addAsendiaStyleLogo(doc, pageMargin, currentY);
-        currentY += 10 + 10;
-    }
-    doc.setFontSize(14);
+    doc.setFontSize(headerFontSize);
     doc.setFont('helvetica', 'bold');
-    doc.text("Shipment Details:", pageMargin, currentY);
-    currentY += 7;
+    shipmentInfoHeaders.forEach((header, index) => {
+      doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]);
+      doc.rect(pageMargin + index * colWidthShipmentInfo, currentY, colWidthShipmentInfo, cellHeight, 'FD');
+      doc.text(header, pageMargin + index * colWidthShipmentInfo + colWidthShipmentInfo / 2, currentY + cellHeight / 2 + 1.5, { align: 'center', baseline: 'middle' });
+    });
+    currentY += cellHeight;
 
-    const tableHead = [['Customer', 'Service', 'Format', 'Tare (kg)', 'Gross (kg)', 'Net (kg)', 'Dispatch No.', 'DOE']];
+    doc.setFontSize(smallFontSize);
+    doc.setFont('helvetica', 'normal');
+    shipmentInfoValues.forEach((value, index) => {
+      doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]);
+      doc.rect(pageMargin + index * colWidthShipmentInfo, currentY, colWidthShipmentInfo, valueRowHeight, 'FD');
+      doc.text(value, pageMargin + index * colWidthShipmentInfo + 2, currentY + valueRowHeight / 2 + 1.5, { baseline: 'middle' });
+    });
+    currentY += valueRowHeight + 5; // Space after this block
+
+    // === Second Table (Totals) ===
+    const totalsHeaders = ["Total Pallets", "Total Bags", "Total Net Weight", "Total Gross Weight"];
+    const totalsValues = [
+      (shipment.totalPallets || 0).toString(),
+      (shipment.totalBags || 0).toString(),
+      `${(shipment.totalNetWeight || 0).toFixed(2)} kg`,
+      `${(shipment.totalGrossWeight || 0).toFixed(2)} kg`
+    ];
+    const colWidthTotals = contentWidth / totalsHeaders.length;
+
+    doc.setFontSize(headerFontSize);
+    doc.setFont('helvetica', 'bold');
+    totalsHeaders.forEach((header, index) => {
+      doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]);
+      doc.rect(pageMargin + index * colWidthTotals, currentY, colWidthTotals, cellHeight, 'FD');
+      doc.text(header, pageMargin + index * colWidthTotals + colWidthTotals / 2, currentY + cellHeight / 2 + 1.5, { align: 'center', baseline: 'middle' });
+    });
+    currentY += cellHeight;
+
+    doc.setFontSize(smallFontSize);
+    doc.setFont('helvetica', 'normal');
+    totalsValues.forEach((value, index) => {
+      doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]);
+      doc.rect(pageMargin + index * colWidthTotals, currentY, colWidthTotals, valueRowHeight, 'FD');
+      doc.text(value, pageMargin + index * colWidthTotals + 2, currentY + valueRowHeight / 2 + 1.5, { baseline: 'middle' });
+    });
+    currentY += valueRowHeight + 5; // Space after this block
+
+    // === Third Section Header (ROISSY HUB, Prio/Eco/S3C) ===
+    doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]);
+    doc.rect(pageMargin, currentY, contentWidth, cellHeight, 'FD');
+    doc.setFontSize(headerFontSize);
+    doc.setFont('helvetica', 'bold');
+    doc.text("ROISSY HUB & Cellule S3C", pageMargin + 2, currentY + cellHeight / 2 + 1.5, { baseline: 'middle' });
+    currentY += cellHeight;
+
+    const serviceBoxWidth = 20; // Width for Prio, Eco, S3C boxes
+    const serviceBoxSpacing = 2;
+    let serviceBoxX = pageMargin + contentWidth * 0.35; // Start Prio box roughly in middle
+
+    // Prio Box
+    doc.setFillColor(0, 0, 200); // Blue
+    doc.rect(serviceBoxX, currentY, serviceBoxWidth, cellHeight, 'FD');
+    doc.setTextColor(255, 255, 255); // White text
+    doc.text("Prio", serviceBoxX + serviceBoxWidth / 2, currentY + cellHeight / 2 + 1.5, { align: 'center', baseline: 'middle' });
+    serviceBoxX += serviceBoxWidth + serviceBoxSpacing;
+
+    // Eco Box
+    doc.setFillColor(255, 255, 0); // Yellow
+    doc.rect(serviceBoxX, currentY, serviceBoxWidth, cellHeight, 'FD');
+    doc.setTextColor(0, 0, 0); // Black text
+    doc.text("Eco", serviceBoxX + serviceBoxWidth / 2, currentY + cellHeight / 2 + 1.5, { align: 'center', baseline: 'middle' });
+    serviceBoxX += serviceBoxWidth + serviceBoxSpacing;
+    
+    // S3C Box
+    doc.setFillColor(230, 180, 70); // Orange/Dark Yellow
+    doc.rect(serviceBoxX, currentY, serviceBoxWidth, cellHeight, 'FD');
+    doc.setTextColor(0, 0, 0); // Black text
+    doc.text("S3C", serviceBoxX + serviceBoxWidth / 2, currentY + cellHeight / 2 + 1.5, { align: 'center', baseline: 'middle' });
+    
+    // Weight Kg Text
+    const weightKgTextX = serviceBoxX + serviceBoxWidth + serviceBoxSpacing + 5;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0,0,0);
+    doc.text("Weight Kg", weightKgTextX , currentY + cellHeight / 2 + 1.5, { baseline: 'middle' });
+    currentY += cellHeight;
+
+
+    // === Fourth Table (Shipment Details) ===
+    const tableHead = [['Customer', 'Dispatch No', 'D-OE', 'Format', 'Format', 'Format', 'Tare Weight', 'Gross Weight', 'Net Weight']];
+    // Add empty sub-headers for Prio, Eco, S3C to align with 'Format' cells visually if needed
+    const subHeaders = ['', '', '', '(Prio)', '(Eco)', '(S3C)', '', '', '']; // Placeholder for visual structure
+
     const tableBody = details.map(detail => {
-      const serviceKey = detail.serviceId?.toLowerCase();
-      const formatCollectionId = serviceKey && SERVICE_FORMAT_MAPPING[serviceKey] ? SERVICE_FORMAT_MAPPING[serviceKey] : null;
-      let formatDisplay = detail.formatId || 'N/A';
-      if (formatCollectionId && detail.formatId) {
-        formatDisplay = getLabelFromMap(dropdownMaps[formatCollectionId], detail.formatId, detail.formatId);
-      }
+      const serviceCategory = getServiceCategory(detail.serviceId);
+      const formatCollectionId = SERVICE_FORMAT_MAPPING[detail.serviceId?.toLowerCase() || ''] || null;
+      const formatValue = formatCollectionId ? getLabelFromMap(dropdownMaps[formatCollectionId], detail.formatId, detail.formatId) : (detail.formatId || 'N/A');
 
       return [
         getLabelFromMap(dropdownMaps['customers'], detail.customerId, detail.customerId),
-        getLabelFromMap(dropdownMaps['services'], detail.serviceId, detail.serviceId),
-        formatDisplay,
+        detail.dispatchNumber || 'N/A',
+        getLabelFromMap(dropdownMaps['doe'], detail.doeId, detail.doeId || 'N/A'),
+        serviceCategory === "Prio" ? formatValue : '',
+        serviceCategory === "Eco" ? formatValue : '',
+        serviceCategory === "S3C" ? formatValue : '',
         (detail.tareWeight || 0).toFixed(2),
         (detail.grossWeight || 0).toFixed(2),
         (detail.netWeight || 0).toFixed(2),
-        detail.dispatchNumber || 'N/A',
-        getLabelFromMap(dropdownMaps['doe'], detail.doeId, detail.doeId || 'N/A'),
       ];
     });
 
-    console.log(`[PDFService] ${pdfType}: Table head:`, JSON.stringify(tableHead));
-    console.log(`[PDFService] ${pdfType}: Table body (first item if any):`, details.length > 0 ? JSON.stringify(tableBody[0]) : "No details");
-
     autoTable(doc, {
-      head: tableHead,
+      head: tableHead, // Main headers
       body: tableBody,
       startY: currentY,
-      theme: 'grid',
+      theme: 'plain', // Use plain to allow custom cell styling
       styles: {
-        fontSize: 8,
+        fontSize: smallFontSize,
         cellPadding: 1.5,
-        overflow: 'linebreak'
+        lineColor: [0,0,0], // Black lines
+        lineWidth: 0.1,
       },
       headStyles: {
-        fillColor: [22, 78, 99],
-        textColor: [255, 255, 255],
+        fillColor: lightYellowBg, // Light yellow for header
+        textColor: [0,0,0], // Black text
         fontStyle: 'bold',
-        halign: 'center'
+        halign: 'center',
+        valign: 'middle',
+        lineColor: [0,0,0],
+        lineWidth: 0.1,
       },
-      tableLineColor: [180, 180, 180],
-      tableLineWidth: 0.1,
+      bodyStyles: {
+        fillColor: lightYellowBg, // Light yellow for body cells
+        lineColor: [0,0,0],
+        lineWidth: 0.1,
+      },
+      columnStyles: {
+        // Align text for specific columns
+        0: { halign: 'left' }, // Customer
+        1: { halign: 'center' }, // Dispatch No
+        2: { halign: 'center' }, // D-OE
+        3: { halign: 'center' }, // Format Prio
+        4: { halign: 'center' }, // Format Eco
+        5: { halign: 'center' }, // Format S3C
+        6: { halign: 'right' }, // Tare
+        7: { halign: 'right' }, // Gross
+        8: { halign: 'right' }, // Net
+      },
       didDrawPage: (data: any) => {
         if (data.pageNumber > 1) {
              addAsendiaStyleLogo(doc, pageMargin, pageMargin);
@@ -277,189 +375,26 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
     console.log(`[PDFService] ${pdfType}: jsPDF instance created successfully.`);
 
-    const dropdownMaps = await getDropdownOptionsMap(['carriers']);
-    const carrierName = getLabelFromMap(dropdownMaps['carriers'], shipment.carrierId, shipment.carrierId);
-
     const pageMargin = 10;
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const contentWidth = pageWidth - 2 * pageMargin;
     let currentY = pageMargin;
 
-    const drawTextBox = (text: string | string[], x: number, y: number, width: number, height: number, options: any = {}) => {
-      doc.rect(x, y, width, height);
-      const defaultOptions = { align: 'left', baseline: 'top', flags: {noBOM: true, autoencode: true} };
-      const mergedOptions = {...defaultOptions, ...options};
-
-      let textToPrint: string[] = [];
-      if (Array.isArray(text)) {
-        textToPrint = text.map(line => (typeof line === 'string' ? line : ''));
-      } else {
-        textToPrint = [typeof text === 'string' ? text : ''];
-      }
-
-      const lines: string[] = [];
-      const originalFontSize = doc.getFontSize();
-      if (options.fontSize) doc.setFontSize(options.fontSize);
-
-      textToPrint.forEach(line => {
-          const splitLines = doc.splitTextToSize(line, width - 4);
-          lines.push(...splitLines);
-      });
-
-      if (options.fontStyle) doc.setFont(doc.getFont().fontName, options.fontStyle);
-      
-      const currentTextColor = doc.getTextColor();
-      if (options.textColor) doc.setTextColor(options.textColor[0], options.textColor[1], options.textColor[2]);
-
-      const textYOffset = options.fontSize ? options.fontSize / 3.5 : 3;
-      let textX = x + 2;
-
-      if (mergedOptions.align === 'right') {
-        textX = x + width - 2;
-      } else if (mergedOptions.align === 'center') {
-        textX = x + width / 2;
-      }
-
-      doc.text(lines, textX, y + 2 + textYOffset, mergedOptions);
-
-      doc.setFontSize(originalFontSize);
-      doc.setFont(doc.getFont().fontName, 'normal');
-      doc.setTextColor(currentTextColor);
-    };
-
     addAsendiaStyleLogo(doc, pageMargin, currentY);
+    currentY += 10; // Space for logo
 
-    const crmLogoX = pageMargin + 35 + 2;
-    const crmLogoRadius = 5;
-    doc.setFillColor(200, 200, 200);
-    doc.circle(crmLogoX + crmLogoRadius, currentY + crmLogoRadius, crmLogoRadius, 'F');
-    doc.setFontSize(8);
+    doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text("CRM", crmLogoX + crmLogoRadius, currentY + crmLogoRadius, { align: 'center', baseline: 'middle' });
+    const title = "CMR Document - Placeholder";
+    const titleWidth = doc.getStringUnitWidth(title) * 14 / doc.internal.scaleFactor;
+    doc.text(title, pageMargin + 40, currentY - 3); // Positioned to the right of logo
+    currentY += 10;
+
+    doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-
-    const titleX = crmLogoX + crmLogoRadius * 2 + 5;
-    doc.setFontSize(7);
-    doc.text("LETTRE DE VOITURE INTERNATIONALE", titleX, currentY + 3);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text("INTERNATIONAL CONSIGNMENT NOTE", titleX, currentY + 8);
-    doc.setFont('helvetica', 'normal');
-    currentY += 12;
-
-    const col1Width = contentWidth * 0.5;
-    const col2Width = contentWidth * 0.5;
-    const col1X = pageMargin;
-    const col2X = pageMargin + col1Width;
-
-    let boxHeight = 30;
-    const senderText = `1 Sender (Name, Address, Country) Expéditeur (Nom, Adresse, Pays)\n\n${shipment.senderAddress || 'Asendia UK\nUnit 8-12 The Heathrow Estate\nSilver Jubilee way\nHounslow\nTW4 6NF'}`;
-    drawTextBox(senderText, col1X, currentY, col1Width, boxHeight, {fontSize: 7});
-    drawTextBox("2 Customs Reference/Status Ref douane/Statut\n\nN/A", col2X, currentY, col2Width, boxHeight / 2, {fontSize: 7});
-    drawTextBox("3 Senders Agents Reference Ref expéditeur de l'agent\n\nN/A", col2X, currentY + boxHeight / 2, col2Width, boxHeight / 2, {fontSize: 7});
-    currentY += boxHeight;
-
-    boxHeight = 30;
-    const consigneeText = `4 Consignee, Final Delivery Point (Name, Address) Destinataire (Nom, Adresse, Pays)\n\n${shipment.consigneeAddress || 'LA POSTE ROISSY HUB\n7 Rue Du Haute de Laval\n93290 Tremblay-en-France\nFrance'}`;
-    drawTextBox(consigneeText, col1X, currentY, col1Width, boxHeight, {fontSize: 7, fontStyle: 'bold'});
-    const truckTrailer = `${shipment.truckRegistration || 'N/A'} / ${shipment.trailerRegistration || 'N/A'}`;
-    const carrierText = `5 Carrier (Name, Address, Country) Transporteur (Nom, Adresse, Pays)\n\nCarrier Name: ${carrierName}\nTruck & Trailer: ${truckTrailer}`;
-    drawTextBox(carrierText, col2X, currentY, col2Width, boxHeight, {fontSize: 7, textColor: [255,0,0], fontStyle: 'bold'});
-    currentY += boxHeight;
-
-    boxHeight = 20;
-    drawTextBox("6 Senders instructions for customs, etc... Instructions de l'expéditeur (optionel)\n\nN/A", col1X, currentY, col1Width, boxHeight, {fontSize: 7});
-    drawTextBox("7 Successive Carrier Transporteurs successifs\n\nN/A", col2X, currentY, col2Width, boxHeight, {fontSize: 7});
-    currentY += boxHeight;
-
-    boxHeight = 20;
-    const dynamicTakingOverText = `${shipment.senderAddress || 'Asendia UK, Unit 5, The Hub, Solent Business Park, Fareham, PO15 7FH'}, UK ${formatDateForPdf(shipment.departureDate)}`;
-    const takingOverGoodsTextLines = [
-        `8 Place and date of taking over the goods (place, country, date)`,
-        `Lieu et date de prise en charge des marchandises (lieu, pays, date)`,
-        ``,
-        dynamicTakingOverText
-    ];
-    drawTextBox(takingOverGoodsTextLines, col1X, currentY, contentWidth, boxHeight, {fontSize: 7});
-    currentY += boxHeight;
-
-    const goodsCol1Width = contentWidth * 0.4;
-    const goodsCol2Width = contentWidth * 0.2;
-    const goodsCol3Width = contentWidth * 0.2;
-    const goodsCol4Width = contentWidth * 0.2;
-    let goodsTableHeaderHeight = 10;
-
-    drawTextBox("9 Marks & Nos; No & Kind of Packages; Description of Goods\nMarques et Nos; Nb et nature des colis; Désignation des marchandises", col1X, currentY, goodsCol1Width, goodsTableHeaderHeight, {fontSize: 6});
-    drawTextBox("10 No. of packages\n(statistical)", col1X + goodsCol1Width, currentY, goodsCol2Width, goodsTableHeaderHeight, {fontSize: 6});
-    drawTextBox("11 Gross Weight (kg)\nPoids Brut (kg)", col1X + goodsCol1Width + goodsCol2Width, currentY, goodsCol3Width, goodsTableHeaderHeight, {fontSize: 6});
-    drawTextBox("12 Volume (m³)\nCubage (m³)", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsTableHeaderHeight, {fontSize: 6});
-    currentY += goodsTableHeaderHeight;
-
-    const goodsDataHeight = 30;
-    let goodsDescTextLines = [
-        `Pallets:        ${shipment.totalPallets || 0}`,
-        `Sacks:          ${shipment.totalBags || 0}`,
-        ``,
-        `SEAL #1 Number:   ${shipment.sealNumber || 'N/A'}`,
-        `SEAL #2 Number:   N/A`,
-        ``,
-        `Description of Goods: cross border eCommerce B2C parcels`
-    ];
-    drawTextBox(goodsDescTextLines, col1X, currentY, goodsCol1Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0]});
-
-    drawTextBox("", col1X + goodsCol1Width, currentY, goodsCol2Width, goodsDataHeight);
-
-    const grossWeightVal = shipment.totalGrossWeight || 0;
-    const grossWeightOfBags = (shipment.totalBags || 0) * BAG_WEIGHT_MULTIPLIER;
-    const totalCalculatedWeight = grossWeightVal + grossWeightOfBags;
-
-    console.log(`[PDFService] CMR: Box 11 - Data: grossWeightVal=${grossWeightVal}, grossWeightOfBags=${grossWeightOfBags}, totalCalculatedWeight=${totalCalculatedWeight}`);
-    let weightTextLines = [
-        `${grossWeightVal.toFixed(2)} Kgs`,
-        ``,
-        `${grossWeightOfBags.toFixed(2)} Kgs`, // Gross Weight of Bags
-        ``,
-        ``,
-        `TOTAL: ${totalCalculatedWeight.toFixed(2)} Kgs`
-    ];
-    drawTextBox(weightTextLines, col1X + goodsCol1Width + goodsCol2Width, currentY, goodsCol3Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0], align: 'right'});
-
-    drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsDataHeight);
-    currentY += goodsDataHeight;
-
-    boxHeight = 7;
-    drawTextBox("13 Carriage Charges Prix de transport", col1X, currentY, contentWidth, boxHeight, {fontSize: 7});
-    currentY += boxHeight;
-
-    const midPointXBox1415 = pageMargin + contentWidth * 0.6;
-    const resWidth = midPointXBox1415 - pageMargin;
-    const docAttachWidth = contentWidth - resWidth;
-    boxHeight = 15;
-    drawTextBox("14 Reservations Réserves", col1X, currentY, resWidth, boxHeight, {fontSize: 7});
-    drawTextBox("15 Documents attached Documents Annexes (optional)", midPointXBox1415, currentY, docAttachWidth, boxHeight, {fontSize: 7});
-    currentY += boxHeight;
-
-    boxHeight = 10;
-    drawTextBox("16 Special agreements Conventions particulières (optional)", col1X, currentY, contentWidth, boxHeight, {fontSize: 7});
-    currentY += boxHeight;
-
-    const sigBoxWidth = contentWidth / 3;
-    boxHeight = 30;
-
-    const consigneeFirstLine = (shipment.consigneeAddress || 'Consignee, Destination Country').split('\n')[0];
-    const goodsReceivedText = `17 Goods Received/Marchandises Recues\n\n\n\nDate: ${formatDateForPdf(Timestamp.now())}\n${consigneeFirstLine}`;
-    drawTextBox(goodsReceivedText, col1X, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
-
-    drawTextBox("18 Signature and stamp of Carrier/Signature du Transporteur", col1X + sigBoxWidth, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
-    drawTextBox("19 Place and date, Signature Lieu et date, Signature", col1X + sigBoxWidth * 2, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
-    currentY += boxHeight;
-
-    currentY += 2;
-    doc.setFontSize(7);
-    doc.text(`Date: ${formatDateForPdf(Timestamp.now())}`, pageMargin + 5, currentY + 5);
-    doc.text(`Date: ${formatDateForPdf(Timestamp.now())}`, pageMargin + sigBoxWidth + 5, currentY + 5);
-    doc.text(`Date: __ / __ / __`, pageMargin + sigBoxWidth * 2 + 5, currentY + 5);
-
+    doc.text(`Shipment ID: ${shipment.id || 'N/A'}`, pageMargin, currentY);
+    currentY += 7;
+    doc.text("This is a placeholder for the CMR document content.", pageMargin, currentY);
+    currentY += 7;
+    doc.text("Detailed layout and data mapping will be implemented here.", pageMargin, currentY);
 
     console.log(`[PDFService] ${pdfType}: Content added to PDF.`);
     triggerDownload(doc, filename, pdfType);
@@ -471,6 +406,3 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
 };
-
-
-    
