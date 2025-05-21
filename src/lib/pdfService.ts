@@ -9,17 +9,17 @@ import {
     collection,
     getDocs,
     query,
-    orderBy,
     type QueryDocumentSnapshot,
     type DocumentData,
     Timestamp,
+    orderBy
 } from 'firebase/firestore';
 import { detailFromFirestore } from '@/lib/firebase/shipmentsService';
 import { getDropdownOptionsMap } from '@/lib/firebase/dropdownService';
-import { SERVICE_FORMAT_MAPPING, BAG_WEIGHT_MULTIPLIER } from '@/lib/constants';
+import { SERVICE_FORMAT_MAPPING, BAG_WEIGHT_MULTIPLIER } from '@/lib/constants'; // Import BAG_WEIGHT_MULTIPLIER
 import { format } from 'date-fns';
 
-// Helper function to trigger download
+// Helper function to trigger download via data URI
 const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void => {
   console.log(`[PDFService] ${pdfType}: triggerDownload CALLED for: ${filename}`);
   try {
@@ -34,8 +34,8 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
     const isValidBase64PdfDataUri =
       pdfDataUriType === 'string' &&
       pdfDataUriLength > 100 &&
-      pdfDataUri.includes(';base64,') && 
-      pdfDataUri.startsWith('data:application/pdf;'); 
+      pdfDataUri.startsWith('data:application/pdf;') && // Check for the general PDF mime type start
+      pdfDataUri.includes(';base64,'); // Ensure base64 encoding is indicated
 
     if (!isValidBase64PdfDataUri) {
       const errorMsg = `CRITICAL ERROR - pdfDataUri for ${filename} is invalid or too short. Length: ${pdfDataUriLength}. Starts with: ${pdfDataUri?.substring(0, 50)}. Contains ';base64,': ${pdfDataUri?.includes(';base64,')}`;
@@ -76,31 +76,31 @@ const formatDateForPdf = (timestamp?: Timestamp): string => {
   }
 };
 
-const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined | null, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
+const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
   if (!value) return defaultValueIfNotFoundOrValueMissing;
-  if (!map) return value; 
-  return map[value] || value;
+  if (!map) return value; // Fallback to value if map is not loaded
+  return map[value] || value; // Fallback to value if specific key not in map
 };
 
 const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
     const logoWidth = 35; // mm
     const logoHeight = 10; // mm
     const text = "asendia";
-    const textFontSize = 11; // Adjusted for better fit
+    const textFontSize = 11;
 
     doc.setFillColor(0, 90, 106); // Dark Teal
     doc.rect(x, y, logoWidth, logoHeight, 'F');
 
     doc.setFontSize(textFontSize);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('helvetica', 'normal'); // Using 'normal' as sample text doesn't look particularly bold
     doc.setTextColor(255, 255, 255); // White text
 
+    // Calculate text position to center it within the box
     const textMetrics = doc.getTextDimensions(text, { fontSize: textFontSize });
-    // Center text horizontally and vertically within the box
     const textX = x + (logoWidth - textMetrics.w) / 2;
-    const textY = y + (logoHeight / 2) + (textMetrics.h / 3.5); // Approximation for vertical centering
+    const textY = y + (logoHeight / 2) + (textMetrics.h / 3.5); // Adjusted for better vertical centering
 
-    doc.text(text, textX, textY, { baseline: 'middle', align: 'left' }); // Use align: 'left' but position based on center calc
+    doc.text(text, textX, textY, { baseline: 'middle', align: 'left' }); // Using align:left and calculating X for center
 
     doc.setTextColor(0, 0, 0); // Reset text color
 };
@@ -125,214 +125,207 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
   }
 };
 
-const getServiceCategory = (serviceId: string | undefined, dropdownMaps: Record<string, Record<string, string>>): "Prio" | "Eco" | "S3C" | "Other" => {
-    if (!serviceId) return "Other";
-    const serviceIdLower = serviceId.toLowerCase();
-    
-    const serviceLabel = dropdownMaps['services']?.[serviceId]?.toLowerCase() || serviceIdLower;
-
-    if (SERVICE_FORMAT_MAPPING[serviceIdLower] === 'formats_prior' || serviceLabel.includes('prior')) return "Prio";
-    if (SERVICE_FORMAT_MAPPING[serviceIdLower] === 'formats_eco' || serviceLabel.includes('eco')) return "Eco";
-    if (SERVICE_FORMAT_MAPPING[serviceIdLower] === 'formats_s3c' || serviceLabel.includes('s3c')) return "S3C";
-    
-    return "Other";
-};
-
-
 export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => {
   const pdfType = "Pre-Alert";
   const filename = `pre-alert-${shipment.id || 'shipment'}.pdf`;
-  console.log(`[PDFService] ${pdfType} PDF: Full shipment data:`, JSON.stringify(shipment, null, 2));
+  console.log(`[PDFService] ${pdfType} PDF: Full shipment data for ${shipment.id}:`, JSON.stringify(shipment, null, 2));
   console.log(`[PDFService] ${pdfType}: generatePreAlertPdf CALLED. Attempting to generate: ${filename}`);
 
   try {
-    console.log(`[PDFService] ${pdfType}: Creating new jsPDF instance...`);
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-    console.log(`[PDFService] ${pdfType}: jsPDF instance created successfully.`);
-
-    const details = await getShipmentDetails(shipment.id);
-    console.log(`[PDFService] ${pdfType}: Fetched ${details.length} shipment details for table.`);
-
-    const allFormatCollectionIds = Object.values(SERVICE_FORMAT_MAPPING).filter(Boolean) as string[];
-    const dropdownCollectionNames = [...new Set(['carriers', 'subcarriers', 'customers', 'services', 'doe', ...allFormatCollectionIds])];
-    const dropdownMaps = await getDropdownOptionsMap(dropdownCollectionNames);
-    console.log(`[PDFService] ${pdfType}: Fetched dropdown maps for labels.`);
-
     const pageMargin = 10;
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     const contentWidth = pageWidth - 2 * pageMargin;
     let currentY = pageMargin;
-    const lightYellowBg = [255, 248, 220]; 
-    const cellHeight = 7; 
-    const valueRowHeight = 7;
-    const smallFontSize = 7;
-    const headerFontSize = 8;
-    const titleFontSize = 10;
 
+    const details = await getShipmentDetails(shipment.id);
+    const allFormatCollectionIds = Object.values(SERVICE_FORMAT_MAPPING).filter(Boolean) as string[];
+    const dropdownCollectionNames = [...new Set(['carriers', 'services', 'customers', 'doe', ...allFormatCollectionIds])];
+    const dropdownMaps = await getDropdownOptionsMap(dropdownCollectionNames);
+
+    // Colors
+    const lightYellowBg: [number, number, number] = [255, 248, 220]; // Example: AntiqueWhite
+
+    // Helper to draw styled box with centered text
+    const drawStyledBox = (text: string, x: number, y: number, width: number, height: number, options: {
+      fillColor?: [number, number, number],
+      textColor?: [number, number, number],
+      fontStyle?: string,
+      fontSize?: number,
+      halign?: 'left' | 'center' | 'right',
+      border?: boolean
+    } = {}) => {
+      const { fillColor, textColor = [0,0,0], fontStyle = 'normal', fontSize = 8, halign = 'center', border = true } = options;
+      
+      if (fillColor) {
+        doc.setFillColor(...fillColor);
+        doc.rect(x, y, width, height, 'F');
+      }
+      if (border) {
+        doc.setDrawColor(150, 150, 150); // Light gray border
+        doc.rect(x, y, width, height, 'S');
+      }
+
+      doc.setFontSize(fontSize);
+      doc.setFont('helvetica', fontStyle);
+      doc.setTextColor(...textColor);
+      
+      const textX = halign === 'center' ? x + width / 2 : (halign === 'right' ? x + width - 2 : x + 2);
+      doc.text(text, textX, y + height / 2, { align: halign, baseline: 'middle' });
+    };
+
+    // --- Header ---
     addAsendiaStyleLogo(doc, pageMargin, currentY);
 
-    doc.setFontSize(titleFontSize);
+    doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    const reportTitle = "SHIPMENT REPORT / ASENDIA UK";
-    const titleWidth = doc.getStringUnitWidth(reportTitle) * titleFontSize / doc.internal.scaleFactor;
-    doc.text(reportTitle, (pageWidth - titleWidth) / 2, currentY + 7);
+    doc.text("SHIPMENT REPORT / ASENDIA UK", pageWidth / 2, currentY + 7, { align: 'center' });
+    currentY += 5; // Adjust Y based on logo height and title
 
-    doc.setFontSize(smallFontSize);
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    const dateTextX = pageWidth - pageMargin - 50; 
-    doc.text(`Date de départ: ${formatDateForPdf(shipment.departureDate)}`, dateTextX, currentY + 5, { align: 'left' });
-    doc.text(`Date d'arrivée: ${formatDateForPdf(shipment.arrivalDate)}`, dateTextX, currentY + 5 + 4, { align: 'left' });
-    currentY += 15; 
+    const dateDepartureText = `Date de départ: ${formatDateForPdf(shipment.departureDate)}`;
+    const dateArrivalText = `Date d'arrivée: ${formatDateForPdf(shipment.arrivalDate)}`;
+    const dateTextWidth = Math.max(doc.getTextWidth(dateDepartureText), doc.getTextWidth(dateArrivalText));
+    doc.text(dateDepartureText, pageWidth - pageMargin - dateTextWidth, currentY - 2);
+    doc.text(dateArrivalText, pageWidth - pageMargin - dateTextWidth, currentY + 3);
+    currentY += 15;
 
-    const shipmentInfoHeaders = ["Transporteur", "Driver Name", "Truck Reg No", "Trailer Reg No", "Seal Number"];
-    const shipmentInfoValues = [
-      getLabelFromMap(dropdownMaps['carriers'], shipment.carrierId, shipment.carrierId),
+
+    // --- Shipment Information Block ---
+    const infoBlockLabels = ["Transporteur", "Driver Name", "Truck Reg No", "Trailer Reg No", "Seal Number"];
+    const infoBlockValues = [
+      getLabelFromMap(dropdownMaps['carriers'], shipment.carrierId),
       shipment.driverName || 'N/A',
       shipment.truckRegistration || 'N/A',
       shipment.trailerRegistration || 'N/A',
       shipment.sealNumber || 'N/A'
     ];
-    const colWidthShipmentInfo = contentWidth / shipmentInfoHeaders.length;
+    const infoColCount = infoBlockLabels.length;
+    const infoColWidth = contentWidth / infoColCount;
+    const infoRowHeight = 7;
 
-    doc.setFontSize(headerFontSize);
-    doc.setFont('helvetica', 'bold');
-    shipmentInfoHeaders.forEach((header, index) => {
-      doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]);
-      doc.rect(pageMargin + index * colWidthShipmentInfo, currentY, colWidthShipmentInfo, cellHeight, 'FD');
-      doc.text(header, pageMargin + index * colWidthShipmentInfo + colWidthShipmentInfo / 2, currentY + cellHeight / 2 + 1, { align: 'center', baseline: 'middle' });
+    infoBlockLabels.forEach((label, index) => {
+      drawStyledBox(label, pageMargin + index * infoColWidth, currentY, infoColWidth, infoRowHeight, { fillColor: lightYellowBg, fontStyle: 'bold', fontSize: 7, border: true });
     });
-    currentY += cellHeight;
-
-    doc.setFontSize(smallFontSize);
-    doc.setFont('helvetica', 'normal');
-    shipmentInfoValues.forEach((value, index) => {
-      doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]); 
-      doc.rect(pageMargin + index * colWidthShipmentInfo, currentY, colWidthShipmentInfo, valueRowHeight, 'FD'); 
-      doc.text(value, pageMargin + index * colWidthShipmentInfo + 2, currentY + valueRowHeight / 2 + 1, { baseline: 'middle' });
+    currentY += infoRowHeight;
+    infoBlockValues.forEach((value, index) => {
+      drawStyledBox(value, pageMargin + index * infoColWidth, currentY, infoColWidth, infoRowHeight, { fillColor: lightYellowBg, fontSize: 7, halign: 'left', border: true });
     });
-    currentY += valueRowHeight + 3; 
+    currentY += infoRowHeight + 5; // Space after block
 
-    const totalsHeaders = ["Total Pallets", "Total Bags", "Total Net Weight", "Total Gross Weight"];
-    const totalsValues = [
+    // --- Totals Block ---
+    const totalsBlockLabels = ["Total Pallets", "Total Bags", "Total Net Weight", "Total Gross Weight"];
+    const totalsBlockValues = [
       (shipment.totalPallets || 0).toString(),
       (shipment.totalBags || 0).toString(),
       `${(shipment.totalNetWeight || 0).toFixed(2)} kg`,
       `${(shipment.totalGrossWeight || 0).toFixed(2)} kg`
     ];
-    const colWidthTotals = contentWidth / totalsHeaders.length;
+    const totalsColCount = totalsBlockLabels.length;
+    const totalsColWidth = contentWidth / totalsColCount;
 
-    doc.setFontSize(headerFontSize);
-    doc.setFont('helvetica', 'bold');
-    totalsHeaders.forEach((header, index) => {
-      doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]);
-      doc.rect(pageMargin + index * colWidthTotals, currentY, colWidthTotals, cellHeight, 'FD');
-      doc.text(header, pageMargin + index * colWidthTotals + colWidthTotals / 2, currentY + cellHeight / 2 + 1, { align: 'center', baseline: 'middle' });
+    totalsBlockLabels.forEach((label, index) => {
+      drawStyledBox(label, pageMargin + index * totalsColWidth, currentY, totalsColWidth, infoRowHeight, { fillColor: lightYellowBg, fontStyle: 'bold', fontSize: 7, border: true });
     });
-    currentY += cellHeight;
-
-    doc.setFontSize(smallFontSize);
-    doc.setFont('helvetica', 'normal');
-    totalsValues.forEach((value, index) => {
-      doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]); 
-      doc.rect(pageMargin + index * colWidthTotals, currentY, colWidthTotals, valueRowHeight, 'FD'); 
-      doc.text(value, pageMargin + index * colWidthTotals + 2, currentY + valueRowHeight / 2 + 1, { baseline: 'middle' });
+    currentY += infoRowHeight;
+    totalsBlockValues.forEach((value, index) => {
+      drawStyledBox(value, pageMargin + index * totalsColWidth, currentY, totalsColWidth, infoRowHeight, { fillColor: lightYellowBg, fontSize: 7, halign: 'left', border: true });
     });
-    currentY += valueRowHeight + 3; 
+    currentY += infoRowHeight + 5; // Space after block
 
-    doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]);
-    doc.rect(pageMargin, currentY, contentWidth, cellHeight, 'FD');
-    doc.setFontSize(headerFontSize);
-    doc.setFont('helvetica', 'bold');
-    doc.text("ROISSY HUB & Cellule S3C", pageMargin + 2, currentY + cellHeight / 2 + 1, { baseline: 'middle' });
+    // --- Service Type Header Block ---
+    const serviceHubText = "ROISSY HUB & Cellule S3C";
+    const serviceBoxHeight = 7;
+    const serviceBoxY = currentY;
+    const firstColWidth = contentWidth * 0.30; // Adjusted for "ROISSY HUB" text
+    const serviceTypeBoxWidth = contentWidth * 0.15;
+    const weightKgBoxWidth = contentWidth - firstColWidth - (3 * serviceTypeBoxWidth);
+
+    drawStyledBox(serviceHubText, pageMargin, serviceBoxY, firstColWidth, serviceBoxHeight, {fillColor: lightYellowBg, fontStyle: 'bold', fontSize: 7, halign: 'left'});
     
-    const serviceBoxWidth = 15; 
-    const serviceBoxSpacing = 1;
-    let serviceBoxX = pageMargin + contentWidth * 0.40; 
+    let currentX = pageMargin + firstColWidth;
+    drawStyledBox("Prio", currentX, serviceBoxY, serviceTypeBoxWidth, serviceBoxHeight, {fillColor: [0,0,255], textColor: [255,255,255], fontStyle: 'bold', fontSize: 7});
+    currentX += serviceTypeBoxWidth;
+    drawStyledBox("Eco", currentX, serviceBoxY, serviceTypeBoxWidth, serviceBoxHeight, {fillColor: [255,255,0], textColor: [0,0,0], fontStyle: 'bold', fontSize: 7});
+    currentX += serviceTypeBoxWidth;
+    drawStyledBox("S3C", currentX, serviceBoxY, serviceTypeBoxWidth, serviceBoxHeight, {fillColor: [255,190,0], textColor: [0,0,0], fontStyle: 'bold', fontSize: 7});
+    currentX += serviceTypeBoxWidth;
+    drawStyledBox("Weight Kg", currentX, serviceBoxY, weightKgBoxWidth, serviceBoxHeight, {fillColor: lightYellowBg, fontStyle: 'bold', fontSize: 7});
+    currentY += serviceBoxHeight;
 
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'bold');
 
-    doc.setFillColor(0, 0, 200); 
-    doc.rect(serviceBoxX, currentY + 0.5, serviceBoxWidth, cellHeight -1 , 'FD');
-    doc.setTextColor(255, 255, 255); 
-    doc.text("Prio", serviceBoxX + serviceBoxWidth / 2, currentY + cellHeight / 2 + 0.5, { align: 'center', baseline: 'middle' });
-    serviceBoxX += serviceBoxWidth + serviceBoxSpacing;
-
-    doc.setFillColor(255, 255, 0); 
-    doc.rect(serviceBoxX, currentY + 0.5, serviceBoxWidth, cellHeight - 1, 'FD');
-    doc.setTextColor(0, 0, 0); 
-    doc.text("Eco", serviceBoxX + serviceBoxWidth / 2, currentY + cellHeight / 2 + 0.5, { align: 'center', baseline: 'middle' });
-    serviceBoxX += serviceBoxWidth + serviceBoxSpacing;
-    
-    doc.setFillColor(230, 180, 70); 
-    doc.rect(serviceBoxX, currentY + 0.5, serviceBoxWidth, cellHeight - 1, 'FD');
-    doc.setTextColor(0, 0, 0); 
-    doc.text("S3C", serviceBoxX + serviceBoxWidth / 2, currentY + cellHeight / 2 + 0.5, { align: 'center', baseline: 'middle' });
-    
-    const weightKgTextX = serviceBoxX + serviceBoxWidth + serviceBoxSpacing + 5;
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0,0,0);
-    doc.text("Weight Kg", weightKgTextX , currentY + cellHeight / 2 + 1, { baseline: 'middle' });
-    currentY += cellHeight;
-
-    const tableHead = [['Customer', 'Dispatch No', 'D-OE', 'Format', 'Format', 'Format', 'Tare Weight', 'Gross Weight', 'Net Weight']];
-    
+    // --- Main Details Table ---
+    const tableHead = [["Customer", "Dispatch No", "D-OE", "Format", "Format", "Format", "Tare Weight", "Gross Weight", "Net Weight"]];
     const tableBody = details.map(detail => {
-      const serviceCategory = getServiceCategory(detail.serviceId, dropdownMaps);
-      const formatCollectionId = SERVICE_FORMAT_MAPPING[detail.serviceId?.toLowerCase() || ''] || null;
-      const formatValue = formatCollectionId ? getLabelFromMap(dropdownMaps[formatCollectionId], detail.formatId, detail.formatId) : (detail.formatId || 'N/A');
+      const customerLabel = getLabelFromMap(dropdownMaps['customers'], detail.customerId, detail.customerId);
+      const dispatchNo = detail.dispatchNumber || 'N/A';
+      const doeLabel = getLabelFromMap(dropdownMaps['doe'], detail.doeId, detail.doeId || 'N/A');
+      
+      const serviceKey = detail.serviceId?.toLowerCase();
+      let formatPrio = '', formatEco = '', formatS3C = '';
+
+      const serviceMapping = SERVICE_FORMAT_MAPPING[serviceKey || ''] || null;
+      let formatDisplayValue = detail.formatId || '';
+      if (serviceMapping && detail.formatId) {
+          formatDisplayValue = getLabelFromMap(dropdownMaps[serviceMapping], detail.formatId, detail.formatId);
+      } else if (detail.formatId) {
+          formatDisplayValue = detail.formatId; // Fallback if mapping is complex or formatId is generic
+      }
+
+
+      if (serviceKey === 'e' || serviceKey === 'prior' || serviceKey === 'priority') {
+        formatPrio = formatDisplayValue;
+      } else if (serviceKey === 'c' || serviceKey === 'eco' || serviceKey === 'economy') {
+        formatEco = formatDisplayValue;
+      } else if (serviceKey === 's' || serviceKey === 's3c') {
+        formatS3C = formatDisplayValue;
+      }
 
       return [
-        getLabelFromMap(dropdownMaps['customers'], detail.customerId, detail.customerId),
-        detail.dispatchNumber || 'N/A',
-        getLabelFromMap(dropdownMaps['doe'], detail.doeId, detail.doeId || 'N/A'),
-        serviceCategory === "Prio" ? formatValue : '',
-        serviceCategory === "Eco" ? formatValue : '',
-        serviceCategory === "S3C" ? formatValue : '',
+        customerLabel,
+        dispatchNo,
+        doeLabel,
+        formatPrio,
+        formatEco,
+        formatS3C,
         (detail.tareWeight || 0).toFixed(2),
         (detail.grossWeight || 0).toFixed(2),
-        (detail.netWeight || 0).toFixed(2),
+        (detail.netWeight || 0).toFixed(2)
       ];
     });
 
-    autoTable(doc, { 
+    const columnStyles: { [key: number]: any } = {};
+    const cellStyles = {
+        fillColor: lightYellowBg, 
+        textColor: [0,0,0], 
+        fontSize: 7,
+        cellPadding: 1.5,
+        halign: 'left',
+        valign: 'middle',
+        border: '格', // Ensure borders are drawn for cells
+        lineColor: [150,150,150],
+        lineWidth: 0.1
+    };
+
+    autoTable(doc, {
       head: tableHead,
       body: tableBody,
       startY: currentY,
-      theme: 'plain',
-      styles: {
-        fontSize: smallFontSize -1, 
-        cellPadding: 1,
-        lineColor: [0,0,0], 
-        lineWidth: 0.1,
-      },
+      theme: 'plain', // Use 'plain' and apply custom styles
+      styles: cellStyles, // Base styles for all cells
       headStyles: {
-        fillColor: lightYellowBg, 
-        textColor: [0,0,0], 
+        fillColor: lightYellowBg, // Header background
+        textColor: [0,0,0],       // Header text color
         fontStyle: 'bold',
         halign: 'center',
-        valign: 'middle',
-        lineColor: [0,0,0],
         lineWidth: 0.1,
-        fontSize: headerFontSize -1, 
+        lineColor: [150,150,150]
       },
-      bodyStyles: {
-        fillColor: lightYellowBg, 
-        lineColor: [0,0,0],
-        lineWidth: 0.1,
-      },
-      columnStyles: {
-        0: { halign: 'left', cellWidth: 35 }, 
-        1: { halign: 'center', cellWidth: 20 }, 
-        2: { halign: 'center', cellWidth: 15 }, 
-        3: { halign: 'center', cellWidth: 20 }, 
-        4: { halign: 'center', cellWidth: 20 }, 
-        5: { halign: 'center', cellWidth: 20 }, 
-        6: { halign: 'right', cellWidth: 20 }, 
-        7: { halign: 'right', cellWidth: 20 }, 
-        8: { halign: 'right', cellWidth: 20 }, 
-      },
+      columnStyles: columnStyles, // Apply specific column styles if needed later
       didDrawPage: (data: any) => {
+        // Redraw logo on new pages if table spans multiple pages
         if (data.pageNumber > 1) {
              addAsendiaStyleLogo(doc, pageMargin, pageMargin);
         }
@@ -350,44 +343,46 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
   }
 };
 
+// --- Original CMR PDF (Simple Placeholder) ---
 export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
   const pdfType = "CMR";
   const filename = `cmr-${shipment.id || 'shipment'}.pdf`;
-  console.log(`[PDFService] ${pdfType} PDF: Full shipment data:`, JSON.stringify(shipment, null, 2));
+  console.log(`[PDFService] ${pdfType} PDF: Full shipment data for ${shipment.id}:`, JSON.stringify(shipment, null, 2));
   console.log(`[PDFService] ${pdfType}: generateCmrPdf CALLED. Attempting to generate: ${filename}`);
 
   try {
-    console.log(`[PDFService] ${pdfType}: Creating new jsPDF instance...`);
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-    console.log(`[PDFService] ${pdfType}: jsPDF instance created successfully.`);
-
     const pageMargin = 15;
     let currentY = pageMargin;
 
-    // 1. Add Logo
+    console.log(`[PDFService] ${pdfType}: Adding Asendia Style Logo...`);
     addAsendiaStyleLogo(doc, pageMargin, currentY);
-    
-    // 2. Add Title "CMR Document - Placeholder"
+    // Position title next to the logo
+    const logoHeight = 10; // from addAsendiaStyleLogo
+    const logoWidth = 35;  // from addAsendiaStyleLogo
+    let titleX = pageMargin + logoWidth + 5; // 5mm gap after logo
+    let titleY = currentY + logoHeight / 2; // Vertically centered with logo
+
     doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    const title = "CMR Document - Placeholder";
-    // Position title to the right of where the logo ends
-    // Logo width is 35mm, add some space (e.g., 5mm)
-    const titleX = pageMargin + 35 + 5; 
-    doc.text(title, titleX, currentY + 5); // Align with the vertical center of the logo
+    doc.setFont("helvetica", "bold");
+    console.log(`[PDFService] ${pdfType}: Adding title...`);
+    doc.text("CMR Document - Placeholder", titleX, titleY, { baseline: 'middle' });
 
-    currentY += 15; // Space after logo/title area
+    currentY += logoHeight + 10; // Space below logo and title area
 
-    // 3. Add Shipment ID and other placeholder text
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont("helvetica", "normal");
+    console.log(`[PDFService] ${pdfType}: Adding Shipment ID...`);
     doc.text(`Shipment ID: ${shipment.id || 'N/A'}`, pageMargin, currentY);
     currentY += 7;
-    doc.text("This is a placeholder for the CMR document content.", pageMargin, currentY);
-    currentY += 7;
-    doc.text("Detailed layout and data mapping will be implemented later.", pageMargin, currentY);
 
-    console.log(`[PDFService] ${pdfType}: Simplified content added to PDF.`);
+    console.log(`[PDFService] ${pdfType}: Adding placeholder line 1...`);
+    doc.text("This is a placeholder for the CMR document.", pageMargin, currentY);
+    currentY += 7;
+    console.log(`[PDFService] ${pdfType}: Adding placeholder line 2...`);
+    doc.text("Actual CMR layout will be implemented later.", pageMargin, currentY);
+    
+    console.log(`[PDFService] ${pdfType}: Content added to PDF.`);
     triggerDownload(doc, filename, pdfType);
     console.log(`[PDFService] ${pdfType}: triggerDownload completed for ${filename}.`);
 
@@ -397,6 +392,4 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
 };
-    
-
     
