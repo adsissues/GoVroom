@@ -32,8 +32,10 @@ import { PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN } from '@/lib/const
 export const shipmentFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): Shipment => {
   const data = docSnap.data();
   if (!data) {
+    // This case should ideally not happen if docSnap.exists() is checked before calling
     console.error(`Document data missing for snapshot ID: ${docSnap.id}`);
-    return { id: docSnap.id } as Shipment;
+    // Return a minimal Shipment object or throw an error
+    return { id: docSnap.id } as Shipment; // Or handle more gracefully
   }
   return {
     id: docSnap.id,
@@ -75,7 +77,7 @@ export const detailFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): Sh
 
     return {
         id: docSnap.id,
-        shipmentId: docSnap.ref.parent.parent?.id || '',
+        shipmentId: docSnap.ref.parent.parent?.id || '', // Get parent shipmentId
         numPallets: typeof data.numPallets === 'number' ? data.numPallets : 0,
         numBags: typeof data.numBags === 'number' ? data.numBags : 0,
         customerId: data.customerId || '',
@@ -83,7 +85,7 @@ export const detailFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): Sh
         formatId: data.formatId || '',
         tareWeight: tareWeight,
         grossWeight: grossWeight,
-        netWeight: netWeight,
+        netWeight: netWeight, // Calculated net weight
         dispatchNumber: data.dispatchNumber || undefined,
         doeId: data.doeId || undefined,
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(),
@@ -98,8 +100,10 @@ export const addShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'c
   try {
     const docRef = await addDoc(collection(db, 'shipments'), {
       ...shipmentData,
+      // Ensure dates are Timestamps if they are Date objects
       departureDate: shipmentData.departureDate instanceof Date ? Timestamp.fromDate(shipmentData.departureDate) : shipmentData.departureDate,
       arrivalDate: shipmentData.arrivalDate instanceof Date ? Timestamp.fromDate(shipmentData.arrivalDate) : shipmentData.arrivalDate,
+      // Initialize totals
       totalPallets: 0,
       totalBags: 0,
       totalGrossWeight: 0,
@@ -108,14 +112,14 @@ export const addShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'c
       asendiaGrossWeight: 0,
       asendiaTareWeight: 0,
       asendiaNetWeight: 0,
-      status: shipmentData.status || 'Pending',
+      status: shipmentData.status || 'Pending', // Default status
       createdAt: serverTimestamp(),
       lastUpdated: serverTimestamp(),
     });
     return docRef.id;
   } catch (error) {
     console.error("Error adding shipment:", error);
-    throw error;
+    throw error; // Re-throw to be handled by the caller
   }
 };
 
@@ -123,16 +127,18 @@ export const updateShipment = async (shipmentId: string, updates: Partial<Omit<S
   const shipmentRef = doc(db, 'shipments', shipmentId);
   try {
     const dataToUpdate: DocumentData = { ...updates };
+    // Convert Date objects to Timestamps if present
     if (updates.departureDate instanceof Date) {
       dataToUpdate.departureDate = Timestamp.fromDate(updates.departureDate);
     }
      if (updates.arrivalDate instanceof Date) {
        dataToUpdate.arrivalDate = Timestamp.fromDate(updates.arrivalDate);
     }
-    dataToUpdate.lastUpdated = serverTimestamp();
+    dataToUpdate.lastUpdated = serverTimestamp(); // Always update lastUpdated timestamp
 
     await updateDoc(shipmentRef, dataToUpdate);
-
+    // Note: Recalculation of totals might be needed if status or other critical fields change
+    // This is currently handled when details are modified.
   } catch (error) {
     console.error(`Error updating shipment ${shipmentId}:`, error);
     throw error;
@@ -144,12 +150,18 @@ export const deleteShipment = async (shipmentId: string): Promise<void> => {
   const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
 
   try {
+    // Firestore transaction or batch write to delete shipment and its details atomically
     const batch = writeBatch(db);
+
+    // Delete all detail documents in the subcollection
     const detailsSnapshot = await getDocs(query(detailsCollectionRef));
     detailsSnapshot.docs.forEach((detailDoc) => {
       batch.delete(detailDoc.ref);
     });
+
+    // Delete the main shipment document
     batch.delete(shipmentRef);
+
     await batch.commit();
   } catch (error) {
     console.error(`Error deleting shipment ${shipmentId}:`, error);
@@ -169,17 +181,17 @@ export const getShipmentById = async (shipmentId: string): Promise<Shipment | nu
           return shipmentFromFirestore(docSnap);
         } else {
           console.log(`No shipment found with ID: ${shipmentId}`);
-          return null;
+          return null; // Or throw new Error(`Shipment with ID ${shipmentId} not found`);
         }
     } catch (error) {
         console.error(`Error fetching shipment ${shipmentId}:`, error);
-        throw error;
+        throw error; // Re-throw or handle as per application's error strategy
     }
 };
 
 export const getAllShipments = async (): Promise<Shipment[]> => {
   try {
-    const q = query(collection(db, 'shipments'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'shipments'), orderBy('createdAt', 'desc')); // Example ordering
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(docSnap => shipmentFromFirestore(docSnap));
   } catch (error) {
@@ -194,14 +206,15 @@ export const addShipmentDetail = async (shipmentId: string, detailData: Omit<Shi
   if (!shipmentId) throw new Error("Parent Shipment ID is required to add a detail.");
   const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
   try {
+    // Calculate netWeight before saving
     const netWeight = parseFloat(((detailData.grossWeight ?? 0) - (detailData.tareWeight ?? 0)).toFixed(3));
     const docRef = await addDoc(detailsCollectionRef, {
       ...detailData,
-      netWeight: netWeight,
+      netWeight: netWeight, // Store calculated net weight
       createdAt: serverTimestamp(),
       lastUpdated: serverTimestamp(),
     });
-    await recalculateShipmentTotals(shipmentId);
+    await recalculateShipmentTotals(shipmentId); // Recalculate parent totals
     return docRef.id;
   } catch (error) {
     console.error(`Error adding detail to shipment ${shipmentId}:`, error);
@@ -215,7 +228,9 @@ export const updateShipmentDetail = async (shipmentId: string, detailId: string,
   try {
     const dataToUpdate: DocumentData = { ...updates };
 
+    // If grossWeight or tareWeight is being updated, recalculate netWeight
     if (updates.grossWeight !== undefined || updates.tareWeight !== undefined) {
+      // Fetch current document to get existing values if only one is being updated
       const currentDocSnap = await getDoc(detailRef);
       const currentData = currentDocSnap.data() || {};
       const grossWeight = updates.grossWeight !== undefined ? updates.grossWeight : currentData.grossWeight;
@@ -225,7 +240,7 @@ export const updateShipmentDetail = async (shipmentId: string, detailId: string,
 
     dataToUpdate.lastUpdated = serverTimestamp();
     await updateDoc(detailRef, dataToUpdate);
-    await recalculateShipmentTotals(shipmentId);
+    await recalculateShipmentTotals(shipmentId); // Recalculate parent totals
   } catch (error) {
     console.error(`Error updating detail ${detailId} for shipment ${shipmentId}:`, error);
     throw error;
@@ -237,7 +252,7 @@ export const deleteShipmentDetail = async (shipmentId: string, detailId: string)
   const detailRef = doc(db, 'shipments', shipmentId, 'details', detailId);
   try {
     await deleteDoc(detailRef);
-    await recalculateShipmentTotals(shipmentId);
+    await recalculateShipmentTotals(shipmentId); // Recalculate parent totals
   } catch (error) {
     console.error(`Error deleting detail ${detailId} for shipment ${shipmentId}:`, error);
     throw error;
@@ -257,7 +272,7 @@ export const deleteShipmentDetailsBatch = async (shipmentId: string, detailIds: 
   });
   try {
     await batch.commit();
-    await recalculateShipmentTotals(shipmentId);
+    await recalculateShipmentTotals(shipmentId); // Recalculate parent totals
   } catch (error)
 {
     console.error(`Error batch deleting details for shipment ${shipmentId}:`, error);
@@ -272,11 +287,12 @@ export const getShipmentDetailsCount = async (shipmentId: string): Promise<numbe
     }
     const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
     try {
+        // Use getCountFromServer for efficient counting
         const snapshot = await getCountFromServer(query(detailsCollectionRef));
         return snapshot.data().count;
     } catch (error) {
         console.error(`Error getting details count for shipment ${shipmentId}:`, error);
-        throw error;
+        throw error; // Or return 0 and log, depending on desired error handling
     }
 };
 
@@ -308,19 +324,22 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
       let primaryAsendiaNetWeight = 0;
 
       details.forEach((detail, index) => {
-        console.log(`[ShipmentService DEBUG] Detail item ${index + 1} (ID: ${detail.id}): Customer ID: "${detail.customerId}", Gross: ${detail.grossWeight}, Tare: ${detail.tareWeight}, Net: ${detail.netWeight}`);
+        const itemNetWeight = detail.netWeight !== undefined ? detail.netWeight : 0; // Ensure it's a number
+        const itemGrossWeight = detail.grossWeight !== undefined ? detail.grossWeight : 0;
+        const itemTareWeight = detail.tareWeight !== undefined ? detail.tareWeight : 0;
+
+        console.log(`[ShipmentService DEBUG] Detail item ${index + 1} (ID: ${detail.id}): Customer ID: "${detail.customerId}", Gross: ${itemGrossWeight}, Tare: ${itemTareWeight}, Net: ${itemNetWeight}`);
         totalPallets += detail.numPallets || 0;
         totalBags += detail.numBags || 0;
-        totalGrossWeight += detail.grossWeight || 0;
-        totalTareWeight += detail.tareWeight || 0;
-        const currentNetWeight = detail.netWeight !== undefined ? detail.netWeight : parseFloat(((detail.grossWeight || 0) - (detail.tareWeight || 0)).toFixed(3));
-        totalNetWeight += currentNetWeight;
+        totalGrossWeight += itemGrossWeight;
+        totalTareWeight += itemTareWeight;
+        totalNetWeight += itemNetWeight;
 
         if (detail.customerId === PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN) {
-          console.log(`[ShipmentService DEBUG] Detail item ${index + 1} MATCHED PRIMARY_ASENDIA_CUSTOMER_ID. Adding to asendiaNetWeight.`);
-          primaryAsendiaGrossWeight += detail.grossWeight || 0;
-          primaryAsendiaTareWeight += detail.tareWeight || 0;
-          primaryAsendiaNetWeight += currentNetWeight;
+          console.log(`[ShipmentService DEBUG] Detail item ${index + 1} MATCHED PRIMARY_ASENDIA_CUSTOMER_ID. Adding to asendiaNetWeight (Current item Net: ${itemNetWeight}).`);
+          primaryAsendiaGrossWeight += itemGrossWeight;
+          primaryAsendiaTareWeight += itemTareWeight;
+          primaryAsendiaNetWeight += itemNetWeight;
         } else {
           console.log(`[ShipmentService DEBUG] Detail item ${index + 1} DID NOT MATCH PRIMARY_ASENDIA_CUSTOMER_ID. (Detail CustID: "${detail.customerId}", Primary Const: "${PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN}")`);
         }
@@ -336,7 +355,7 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
         totalNetWeight: parseFloat(totalNetWeight.toFixed(3)),
         asendiaGrossWeight: parseFloat(primaryAsendiaGrossWeight.toFixed(3)),
         asendiaTareWeight: parseFloat(primaryAsendiaTareWeight.toFixed(3)),
-        asendiaNetWeight: parseFloat(primaryAsendiaNetWeight.toFixed(3)),
+        asendiaNetWeight: parseFloat(primaryAsendiaNetWeight.toFixed(3)), // This is the specific field for the primary customer
         lastUpdated: serverTimestamp(),
       };
       console.log(`[ShipmentService DEBUG] Updating shipment ${shipmentId} with:`, updates);
@@ -345,45 +364,56 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
     console.log(`[ShipmentService DEBUG] Successfully recalculated totals for shipment ${shipmentId}.`);
   } catch (error) {
     console.error(`[ShipmentService DEBUG] Error recalculating totals for shipment ${shipmentId}:`, error);
-    throw error;
+    throw error; // Re-throw to be handled by caller or global error handler
   }
 };
 
 
 // --- Dashboard Specific Queries ---
 
+/**
+ * Fetches aggregated statistics for the dashboard.
+ * Note: Real-time counts for pending/completed and total gross weight are best handled
+ * by backend aggregation (e.g., Cloud Functions) for scalability.
+ * This function provides a client-side approximation or fetches pre-aggregated data if available.
+ */
 export const getDashboardStats = async (): Promise<{
     pendingCount: number | null;
     completedCount: number | null;
-    totalGrossWeightSum: number | null;
+    totalGrossWeightSum: number | null; // This will be null as it's too expensive client-side
     lastUpdateTimestamp: Timestamp | null;
 }> => {
     const shipmentsCollection = collection(db, 'shipments');
     try {
+        // Get counts for pending and completed shipments
         const pendingQuery = query(shipmentsCollection, where('status', '==', 'Pending'));
         const completedQuery = query(shipmentsCollection, where('status', '==', 'Completed'));
 
+        // Use getCountFromServer for efficient counting
         const [pendingSnapshot, completedSnapshot] = await Promise.all([
             getCountFromServer(pendingQuery),
             getCountFromServer(completedQuery)
         ]);
 
+        // Get the last updated timestamp from any shipment
+        // This might not be the "overall last update" if no shipments exist or if using a separate stats doc
         const lastUpdatedQuery = query(shipmentsCollection, orderBy('lastUpdated', 'desc'), limit(1));
         const lastUpdatedSnapshot = await getDocs(lastUpdatedQuery);
         const lastUpdateTimestamp = lastUpdatedSnapshot.empty ? null : (lastUpdatedSnapshot.docs[0].data().lastUpdated as Timestamp);
         
-        // Total gross weight sum is best handled by backend aggregation (e.g., Cloud Function)
-        // For now, we return null and the dashboard will display N/A or a placeholder.
+        // Calculating totalGrossWeightSum by fetching all documents client-side is inefficient and costly.
+        // This should be done via backend aggregation. For now, returning null.
         const totalGrossWeightSum = null;
 
         return {
             pendingCount: pendingSnapshot.data().count,
             completedCount: completedSnapshot.data().count,
-            totalGrossWeightSum: totalGrossWeightSum,
+            totalGrossWeightSum: totalGrossWeightSum, // Placeholder
             lastUpdateTimestamp: lastUpdateTimestamp,
         };
     } catch (error) {
         console.error("Error fetching dashboard stats:", error);
+        // Return nulls or default values in case of error
         return {
             pendingCount: null,
             completedCount: null,
@@ -392,4 +422,5 @@ export const getDashboardStats = async (): Promise<{
         };
     }
 };
+
 

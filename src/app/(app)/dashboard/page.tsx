@@ -14,14 +14,15 @@ import { Button } from '@/components/ui/button';
 import { CheckCircle2, AlertTriangle, Loader2, CalendarDays, ChevronDown, ChevronUp, ShoppingCart, Users } from 'lucide-react';
 import type { Shipment } from '@/lib/types';
 import { shipmentFromFirestore, getDashboardStats } from '@/lib/firebase/shipmentsService';
-import { DASHBOARD_STATS_MAP } from '@/lib/constants';
+import { DASHBOARD_STATS_MAP } from '@/lib/constants'; // Ensure this is correctly imported
 import { format } from 'date-fns';
 
 // Helper function to format date/time or return 'N/A'
 const formatTimestamp = (timestamp: Timestamp | null | undefined): string => {
   if (!timestamp) return 'N/A';
   try {
-    return format(timestamp.toDate(), "PPpp");
+    // Using a more common and readable format
+    return format(timestamp.toDate(), "PPpp"); // Example: May 20, 2025, 8:39:57 PM
   } catch (error) {
     console.error("Error formatting timestamp:", error);
     return 'Invalid Date';
@@ -66,7 +67,7 @@ export default function DashboardPage() {
   const [dashboardStats, setDashboardStats] = useState<{
       pendingCount: number | null;
       completedCount: number | null;
-      totalGrossWeightSum: number | null;
+      totalGrossWeightSum: number | null; // This will be null
       lastUpdateTimestamp: Timestamp | null;
   }>({ pendingCount: null, completedCount: null, totalGrossWeightSum: null, lastUpdateTimestamp: null });
 
@@ -77,9 +78,11 @@ export default function DashboardPage() {
   const [errorCompleted, setErrorCompleted] = useState<string | null>(null);
   const [errorStats, setErrorStats] = useState<string | null>(null);
 
+  // State for managing visibility of full lists
   const [showAllPending, setShowAllPending] = useState(false);
   const [showAllCompleted, setShowAllCompleted] = useState(false);
 
+  // Fetch dashboard stats (counts and last update time)
    useEffect(() => {
     setIsLoadingStats(true);
     setErrorStats(null);
@@ -90,11 +93,13 @@ export default function DashboardPage() {
       .catch(err => {
         console.error("Error fetching dashboard stats:", err);
         setErrorStats("Failed to load dashboard statistics.");
+        // Set default/error state for stats
         setDashboardStats({ pendingCount: null, completedCount: null, totalGrossWeightSum: null, lastUpdateTimestamp: null });
       })
       .finally(() => setIsLoadingStats(false));
   }, []);
 
+  // Fetch recent pending shipments
   useEffect(() => {
     setIsLoadingPending(true);
     setErrorPending(null);
@@ -102,7 +107,7 @@ export default function DashboardPage() {
         collection(db, 'shipments'),
         where('status', '==', 'Pending'),
         orderBy('lastUpdated', 'desc'),
-        limit(5)
+        limit(5) // Fetch 5 most recent
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => shipmentFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
@@ -113,9 +118,10 @@ export default function DashboardPage() {
       setErrorPending("Failed to load pending shipments.");
       setIsLoadingPending(false);
     });
-    return () => unsubscribe();
+    return () => unsubscribe(); // Cleanup listener on unmount
   }, []);
 
+  // Fetch recent completed shipments
    useEffect(() => {
     setIsLoadingCompleted(true);
     setErrorCompleted(null);
@@ -123,7 +129,7 @@ export default function DashboardPage() {
         collection(db, 'shipments'),
         where('status', '==', 'Completed'),
         orderBy('lastUpdated', 'desc'),
-        limit(5)
+        limit(5) // Fetch 5 most recent
      );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => shipmentFromFirestore(doc as QueryDocumentSnapshot<DocumentData>));
@@ -134,9 +140,10 @@ export default function DashboardPage() {
       setErrorCompleted("Failed to load completed shipments.");
       setIsLoadingCompleted(false);
     });
-    return () => unsubscribe();
+    return () => unsubscribe(); // Cleanup listener on unmount
   }, []);
 
+  // Function to render a list of shipments (Pending or Completed)
   const renderShipmentList = (
     shipments: Shipment[], 
     isLoading: boolean, 
@@ -150,6 +157,7 @@ export default function DashboardPage() {
         <div className="space-y-4">
           <Skeleton className="h-24 w-full rounded-lg" />
           <Skeleton className="h-24 w-full rounded-lg" />
+           {/* Skeletons for aggregate totals */}
            <Skeleton className="h-8 w-1/2 mt-4" />
            <Skeleton className="h-8 w-1/2 mt-2" />
         </div>
@@ -165,23 +173,26 @@ export default function DashboardPage() {
       );
     }
     
-    const itemsToShow = showAll ? shipments : shipments.slice(0, 2);
+    // Determine how many items to show based on 'showAll' state
+    const itemsToShow = showAll ? shipments : shipments.slice(0, 2); // Show 2 initially
 
+    // Calculate aggregate net weights for the displayed section (recent 5)
     let overallTotalAsendiaACNetWeight = 0;
     let overallTotalOtherNetWeight = 0;
 
     if (shipments && shipments.length > 0) {
         shipments.forEach(shipment => {
-            overallTotalAsendiaACNetWeight += shipment.asendiaNetWeight || 0; // This field will represent "Asendia A/C" if PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN is set correctly
+            // 'asendiaNetWeight' field on shipment document already stores the total for the primary Asendia customer.
+            overallTotalAsendiaACNetWeight += shipment.asendiaNetWeight || 0; 
             overallTotalOtherNetWeight += (shipment.totalNetWeight || 0) - (shipment.asendiaNetWeight || 0);
         });
     }
 
     return (
       <>
-        {itemsToShow.length === 0 && shipments.length === 0 ? (
+        {itemsToShow.length === 0 && shipments.length === 0 ? ( // No items fetched at all
             <p className="text-muted-foreground text-center py-4">No {status.toLowerCase()} shipments found.</p>
-        ) : itemsToShow.length === 0 && shipments.length > 0 ? (
+        ) : itemsToShow.length === 0 && shipments.length > 0 ? ( // Items fetched but currently hidden
              <p className="text-muted-foreground text-center py-4">Click "View All" to see shipments.</p>
         ) : (
           <ul className="space-y-3">
@@ -204,10 +215,9 @@ export default function DashboardPage() {
                           {shipment.status}
                         </Badge>
                       </div>
+                      {/* Net weight breakdown per shipment card */}
                       <div className="mt-2 pt-2 border-t border-muted/50 text-xs space-y-1">
                         <div className="flex justify-between">
-                          {/* The 'asendiaNetWeight' field is now assumed to represent "Asendia A/C" or primary Asendia account,
-                              based on PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN constant in constants.ts */}
                           <span className="text-muted-foreground flex items-center"><ShoppingCart className="mr-1.5 h-3.5 w-3.5 text-primary/70" /> Asendia A/C Net:</span>
                           <span className="font-medium">{shipment.asendiaNetWeight?.toFixed(2) ?? '0.00'} kg</span>
                         </div>
@@ -224,7 +234,8 @@ export default function DashboardPage() {
           </ul>
         )}
 
-        {shipments.length > 2 && (
+        {/* "View All" / "Show Less" Button */}
+        {shipments.length > 2 && ( // Only show if there are more than 2 items to potentially show
           <div className="mt-4 flex justify-center">
             <Button variant="outline" onClick={toggleShowAll} size="sm">
               {showAll ? <ChevronUp className="mr-2 h-4 w-4" /> : <ChevronDown className="mr-2 h-4 w-4" />}
@@ -233,7 +244,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Display Aggregate Net Weights for the recent X shipments */}
+        {/* Display Aggregate Net Weights for the recent X shipments (e.g., recent 5) */}
         <div className="mt-6 border-t pt-4 space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">Aggregate Net Weight Totals (Recent {shipments.length}):</h4>
             <div className="flex items-center justify-between text-sm">
@@ -253,6 +264,7 @@ export default function DashboardPage() {
     <div className="space-y-6 md:space-y-8">
         <h1 className="text-2xl md:text-3xl font-bold">Welcome, {currentUser?.email || 'User'}!</h1>
 
+         {/* Display error for dashboard stats if any */}
          {errorStats && (
              <Alert variant="destructive">
                  <AlertTriangle className="h-4 w-4" />
@@ -260,8 +272,12 @@ export default function DashboardPage() {
                  <AlertDescription>{errorStats}</AlertDescription>
              </Alert>
          )}
+
+        {/* Stat Cards Section - Only "Last Updated" is shown from main stats */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {DASHBOARD_STATS_MAP.lastUpdateTimestamp && (
+            {/* Removed Pending Count, Completed Count, Total Gross Weight cards */}
+            {/* Last Update Timestamp Card */}
+            {DASHBOARD_STATS_MAP.lastUpdateTimestamp && ( // Check if defined in constants
                  <StatCard
                    title={DASHBOARD_STATS_MAP.lastUpdateTimestamp.title}
                    value={formatTimestamp(dashboardStats.lastUpdateTimestamp)}
@@ -273,7 +289,9 @@ export default function DashboardPage() {
             )}
         </div>
 
+        {/* Shipments Lists Section */}
         <div className="grid gap-6 md:grid-cols-2">
+            {/* Pending Shipments Card */}
             <Card className="shadow-lg rounded-xl">
                 <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -287,6 +305,7 @@ export default function DashboardPage() {
                 </CardContent>
             </Card>
 
+            {/* Completed Shipments Card */}
             <Card className="shadow-lg rounded-xl">
                 <CardHeader>
                 <CardTitle className="flex items-center gap-2">
