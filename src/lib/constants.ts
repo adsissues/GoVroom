@@ -85,6 +85,7 @@ export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
  *
  * Then the mapping here MUST include a key that is the lowercase version of that value:
  *   'e': 'formats_prior', // If value is "E"
+ *   'priority_express_mail': 'formats_prior', // if value is "PRIORITY_EXPRESS_MAIL"
  */
 export const SERVICE_FORMAT_MAPPING: { [serviceValueKey: string]: string | null } = {
   // --- IMPORTANT: Ensure these keys match YOUR Firestore /services `value` fields (in lowercase) ---
@@ -112,7 +113,7 @@ export const DEFAULT_CONSIGNEE_ADDRESS = "La Poste, Avenue de la Poste, 75000 Pa
 // Value for the primary Asendia customer whose weight is tracked separately on the dashboard
 // and used in the `recalculateShipmentTotals` function.
 // *** IMPORTANT: THIS VALUE MUST BE THE Firestore 'value' (Internal ID) OF YOUR "Asendia A/C" CUSTOMER. ***
-// You confirmed this ID is "123456789".
+// You confirmed this ID should be "123456789".
 export const PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN = "123456789";
 
 
@@ -128,7 +129,8 @@ export const DASHBOARD_STATS_MAP: { [key: string]: { title: string; icon: React.
 
 // Value for the default "Prior" service in the ShipmentDetailForm
 // This value MUST EXACTLY match the 'value' field of your "Prior" service document in Firestore.
-export const DEFAULT_PRIOR_SERVICE_ID = "E"; // Updated based on user feedback
+// Example: If your "Prior" service document has { label: "Priority", value: "E" }, then this should be "E".
+export const DEFAULT_PRIOR_SERVICE_ID = "E";
 
 // Value for the default "DOE" (Date of Entry) in the ShipmentDetailForm
 // This value MUST EXACTLY match the 'value' field of your default DOE document in Firestore.
