@@ -112,8 +112,8 @@ export const DEFAULT_CONSIGNEE_ADDRESS = "La Poste, Avenue de la Poste, 75000 Pa
 
 // Value for the primary Asendia customer whose weight is tracked separately on the dashboard
 // and used in the `recalculateShipmentTotals` function.
-// *** IMPORTANT: THIS VALUE MUST BE THE Firestore 'value' (Internal ID) OF YOUR "Asendia A/C" CUSTOMER. ***
-// You confirmed this ID should be "123456789".
+// *** THIS MUST BE THE Firestore 'value' (Internal ID) OF YOUR "Asendia A/C" CUSTOMER. ***
+// Based on your input, this should be "123456789".
 export const PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN = "123456789";
 
 
@@ -123,15 +123,15 @@ export const BAG_WEIGHT_MULTIPLIER = 0.125; // Weight per bag in kg
 
 // For dashboard summary cards
 export const DASHBOARD_STATS_MAP: { [key: string]: { title: string; icon: React.ElementType; unit?: string; bgColorClass: string; textColorClass: string, isUnavailable?: boolean } } = {
-  // pendingCount, completedCount, and totalGrossWeightSum are now handled by on-the-fly queries in dashboard page or planned for backend aggregation
   lastUpdateTimestamp: { title: "Last Updated", icon: CalendarDays, unit: "", bgColorClass: "bg-gray-100", textColorClass: "text-gray-600" },
 };
 
 // Value for the default "Prior" service in the ShipmentDetailForm
 // This value MUST EXACTLY match the 'value' field of your "Prior" service document in Firestore.
-// Example: If your "Prior" service document has { label: "Priority", value: "E" }, then this should be "E".
+// Based on your input, this should be "E".
 export const DEFAULT_PRIOR_SERVICE_ID = "E";
 
 // Value for the default "DOE" (Date of Entry) in the ShipmentDetailForm
 // This value MUST EXACTLY match the 'value' field of your default DOE document in Firestore.
+// Based on your input, this should be "UZ1".
 export const DEFAULT_DOE_ID = "UZ1";

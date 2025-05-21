@@ -137,8 +137,6 @@ export const updateShipment = async (shipmentId: string, updates: Partial<Omit<S
     dataToUpdate.lastUpdated = serverTimestamp(); // Always update lastUpdated timestamp
 
     await updateDoc(shipmentRef, dataToUpdate);
-    // Note: Recalculation of totals might be needed if status or other critical fields change
-    // This is currently handled when details are modified.
   } catch (error) {
     console.error(`Error updating shipment ${shipmentId}:`, error);
     throw error;
@@ -150,18 +148,12 @@ export const deleteShipment = async (shipmentId: string): Promise<void> => {
   const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
 
   try {
-    // Firestore transaction or batch write to delete shipment and its details atomically
     const batch = writeBatch(db);
-
-    // Delete all detail documents in the subcollection
     const detailsSnapshot = await getDocs(query(detailsCollectionRef));
     detailsSnapshot.docs.forEach((detailDoc) => {
       batch.delete(detailDoc.ref);
     });
-
-    // Delete the main shipment document
     batch.delete(shipmentRef);
-
     await batch.commit();
   } catch (error) {
     console.error(`Error deleting shipment ${shipmentId}:`, error);
@@ -181,17 +173,17 @@ export const getShipmentById = async (shipmentId: string): Promise<Shipment | nu
           return shipmentFromFirestore(docSnap);
         } else {
           console.log(`No shipment found with ID: ${shipmentId}`);
-          return null; // Or throw new Error(`Shipment with ID ${shipmentId} not found`);
+          return null;
         }
     } catch (error) {
         console.error(`Error fetching shipment ${shipmentId}:`, error);
-        throw error; // Re-throw or handle as per application's error strategy
+        throw error;
     }
 };
 
 export const getAllShipments = async (): Promise<Shipment[]> => {
   try {
-    const q = query(collection(db, 'shipments'), orderBy('createdAt', 'desc')); // Example ordering
+    const q = query(collection(db, 'shipments'), orderBy('lastUpdated', 'desc'));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(docSnap => shipmentFromFirestore(docSnap));
   } catch (error) {
@@ -206,15 +198,14 @@ export const addShipmentDetail = async (shipmentId: string, detailData: Omit<Shi
   if (!shipmentId) throw new Error("Parent Shipment ID is required to add a detail.");
   const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
   try {
-    // Calculate netWeight before saving
     const netWeight = parseFloat(((detailData.grossWeight ?? 0) - (detailData.tareWeight ?? 0)).toFixed(3));
     const docRef = await addDoc(detailsCollectionRef, {
       ...detailData,
-      netWeight: netWeight, // Store calculated net weight
+      netWeight: netWeight,
       createdAt: serverTimestamp(),
       lastUpdated: serverTimestamp(),
     });
-    await recalculateShipmentTotals(shipmentId); // Recalculate parent totals
+    await recalculateShipmentTotals(shipmentId);
     return docRef.id;
   } catch (error) {
     console.error(`Error adding detail to shipment ${shipmentId}:`, error);
@@ -227,20 +218,16 @@ export const updateShipmentDetail = async (shipmentId: string, detailId: string,
   const detailRef = doc(db, 'shipments', shipmentId, 'details', detailId);
   try {
     const dataToUpdate: DocumentData = { ...updates };
-
-    // If grossWeight or tareWeight is being updated, recalculate netWeight
     if (updates.grossWeight !== undefined || updates.tareWeight !== undefined) {
-      // Fetch current document to get existing values if only one is being updated
       const currentDocSnap = await getDoc(detailRef);
       const currentData = currentDocSnap.data() || {};
       const grossWeight = updates.grossWeight !== undefined ? updates.grossWeight : currentData.grossWeight;
       const tareWeight = updates.tareWeight !== undefined ? updates.tareWeight : currentData.tareWeight;
       dataToUpdate.netWeight = parseFloat(((grossWeight ?? 0) - (tareWeight ?? 0)).toFixed(3));
     }
-
     dataToUpdate.lastUpdated = serverTimestamp();
     await updateDoc(detailRef, dataToUpdate);
-    await recalculateShipmentTotals(shipmentId); // Recalculate parent totals
+    await recalculateShipmentTotals(shipmentId);
   } catch (error) {
     console.error(`Error updating detail ${detailId} for shipment ${shipmentId}:`, error);
     throw error;
@@ -252,7 +239,7 @@ export const deleteShipmentDetail = async (shipmentId: string, detailId: string)
   const detailRef = doc(db, 'shipments', shipmentId, 'details', detailId);
   try {
     await deleteDoc(detailRef);
-    await recalculateShipmentTotals(shipmentId); // Recalculate parent totals
+    await recalculateShipmentTotals(shipmentId);
   } catch (error) {
     console.error(`Error deleting detail ${detailId} for shipment ${shipmentId}:`, error);
     throw error;
@@ -272,7 +259,7 @@ export const deleteShipmentDetailsBatch = async (shipmentId: string, detailIds: 
   });
   try {
     await batch.commit();
-    await recalculateShipmentTotals(shipmentId); // Recalculate parent totals
+    await recalculateShipmentTotals(shipmentId);
   } catch (error)
 {
     console.error(`Error batch deleting details for shipment ${shipmentId}:`, error);
@@ -287,12 +274,11 @@ export const getShipmentDetailsCount = async (shipmentId: string): Promise<numbe
     }
     const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
     try {
-        // Use getCountFromServer for efficient counting
         const snapshot = await getCountFromServer(query(detailsCollectionRef));
         return snapshot.data().count;
     } catch (error) {
         console.error(`Error getting details count for shipment ${shipmentId}:`, error);
-        throw error; // Or return 0 and log, depending on desired error handling
+        throw error;
     }
 };
 
@@ -372,9 +358,6 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
 
 // --- Dashboard Specific Queries ---
 
-/**
- * Fetches aggregated statistics for the dashboard.
- */
 export const getDashboardStats = async (): Promise<{
     pendingCount: number | null;
     completedCount: number | null;
@@ -415,5 +398,3 @@ export const getDashboardStats = async (): Promise<{
         };
     }
 };
-
-    
