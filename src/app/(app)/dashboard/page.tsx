@@ -11,7 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, AlertTriangle, Loader2, CalendarDays, ChevronDown, ChevronUp, ShoppingCart, Users } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Loader2, CalendarDays, ChevronDown, ChevronUp, ShoppingCart, Users, Anchor, Plane } from 'lucide-react';
 import type { Shipment } from '@/lib/types';
 import { shipmentFromFirestore, getDashboardStats } from '@/lib/firebase/shipmentsService';
 import { DASHBOARD_STATS_MAP } from '@/lib/constants'; 
@@ -47,7 +47,7 @@ const StatCard = ({ title, value, icon: Icon, unit, bgColorClass, textColorClass
       {isLoading ? (
         <Skeleton className="h-8 w-3/4" />
       ) : isUnavailable ? (
-        <div className="text-sm text-muted-foreground italic">N/A (Backend Aggregation Required)</div>
+        <div className="text-sm text-muted-foreground italic">N/A</div>
       ) : (
         <div className="text-2xl font-bold">
           {value ?? 'N/A'}
@@ -66,9 +66,8 @@ export default function DashboardPage() {
   const [dashboardStats, setDashboardStats] = useState<{
       pendingCount: number | null;
       completedCount: number | null;
-      totalGrossWeightSum: number | null; 
       lastUpdateTimestamp: Timestamp | null;
-  }>({ pendingCount: null, completedCount: null, totalGrossWeightSum: null, lastUpdateTimestamp: null });
+  }>({ pendingCount: null, completedCount: null, lastUpdateTimestamp: null });
 
   const [isLoadingPending, setIsLoadingPending] = useState(true);
   const [isLoadingCompleted, setIsLoadingCompleted] = useState(true);
@@ -90,7 +89,7 @@ export default function DashboardPage() {
       .catch(err => {
         console.error("Error fetching dashboard stats:", err);
         setErrorStats("Failed to load dashboard statistics.");
-        setDashboardStats({ pendingCount: null, completedCount: null, totalGrossWeightSum: null, lastUpdateTimestamp: null });
+        setDashboardStats({ pendingCount: null, completedCount: null, lastUpdateTimestamp: null });
       })
       .finally(() => setIsLoadingStats(false));
   }, []);
@@ -148,8 +147,8 @@ export default function DashboardPage() {
     if (isLoading) {
       return (
         <div className="space-y-4">
-          <Skeleton className="h-24 w-full rounded-lg" />
-          <Skeleton className="h-24 w-full rounded-lg" />
+          <Skeleton className="h-28 w-full rounded-lg" />
+          <Skeleton className="h-28 w-full rounded-lg" />
            <Skeleton className="h-8 w-1/2 mt-4" />
            <Skeleton className="h-8 w-1/2 mt-2" />
         </div>
@@ -168,12 +167,17 @@ export default function DashboardPage() {
     const itemsToShow = showAll ? shipments : shipments.slice(0, 2); 
 
     let overallTotalAsendiaACNetWeight = 0;
-    let overallTotalOtherNetWeight = 0;
+    let overallTotalAsendiaUKNetWeight = 0;
+    let overallTotalTransitLightNetWeight = 0;
+    let overallTotalRemainingCustomersNetWeight = 0;
+
 
     if (shipments && shipments.length > 0) {
         shipments.forEach(shipment => {
-            overallTotalAsendiaACNetWeight += shipment.asendiaNetWeight || 0; 
-            overallTotalOtherNetWeight += (shipment.totalNetWeight || 0) - (shipment.asendiaNetWeight || 0);
+            overallTotalAsendiaACNetWeight += shipment.asendiaACNetWeight || 0; 
+            overallTotalAsendiaUKNetWeight += shipment.asendiaUKNetWeight || 0;
+            overallTotalTransitLightNetWeight += shipment.transitLightNetWeight || 0;
+            overallTotalRemainingCustomersNetWeight += shipment.remainingCustomersNetWeight || 0;
         });
     }
 
@@ -208,11 +212,19 @@ export default function DashboardPage() {
                       <div className="mt-2 pt-2 border-t border-muted/50 text-xs space-y-1">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground flex items-center"><ShoppingCart className="mr-1.5 h-3.5 w-3.5 text-primary/70" /> Asendia A/C Net:</span>
-                          <span className="font-medium">{(shipment.asendiaNetWeight || 0).toFixed(2)} kg</span>
+                          <span className="font-medium">{(shipment.asendiaACNetWeight || 0).toFixed(2)} kg</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground flex items-center"><Users className="mr-1.5 h-3.5 w-3.5 text-primary/70" /> Other Customers Net:</span>
-                          <span className="font-medium">{((shipment.totalNetWeight || 0) - (shipment.asendiaNetWeight || 0)).toFixed(2)} kg</span>
+                          <span className="text-muted-foreground flex items-center"><Plane className="mr-1.5 h-3.5 w-3.5 text-sky-600/70" /> Asendia UK Net:</span>
+                          <span className="font-medium">{(shipment.asendiaUKNetWeight || 0).toFixed(2)} kg</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground flex items-center"><Anchor className="mr-1.5 h-3.5 w-3.5 text-orange-500/70" /> Transit Light Net:</span>
+                          <span className="font-medium">{(shipment.transitLightNetWeight || 0).toFixed(2)} kg</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground flex items-center"><Users className="mr-1.5 h-3.5 w-3.5 text-slate-500/70" /> Other Customers Net:</span>
+                          <span className="font-medium">{(shipment.remainingCustomersNetWeight || 0).toFixed(2)} kg</span>
                         </div>
                       </div>
                     </CardContent>
@@ -239,8 +251,16 @@ export default function DashboardPage() {
                 <span className="font-semibold">{overallTotalAsendiaACNetWeight.toFixed(2)} kg</span>
             </div>
             <div className="flex items-center justify-between text-sm">
-                 <span className="flex items-center"><Users className="mr-2 h-4 w-4 text-primary/70" /> Other Customers:</span>
-                <span className="font-semibold">{overallTotalOtherNetWeight.toFixed(2)} kg</span>
+                 <span className="flex items-center"><Plane className="mr-2 h-4 w-4 text-sky-600/70" /> Asendia UK:</span>
+                <span className="font-semibold">{overallTotalAsendiaUKNetWeight.toFixed(2)} kg</span>
+            </div>
+             <div className="flex items-center justify-between text-sm">
+                 <span className="flex items-center"><Anchor className="mr-2 h-4 w-4 text-orange-500/70" /> Transit Light:</span>
+                <span className="font-semibold">{overallTotalTransitLightNetWeight.toFixed(2)} kg</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+                 <span className="flex items-center"><Users className="mr-2 h-4 w-4 text-slate-500/70" /> Remaining Customers:</span>
+                <span className="font-semibold">{overallTotalRemainingCustomersNetWeight.toFixed(2)} kg</span>
             </div>
         </div>
       </>

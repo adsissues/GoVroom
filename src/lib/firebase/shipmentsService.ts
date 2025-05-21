@@ -25,7 +25,11 @@ import {
   getCountFromServer,
 } from 'firebase/firestore';
 import type { Shipment, ShipmentDetail, ShipmentStatus, DropdownItem } from '@/lib/types';
-import { PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN } from '@/lib/constants';
+import { 
+    PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN,
+    ASENDIA_UK_CUSTOMER_ID,
+    TRANSIT_LIGHT_CUSTOMER_ID
+} from '@/lib/constants';
 
 // --- Helper Functions ---
 
@@ -33,7 +37,19 @@ export const shipmentFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): 
   const data = docSnap.data();
   if (!data) {
     console.error(`Document data missing for snapshot ID: ${docSnap.id}`);
-    return { id: docSnap.id } as Shipment; 
+    // Return a basic structure to avoid crashing, but this indicates a problem
+    return { 
+        id: docSnap.id, 
+        carrierId: '', 
+        driverName: '', 
+        departureDate: Timestamp.now(), 
+        arrivalDate: Timestamp.now(), 
+        status: 'Pending', 
+        senderAddress: '', 
+        consigneeAddress: '', 
+        lastUpdated: Timestamp.now(), 
+        createdAt: Timestamp.now() 
+    } as Shipment;
   }
   return {
     id: docSnap.id,
@@ -55,9 +71,14 @@ export const shipmentFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): 
     totalGrossWeight: typeof data.totalGrossWeight === 'number' ? data.totalGrossWeight : 0,
     totalTareWeight: typeof data.totalTareWeight === 'number' ? data.totalTareWeight : 0,
     totalNetWeight: typeof data.totalNetWeight === 'number' ? data.totalNetWeight : 0,
-    asendiaGrossWeight: typeof data.asendiaGrossWeight === 'number' ? data.asendiaGrossWeight : 0,
-    asendiaTareWeight: typeof data.asendiaTareWeight === 'number' ? data.asendiaTareWeight : 0,
-    asendiaNetWeight: typeof data.asendiaNetWeight === 'number' ? data.asendiaNetWeight : 0,
+    
+    asendiaACNetWeight: typeof data.asendiaACNetWeight === 'number' ? data.asendiaACNetWeight : 0,
+    asendiaACGrossWeight: typeof data.asendiaACGrossWeight === 'number' ? data.asendiaACGrossWeight : 0,
+    asendiaACTareWeight: typeof data.asendiaACTareWeight === 'number' ? data.asendiaACTareWeight : 0,
+    asendiaUKNetWeight: typeof data.asendiaUKNetWeight === 'number' ? data.asendiaUKNetWeight : 0,
+    transitLightNetWeight: typeof data.transitLightNetWeight === 'number' ? data.transitLightNetWeight : 0,
+    remainingCustomersNetWeight: typeof data.remainingCustomersNetWeight === 'number' ? data.remainingCustomersNetWeight : 0,
+
     pdfUrls: data.pdfUrls || undefined,
     scannedDocuments: Array.isArray(data.scannedDocuments) ? data.scannedDocuments : undefined,
   } as Shipment;
@@ -67,7 +88,20 @@ export const detailFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): Sh
     const data = docSnap.data();
     if (!data) {
         console.error(`Document data missing for detail snapshot ID: ${docSnap.id}`);
-        return { id: docSnap.id, shipmentId: docSnap.ref.parent.parent?.id || '' } as ShipmentDetail;
+        return { 
+            id: docSnap.id, 
+            shipmentId: docSnap.ref.parent.parent?.id || '', 
+            numPallets: 0, 
+            numBags: 0, 
+            customerId: '', 
+            serviceId: '', 
+            formatId: '', 
+            tareWeight: 0, 
+            grossWeight: 0, 
+            netWeight: 0, 
+            createdAt: Timestamp.now(), 
+            lastUpdated: Timestamp.now() 
+        } as ShipmentDetail;
     }
     const grossWeight = typeof data.grossWeight === 'number' ? data.grossWeight : 0;
     const tareWeight = typeof data.tareWeight === 'number' ? data.tareWeight : 0;
@@ -94,7 +128,7 @@ export const detailFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): Sh
 
 // --- Shipment CRUD ---
 
-export const addShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'lastUpdated' | 'totalPallets' | 'totalBags' | 'totalGrossWeight' | 'totalTareWeight' | 'totalNetWeight' | 'asendiaGrossWeight' | 'asendiaTareWeight' | 'asendiaNetWeight'>>): Promise<string> => {
+export const addShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'lastUpdated' | 'totalPallets' | 'totalBags' | 'totalGrossWeight' | 'totalTareWeight' | 'totalNetWeight' | 'asendiaACGrossWeight' | 'asendiaACTareWeight' | 'asendiaACNetWeight' | 'asendiaUKNetWeight' | 'transitLightNetWeight' | 'remainingCustomersNetWeight'>>): Promise<string> => {
   try {
     const docRef = await addDoc(collection(db, 'shipments'), {
       ...shipmentData,
@@ -105,9 +139,12 @@ export const addShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'c
       totalGrossWeight: 0,
       totalTareWeight: 0,
       totalNetWeight: 0,
-      asendiaGrossWeight: 0,
-      asendiaTareWeight: 0,
-      asendiaNetWeight: 0,
+      asendiaACGrossWeight: 0,
+      asendiaACTareWeight: 0,
+      asendiaACNetWeight: 0,
+      asendiaUKNetWeight: 0,
+      transitLightNetWeight: 0,
+      remainingCustomersNetWeight: 0,
       status: shipmentData.status || 'Pending', 
       createdAt: serverTimestamp(),
       lastUpdated: serverTimestamp(),
@@ -284,8 +321,7 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
     console.warn("[ShipmentService DEBUG] recalculateShipmentTotals called with invalid shipmentId:", shipmentId);
     return;
   }
-  // Log the constant value BEING USED in this specific execution of the function
-  console.log(`[ShipmentService DEBUG] Recalculating totals for shipment: ${shipmentId}. Using PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN: "${PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN}"`);
+  console.log(`[ShipmentService DEBUG] Recalculating totals for shipment: ${shipmentId}. Using PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN: "${PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN}", ASENDIA_UK_CUSTOMER_ID: "${ASENDIA_UK_CUSTOMER_ID}", TRANSIT_LIGHT_CUSTOMER_ID: "${TRANSIT_LIGHT_CUSTOMER_ID}"`);
 
   const shipmentRef = doc(db, 'shipments', shipmentId);
   const detailsCollectionRef = collection(db, 'shipments', shipmentId, 'details');
@@ -298,12 +334,17 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
 
       let totalPallets = 0;
       let totalBags = 0;
-      let totalGrossWeight = 0;
-      let totalTareWeight = 0;
-      let totalNetWeight = 0;
-      let primaryAsendiaGrossWeight = 0;
-      let primaryAsendiaTareWeight = 0;
-      let primaryAsendiaNetWeight = 0;
+      let overallTotalGrossWeight = 0;
+      let overallTotalTareWeight = 0;
+      let overallTotalNetWeight = 0;
+
+      let primaryAsendiaACGrossWeight = 0;
+      let primaryAsendiaACTareWeight = 0;
+      let primaryAsendiaACNetWeight = 0;
+
+      let specificAsendiaUKNetWeight = 0;
+      let specificTransitLightNetWeight = 0;
+      let remainingCustomersAggregateNetWeight = 0;
 
       details.forEach((detail, index) => {
         const itemNetWeight = detail.netWeight !== undefined ? detail.netWeight : 0;
@@ -314,31 +355,45 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
         
         totalPallets += detail.numPallets || 0;
         totalBags += detail.numBags || 0;
-        totalGrossWeight += itemGrossWeight;
-        totalTareWeight += itemTareWeight;
-        totalNetWeight += itemNetWeight;
+        overallTotalGrossWeight += itemGrossWeight;
+        overallTotalTareWeight += itemTareWeight;
+        overallTotalNetWeight += itemNetWeight;
 
         if (detail.customerId === PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN) {
-          console.log(`[ShipmentService DEBUG]   ^-- Item MATCHED PRIMARY_ASENDIA_CUSTOMER_ID. Adding its Gross: ${itemGrossWeight.toFixed(3)}, Tare: ${itemTareWeight.toFixed(3)}, Net Wt: ${itemNetWeight.toFixed(3)} to primary Asendia totals.`);
-          primaryAsendiaGrossWeight += itemGrossWeight;
-          primaryAsendiaTareWeight += itemTareWeight;
-          primaryAsendiaNetWeight += itemNetWeight;
+          console.log(`[ShipmentService DEBUG]   ^-- Item MATCHED PRIMARY_ASENDIA_CUSTOMER_ID ("${PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN}"). Adding its Gross: ${itemGrossWeight.toFixed(3)}, Tare: ${itemTareWeight.toFixed(3)}, Net Wt: ${itemNetWeight.toFixed(3)} to Asendia A/C totals.`);
+          primaryAsendiaACGrossWeight += itemGrossWeight;
+          primaryAsendiaACTareWeight += itemTareWeight;
+          primaryAsendiaACNetWeight += itemNetWeight;
+        } else if (detail.customerId === ASENDIA_UK_CUSTOMER_ID) {
+          console.log(`[ShipmentService DEBUG]   ^-- Item MATCHED ASENDIA_UK_CUSTOMER_ID ("${ASENDIA_UK_CUSTOMER_ID}"). Adding its Net Wt: ${itemNetWeight.toFixed(3)} to Asendia UK totals.`);
+          specificAsendiaUKNetWeight += itemNetWeight;
+        } else if (detail.customerId === TRANSIT_LIGHT_CUSTOMER_ID) {
+          console.log(`[ShipmentService DEBUG]   ^-- Item MATCHED TRANSIT_LIGHT_CUSTOMER_ID ("${TRANSIT_LIGHT_CUSTOMER_ID}"). Adding its Net Wt: ${itemNetWeight.toFixed(3)} to Transit Light totals.`);
+          specificTransitLightNetWeight += itemNetWeight;
         } else {
-          console.log(`[ShipmentService DEBUG]   ^-- Item DID NOT MATCH PRIMARY_ASENDIA_CUSTOMER_ID. (Detail CustID: "${detail.customerId}", Primary Const: "${PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN}")`);
+          console.log(`[ShipmentService DEBUG]   ^-- Item DID NOT MATCH specific customer IDs. Adding its Net Wt: ${itemNetWeight.toFixed(3)} to remaining customers totals.`);
+          remainingCustomersAggregateNetWeight += itemNetWeight;
         }
       });
 
-      console.log(`[ShipmentService DEBUG] Calculated FINAL Totals - totalNetWeight: ${totalNetWeight.toFixed(3)}, primaryAsendiaNetWeight: ${primaryAsendiaNetWeight.toFixed(3)}, primaryAsendiaGrossWeight: ${primaryAsendiaGrossWeight.toFixed(3)}, primaryAsendiaTareWeight: ${primaryAsendiaTareWeight.toFixed(3)}`);
+      console.log(`[ShipmentService DEBUG] Calculated FINAL Component Totals - Asendia A/C Net: ${primaryAsendiaACNetWeight.toFixed(3)}, Asendia UK Net: ${specificAsendiaUKNetWeight.toFixed(3)}, Transit Light Net: ${specificTransitLightNetWeight.toFixed(3)}, Remaining Cust. Net: ${remainingCustomersAggregateNetWeight.toFixed(3)}`);
+      console.log(`[ShipmentService DEBUG] Calculated FINAL Overall Totals - Total Net: ${overallTotalNetWeight.toFixed(3)}, Total Gross: ${overallTotalGrossWeight.toFixed(3)}, Total Tare: ${overallTotalTareWeight.toFixed(3)}`);
 
       const updates = {
         totalPallets: totalPallets,
         totalBags: totalBags,
-        totalGrossWeight: parseFloat(totalGrossWeight.toFixed(3)),
-        totalTareWeight: parseFloat(totalTareWeight.toFixed(3)),
-        totalNetWeight: parseFloat(totalNetWeight.toFixed(3)),
-        asendiaGrossWeight: parseFloat(primaryAsendiaGrossWeight.toFixed(3)),
-        asendiaTareWeight: parseFloat(primaryAsendiaTareWeight.toFixed(3)),
-        asendiaNetWeight: parseFloat(primaryAsendiaNetWeight.toFixed(3)),
+        totalGrossWeight: parseFloat(overallTotalGrossWeight.toFixed(3)),
+        totalTareWeight: parseFloat(overallTotalTareWeight.toFixed(3)),
+        totalNetWeight: parseFloat(overallTotalNetWeight.toFixed(3)),
+        
+        asendiaACGrossWeight: parseFloat(primaryAsendiaACGrossWeight.toFixed(3)),
+        asendiaACTareWeight: parseFloat(primaryAsendiaACTareWeight.toFixed(3)),
+        asendiaACNetWeight: parseFloat(primaryAsendiaACNetWeight.toFixed(3)),
+        
+        asendiaUKNetWeight: parseFloat(specificAsendiaUKNetWeight.toFixed(3)),
+        transitLightNetWeight: parseFloat(specificTransitLightNetWeight.toFixed(3)),
+        remainingCustomersNetWeight: parseFloat(remainingCustomersAggregateNetWeight.toFixed(3)),
+        
         lastUpdated: serverTimestamp(),
       };
       console.log(`[ShipmentService DEBUG] Updating shipment ${shipmentId} in Firestore with:`, updates);
@@ -357,7 +412,6 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
 export const getDashboardStats = async (): Promise<{
     pendingCount: number | null;
     completedCount: number | null;
-    totalGrossWeightSum: number | null; 
     lastUpdateTimestamp: Timestamp | null;
 }> => {
     const shipmentsCollection = collection(db, 'shipments');
@@ -365,23 +419,21 @@ export const getDashboardStats = async (): Promise<{
         const pendingQuery = query(shipmentsCollection, where('status', '==', 'Pending'));
         const completedQuery = query(shipmentsCollection, where('status', '==', 'Completed'));
 
+        // console.log("[ShipmentService DEBUG] Fetching dashboard counts...");
         const [pendingSnapshot, completedSnapshot] = await Promise.all([
             getCountFromServer(pendingQuery),
             getCountFromServer(completedQuery)
         ]);
+        // console.log(`[ShipmentService DEBUG] Pending count: ${pendingSnapshot.data().count}, Completed count: ${completedSnapshot.data().count}`);
 
         const lastUpdatedQuery = query(shipmentsCollection, orderBy('lastUpdated', 'desc'), limit(1));
         const lastUpdatedSnapshot = await getDocs(lastUpdatedQuery);
         const lastUpdateTimestamp = lastUpdatedSnapshot.empty ? null : (lastUpdatedSnapshot.docs[0].data().lastUpdated as Timestamp);
+        // console.log("[ShipmentService DEBUG] Last update timestamp for dashboard:", lastUpdateTimestamp);
         
-        // TotalGrossWeightSum is marked as null, as client-side calculation is inefficient.
-        // This requires backend aggregation (e.g., Cloud Function) for production.
-        const totalGrossWeightSum = null; 
-
         return {
             pendingCount: pendingSnapshot.data().count,
             completedCount: completedSnapshot.data().count,
-            totalGrossWeightSum: totalGrossWeightSum, // Placeholder, requires backend aggregation
             lastUpdateTimestamp: lastUpdateTimestamp,
         };
     } catch (error) {
@@ -389,7 +441,6 @@ export const getDashboardStats = async (): Promise<{
         return {
             pendingCount: null,
             completedCount: null,
-            totalGrossWeightSum: null,
             lastUpdateTimestamp: null,
         };
     }

@@ -19,15 +19,25 @@ export interface Shipment {
   consigneeAddress: string; // Editable only by admin, defaults from settings
   lastUpdated: Timestamp;
   createdAt: Timestamp;
-  // Aggregated fields (calculated via Cloud Function or on read)
+
+  // Aggregated fields (calculated via Cloud Function or on write/update)
   totalPallets?: number;
   totalBags?: number;
-  totalGrossWeight?: number;
-  totalTareWeight?: number;
-  totalNetWeight?: number;
-  asendiaGrossWeight?: number; // Gross weight for customer 'asendia'
-  asendiaTareWeight?: number;  // Tare weight for customer 'asendia'
-  asendiaNetWeight?: number;   // Net weight for customer 'asendia'
+  totalGrossWeight?: number; // Sum of gross weights of all details
+  totalTareWeight?: number;  // Sum of tare weights of all details
+  totalNetWeight?: number;   // Sum of net weights of all details (totalGrossWeight - totalTareWeight)
+
+  // Specific customer net weights for dashboard breakdown
+  asendiaACNetWeight?: number;   // Net weight for customer specified by PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN
+  asendiaUKNetWeight?: number;   // Net weight for customer specified by ASENDIA_UK_CUSTOMER_ID
+  transitLightNetWeight?: number; // Net weight for customer specified by TRANSIT_LIGHT_CUSTOMER_ID
+  remainingCustomersNetWeight?: number; // Net weight for all other customers
+
+  // Gross and Tare for Asendia A/C (if needed for other reports, otherwise can be derived if only net is stored)
+  asendiaACGrossWeight?: number;
+  asendiaACTareWeight?: number;
+
+
   pdfUrls?: { // Placeholder for PDF generation feature
     preAlert?: string;
     cmr?: string;
@@ -43,7 +53,6 @@ export interface ShipmentDetail {
   numPallets: number;
   numBags: number;
   customerId: string; // Reference to /customers/{id} -> value field
-  // destinationId: string; // Removed
   serviceId: string; // Reference to /services/{id} -> value field
   formatId: string; // Reference to /formats.../{id} -> value field (depends on service)
   tareWeight: number;
@@ -113,10 +122,3 @@ export interface Notification {
     read: boolean;
     createdAt: Timestamp;
 }
-
-// Removed DestinationOption interface
-// For Destination RadioGroup
-// export interface DestinationOption {
-//   value: string;
-//   label: string;
-// }
