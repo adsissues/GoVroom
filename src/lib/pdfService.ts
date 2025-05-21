@@ -9,12 +9,12 @@ import {
     collection,
     getDocs,
     query,
-    orderBy, // Ensure orderBy is imported
+    orderBy,
     type QueryDocumentSnapshot,
     type DocumentData,
     Timestamp,
 } from 'firebase/firestore';
-import { detailFromFirestore } from '@/lib/firebase/shipmentsService'; // Assuming this handles Timestamp conversion correctly
+import { detailFromFirestore } from '@/lib/firebase/shipmentsService';
 import { getDropdownOptionsMap } from '@/lib/firebase/dropdownService';
 import { SERVICE_FORMAT_MAPPING, BAG_WEIGHT_MULTIPLIER } from '@/lib/constants';
 import { format } from 'date-fns';
@@ -33,9 +33,9 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
 
     const isValidBase64PdfDataUri =
       pdfDataUriType === 'string' &&
-      pdfDataUriLength > 100 && // Check for a reasonable length
-      pdfDataUri.includes(';base64,') && // Check for base64 encoding marker
-      pdfDataUri.startsWith('data:application/pdf;'); // Check for PDF mime type
+      pdfDataUriLength > 100 &&
+      pdfDataUri.includes(';base64,') && 
+      pdfDataUri.startsWith('data:application/pdf;'); 
 
     if (!isValidBase64PdfDataUri) {
       const errorMsg = `CRITICAL ERROR - pdfDataUri for ${filename} is invalid or too short. Length: ${pdfDataUriLength}. Starts with: ${pdfDataUri?.substring(0, 50)}. Contains ';base64,': ${pdfDataUri?.includes(';base64,')}`;
@@ -78,7 +78,7 @@ const formatDateForPdf = (timestamp?: Timestamp): string => {
 
 const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined | null, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
   if (!value) return defaultValueIfNotFoundOrValueMissing;
-  if (!map) return value; // Fallback to value if map is undefined
+  if (!map) return value; 
   return map[value] || value;
 };
 
@@ -86,7 +86,7 @@ const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
     const logoWidth = 35; // mm
     const logoHeight = 10; // mm
     const text = "asendia";
-    const textFontSize = 11;
+    const textFontSize = 11; // Adjusted for better fit
 
     doc.setFillColor(0, 90, 106); // Dark Teal
     doc.rect(x, y, logoWidth, logoHeight, 'F');
@@ -96,10 +96,11 @@ const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
     doc.setTextColor(255, 255, 255); // White text
 
     const textMetrics = doc.getTextDimensions(text, { fontSize: textFontSize });
+    // Center text horizontally and vertically within the box
     const textX = x + (logoWidth - textMetrics.w) / 2;
-    const textY = y + (logoHeight / 2) + (textMetrics.h / 3.5); 
+    const textY = y + (logoHeight / 2) + (textMetrics.h / 3.5); // Approximation for vertical centering
 
-    doc.text(text, textX, textY, { baseline: 'middle', align: 'left'});
+    doc.text(text, textX, textY, { baseline: 'middle', align: 'left' }); // Use align: 'left' but position based on center calc
 
     doc.setTextColor(0, 0, 0); // Reset text color
 };
@@ -124,12 +125,10 @@ const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]>
   }
 };
 
-// Helper to determine service category for placing formatId in the correct column
 const getServiceCategory = (serviceId: string | undefined, dropdownMaps: Record<string, Record<string, string>>): "Prio" | "Eco" | "S3C" | "Other" => {
     if (!serviceId) return "Other";
     const serviceIdLower = serviceId.toLowerCase();
     
-    // Check if serviceId itself is a key or if its label implies the category
     const serviceLabel = dropdownMaps['services']?.[serviceId]?.toLowerCase() || serviceIdLower;
 
     if (SERVICE_FORMAT_MAPPING[serviceIdLower] === 'formats_prior' || serviceLabel.includes('prior')) return "Prio";
@@ -207,8 +206,8 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     doc.setFontSize(smallFontSize);
     doc.setFont('helvetica', 'normal');
     shipmentInfoValues.forEach((value, index) => {
-      doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]); // Ensure value row has background
-      doc.rect(pageMargin + index * colWidthShipmentInfo, currentY, colWidthShipmentInfo, valueRowHeight, 'FD'); // Draw rect for value row
+      doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]); 
+      doc.rect(pageMargin + index * colWidthShipmentInfo, currentY, colWidthShipmentInfo, valueRowHeight, 'FD'); 
       doc.text(value, pageMargin + index * colWidthShipmentInfo + 2, currentY + valueRowHeight / 2 + 1, { baseline: 'middle' });
     });
     currentY += valueRowHeight + 3; 
@@ -234,8 +233,8 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     doc.setFontSize(smallFontSize);
     doc.setFont('helvetica', 'normal');
     totalsValues.forEach((value, index) => {
-      doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]); // Ensure value row has background
-      doc.rect(pageMargin + index * colWidthTotals, currentY, colWidthTotals, valueRowHeight, 'FD'); // Draw rect for value row
+      doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]); 
+      doc.rect(pageMargin + index * colWidthTotals, currentY, colWidthTotals, valueRowHeight, 'FD'); 
       doc.text(value, pageMargin + index * colWidthTotals + 2, currentY + valueRowHeight / 2 + 1, { baseline: 'middle' });
     });
     currentY += valueRowHeight + 3; 
@@ -302,7 +301,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
       startY: currentY,
       theme: 'plain',
       styles: {
-        fontSize: smallFontSize -1, // Slightly smaller for table body
+        fontSize: smallFontSize -1, 
         cellPadding: 1,
         lineColor: [0,0,0], 
         lineWidth: 0.1,
@@ -315,7 +314,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
         valign: 'middle',
         lineColor: [0,0,0],
         lineWidth: 0.1,
-        fontSize: headerFontSize -1, // Slightly smaller for header
+        fontSize: headerFontSize -1, 
       },
       bodyStyles: {
         fillColor: lightYellowBg, 
@@ -367,18 +366,19 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
 
     // 1. Add Logo
     addAsendiaStyleLogo(doc, pageMargin, currentY);
-    currentY += 5; // Move below logo for next elements
-
+    
     // 2. Add Title "CMR Document - Placeholder"
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     const title = "CMR Document - Placeholder";
     // Position title to the right of where the logo ends
-    const titleX = pageMargin + 35 + 5; // logoWidth (35mm) + some space (5mm)
-    doc.text(title, titleX, currentY); // Align with the vertical position of the logo's bottom or slightly below its center
-    currentY += 15; // Space after title
+    // Logo width is 35mm, add some space (e.g., 5mm)
+    const titleX = pageMargin + 35 + 5; 
+    doc.text(title, titleX, currentY + 5); // Align with the vertical center of the logo
 
-    // 3. Add Shipment ID and other placeholder text, aligned left below logo area
+    currentY += 15; // Space after logo/title area
+
+    // 3. Add Shipment ID and other placeholder text
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text(`Shipment ID: ${shipment.id || 'N/A'}`, pageMargin, currentY);
@@ -397,5 +397,6 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
 };
+    
 
     
