@@ -86,7 +86,7 @@ const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
     const logoWidth = 35; // mm
     const logoHeight = 10; // mm
     const text = "asendia";
-    const textFontSize = 12; // Slightly bigger
+    const textFontSize = 12; // Slightly bigger font for "asendia"
 
     doc.setFillColor(0, 90, 106); // Dark Teal
     doc.rect(x, y, logoWidth, logoHeight, 'F');
@@ -135,21 +135,27 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
   console.log(`[PDFService] ${pdfType}: generatePreAlertPdf CALLED. Attempting to generate: ${filename}`);
 
   try {
+    console.log(`[PDFService] ${pdfType}: Creating new jsPDF instance...`);
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    console.log(`[PDFService] ${pdfType}: jsPDF instance created successfully.`);
+
     const details = await getShipmentDetails(shipment.id);
+    console.log(`[PDFService] ${pdfType}: Fetched ${details.length} shipment details for table.`);
+
     const allFormatCollectionIds = Object.values(SERVICE_FORMAT_MAPPING).filter(Boolean) as string[];
     const dropdownCollectionNames = [...new Set(['carriers', 'subcarriers', 'customers', 'services', 'doe', ...allFormatCollectionIds])];
     const dropdownMaps = await getDropdownOptionsMap(dropdownCollectionNames);
+    console.log(`[PDFService] ${pdfType}: Fetched dropdown maps for labels.`);
 
-    const pageMargin = 10;
+    const pageMargin = 10; // Adjusted page margin
     const pageWidth = doc.internal.pageSize.getWidth();
     const contentWidth = pageWidth - 2 * pageMargin;
     let currentY = pageMargin;
     const lightYellowBg = [255, 253, 230]; 
-    const infoRowHeight = 10; // Increased height for label + value
-    const cellPadding = 2;
-    const labelFontSize = 7;
-    const valueFontSize = 8;
+    const cellPadding = 2; // Padding inside cells
+    const infoBlockLabelFontSize = 6.5; // Smaller font for labels in info blocks
+    const infoBlockValueFontSize = 8;   // Font for values in info blocks
+    const infoRowHeight = 10; // Height for rows in info/totals blocks
 
     // Header
     addAsendiaStyleLogo(doc, pageMargin, currentY);
@@ -162,13 +168,17 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     doc.setFont('helvetica', 'normal');
     const departureDateText = `Date de départ: ${formatDateForPdf(shipment.departureDate)}`;
     const arrivalDateText = `Date d'arrivée: ${formatDateForPdf(shipment.arrivalDate)}`;
-    const dateTextWidthDeparture = doc.getStringUnitWidth(departureDateText) * doc.getFontSize() / doc.internal.scaleFactor;
-    const dateTextWidthArrival = doc.getStringUnitWidth(arrivalDateText) * doc.getFontSize() / doc.internal.scaleFactor;
-    const maxDateTextWidth = Math.max(dateTextWidthDeparture, dateTextWidthArrival);
+    
+    // Align date text to the right
+    const dateTextY = currentY + 3;
+    const dateTextLineHeight = 4;
+    const departureTextWidth = doc.getStringUnitWidth(departureDateText) * doc.getFontSize() / doc.internal.scaleFactor;
+    const arrivalTextWidth = doc.getStringUnitWidth(arrivalDateText) * doc.getFontSize() / doc.internal.scaleFactor;
+    const maxDateTextWidth = Math.max(departureTextWidth, arrivalTextWidth);
 
-    doc.text(departureDateText, pageWidth - pageMargin - maxDateTextWidth, currentY + 3);
-    doc.text(arrivalDateText, pageWidth - pageMargin - maxDateTextWidth, currentY + 7);
-
+    doc.text(departureDateText, pageWidth - pageMargin - maxDateTextWidth, dateTextY);
+    doc.text(arrivalDateText, pageWidth - pageMargin - maxDateTextWidth, dateTextY + dateTextLineHeight);
+    
     currentY += 10 + 8; // Logo height + gap
 
     // Shipment Information Block (5 columns)
@@ -180,20 +190,23 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
       shipment.trailerRegistration || 'N/A',
       shipment.sealNumber || 'N/A'
     ];
-    const infoCellWidth = contentWidth / infoBlockLabels.length;
+    const numInfoCells = infoBlockLabels.length;
+    const infoCellWidth = contentWidth / numInfoCells;
 
     infoBlockLabels.forEach((label, index) => {
       const cellX = pageMargin + (index * infoCellWidth);
       doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]);
       doc.rect(cellX, currentY, infoCellWidth, infoRowHeight, 'FD'); 
       
-      doc.setFontSize(labelFontSize);
+      // Label (smaller, top-center)
+      doc.setFontSize(infoBlockLabelFontSize);
       doc.setFont('helvetica', 'bold');
       doc.text(label, cellX + infoCellWidth / 2, currentY + cellPadding + 1, { align: 'center', baseline: 'top', maxWidth: infoCellWidth - (2 * cellPadding) });
       
-      doc.setFontSize(valueFontSize);
+      // Value (larger, bottom-center)
+      doc.setFontSize(infoBlockValueFontSize);
       doc.setFont('helvetica', 'normal');
-      doc.text(infoBlockValues[index], cellX + infoCellWidth / 2, currentY + infoRowHeight / 2 + 1, { align: 'center', baseline: 'middle', maxWidth: infoCellWidth - (2 * cellPadding) });
+      doc.text(infoBlockValues[index], cellX + infoCellWidth / 2, currentY + infoRowHeight - cellPadding - 1, { align: 'center', baseline: 'bottom', maxWidth: infoCellWidth - (2 * cellPadding) });
     });
     currentY += infoRowHeight + 5;
 
@@ -205,20 +218,23 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
       `${(shipment.totalNetWeight || 0).toFixed(2)} kg`,
       `${(shipment.totalGrossWeight || 0).toFixed(2)} kg`
     ];
-    const totalsCellWidth = contentWidth / totalsBlockLabels.length;
+    const numTotalCells = totalsBlockLabels.length;
+    const totalsCellWidth = contentWidth / numTotalCells;
 
     totalsBlockLabels.forEach((label, index) => {
       const cellX = pageMargin + (index * totalsCellWidth);
       doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]);
       doc.rect(cellX, currentY, totalsCellWidth, infoRowHeight, 'FD');
       
-      doc.setFontSize(labelFontSize);
+      // Label (smaller, top-center)
+      doc.setFontSize(infoBlockLabelFontSize);
       doc.setFont('helvetica', 'bold');
       doc.text(label, cellX + totalsCellWidth / 2, currentY + cellPadding + 1, { align: 'center', baseline: 'top', maxWidth: totalsCellWidth - (2 * cellPadding) });
       
-      doc.setFontSize(valueFontSize);
+      // Value (larger, bottom-center)
+      doc.setFontSize(infoBlockValueFontSize);
       doc.setFont('helvetica', 'normal');
-      doc.text(totalsBlockValues[index], cellX + totalsCellWidth / 2, currentY + infoRowHeight / 2 + 1 , { align: 'center', baseline: 'middle', maxWidth: totalsCellWidth - (2 * cellPadding) });
+      doc.text(totalsBlockValues[index], cellX + totalsCellWidth / 2, currentY + infoRowHeight - cellPadding -1 , { align: 'center', baseline: 'bottom', maxWidth: totalsCellWidth - (2 * cellPadding) });
     });
     currentY += infoRowHeight + 5;
 
@@ -226,11 +242,10 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     const serviceHeaderY = currentY;
     const serviceBoxHeight = 7;
     
-    // Column widths based on autoTable configuration
     const customerColWidth = 30; 
     const dispatchNoColWidth = 20;
     const doeColWidth = 15;
-    const formatColumnWidth = 18; // Width for Prio, Eco, S3C format columns
+    const formatColumnWidth = 18; 
 
     const hubTextWidth = customerColWidth + dispatchNoColWidth + doeColWidth;
     const hubText = "ROISSY HUB & Cellule S3C";
@@ -239,7 +254,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(0,0,0);
-    doc.text(hubText, pageMargin + hubTextWidth / 2, serviceHeaderY + serviceBoxHeight / 2, { align: 'center', baseline: 'middle', maxWidth: hubTextWidth - 2 });
+    doc.text(hubText, pageMargin + hubTextWidth / 2, serviceHeaderY + serviceBoxHeight / 2, { align: 'center', baseline: 'middle', maxWidth: hubTextWidth - 2*cellPadding });
 
     const initialPrioBoxX = pageMargin + hubTextWidth;
     doc.setFillColor(0, 0, 255); 
@@ -247,16 +262,18 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     doc.setTextColor(255, 255, 255); 
     doc.text("Prio", initialPrioBoxX + formatColumnWidth / 2, serviceHeaderY + serviceBoxHeight / 2, { align: 'center', baseline: 'middle' });
 
+    const initialEcoBoxX = initialPrioBoxX + formatColumnWidth;
     doc.setFillColor(255, 255, 0); 
-    doc.rect(initialPrioBoxX + formatColumnWidth, serviceHeaderY, formatColumnWidth, serviceBoxHeight, 'FD');
+    doc.rect(initialEcoBoxX, serviceHeaderY, formatColumnWidth, serviceBoxHeight, 'FD');
     doc.setTextColor(0, 0, 0); 
-    doc.text("Eco", initialPrioBoxX + formatColumnWidth + formatColumnWidth / 2, serviceHeaderY + serviceBoxHeight / 2, { align: 'center', baseline: 'middle' });
+    doc.text("Eco", initialEcoBoxX + formatColumnWidth / 2, serviceHeaderY + serviceBoxHeight / 2, { align: 'center', baseline: 'middle' });
 
+    const initialS3CBoxX = initialEcoBoxX + formatColumnWidth;
     doc.setFillColor(230, 159, 0); 
-    doc.rect(initialPrioBoxX + formatColumnWidth * 2, serviceHeaderY, formatColumnWidth, serviceBoxHeight, 'FD');
-    doc.text("S3C", initialPrioBoxX + formatColumnWidth * 2 + formatColumnWidth / 2, serviceHeaderY + serviceBoxHeight / 2, { align: 'center', baseline: 'middle' });
+    doc.rect(initialS3CBoxX, serviceHeaderY, formatColumnWidth, serviceBoxHeight, 'FD');
+    doc.text("S3C", initialS3CBoxX + formatColumnWidth / 2, serviceHeaderY + serviceBoxHeight / 2, { align: 'center', baseline: 'middle' });
 
-    const weightKgTextX = initialPrioBoxX + formatColumnWidth * 3;
+    const weightKgTextX = initialS3CBoxX + formatColumnWidth;
     const weightKgTextBlockWidth = contentWidth - hubTextWidth - (formatColumnWidth * 3);
     const weightKgText = "Weight Kg";
     doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]);
