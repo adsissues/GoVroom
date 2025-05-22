@@ -78,24 +78,24 @@ const formatDateForPdf = (timestamp?: Timestamp): string => {
 
 const getLabelFromMap = (map: Record<string, string> | undefined, value: string | undefined, defaultValueIfNotFoundOrValueMissing = 'N/A'): string => {
   if (!value) return defaultValueIfNotFoundOrValueMissing;
-  if (!map) return value;
-  return map[value] || value;
+  if (!map) return value; // Return the value itself if map is not available
+  return map[value] || value; // Return value if not found in map, or the label
 };
 
 const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
     const logoWidth = 35; // mm
     const logoHeight = 10; // mm
     const text = "asendia";
-    const textFontSize = 12; // Slightly bigger font for "asendia"
+    const textFontSize = 12; // Increased font size
 
     doc.setFillColor(0, 90, 106); // Dark Teal
     doc.rect(x, y, logoWidth, logoHeight, 'F');
 
     doc.setFontSize(textFontSize);
-    doc.setFont('helvetica', 'normal'); // Using normal weight as bold might make it too thick
+    doc.setFont('helvetica', 'normal'); // Using normal weight
     doc.setTextColor(255, 255, 255); // White text
 
-    // Calculate text width and height for centering
+    // Calculate text width for centering
     const textMetrics = doc.getTextDimensions(text, { fontSize: textFontSize });
     
     // Center horizontally
@@ -103,7 +103,7 @@ const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
     // Center vertically (adjusting baseline for better visual centering)
     const textY = y + (logoHeight / 2) + (textMetrics.h / 3.5); // Common adjustment for jsPDF text
 
-    doc.text(text, textX, textY, { baseline: 'middle', align: 'left' }); // Use align: 'left' after calculating x
+    doc.text(text, textX, textY, { baseline: 'middle', align: 'left' }); // Use align: 'left' after calculating x, baseline 'middle'
 
     doc.setTextColor(0, 0, 0); // Reset text color
 };
@@ -147,15 +147,15 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     const dropdownMaps = await getDropdownOptionsMap(dropdownCollectionNames);
     console.log(`[PDFService] ${pdfType}: Fetched dropdown maps for labels.`);
 
-    const pageMargin = 10; // Adjusted page margin
+    const pageMargin = 10; // mm
     const pageWidth = doc.internal.pageSize.getWidth();
     const contentWidth = pageWidth - 2 * pageMargin;
     let currentY = pageMargin;
-    const lightYellowBg = [255, 253, 230]; 
-    const cellPadding = 2; // Padding inside cells
-    const infoBlockLabelFontSize = 6.5; // Smaller font for labels in info blocks
-    const infoBlockValueFontSize = 8;   // Font for values in info blocks
-    const infoRowHeight = 10; // Height for rows in info/totals blocks
+    const lightYellowBg = [255, 253, 230]; // RGB for light yellow
+    const cellPadding = 1.5; // mm
+    const infoRowHeight = 10; // mm, increased to better accommodate two lines
+    const infoBlockLabelFontSize = 6.5;
+    const infoBlockValueFontSize = 8;
 
     // Header
     addAsendiaStyleLogo(doc, pageMargin, currentY);
@@ -168,8 +168,6 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     doc.setFont('helvetica', 'normal');
     const departureDateText = `Date de départ: ${formatDateForPdf(shipment.departureDate)}`;
     const arrivalDateText = `Date d'arrivée: ${formatDateForPdf(shipment.arrivalDate)}`;
-    
-    // Align date text to the right
     const dateTextY = currentY + 3;
     const dateTextLineHeight = 4;
     const departureTextWidth = doc.getStringUnitWidth(departureDateText) * doc.getFontSize() / doc.internal.scaleFactor;
@@ -196,19 +194,20 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     infoBlockLabels.forEach((label, index) => {
       const cellX = pageMargin + (index * infoCellWidth);
       doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]);
-      doc.rect(cellX, currentY, infoCellWidth, infoRowHeight, 'FD'); 
+      doc.rect(cellX, currentY, infoCellWidth, infoRowHeight, 'FD'); // Draw cell border and fill
       
-      // Label (smaller, top-center)
       doc.setFontSize(infoBlockLabelFontSize);
-      doc.setFont('helvetica', 'bold');
-      doc.text(label, cellX + infoCellWidth / 2, currentY + cellPadding + 1, { align: 'center', baseline: 'top', maxWidth: infoCellWidth - (2 * cellPadding) });
+      doc.setFont('helvetica', 'normal'); // Labels are normal weight in sample
+      const labelY = currentY + cellPadding + 1; // Position label near top
+      doc.text(label, cellX + infoCellWidth / 2, labelY, { align: 'center', baseline: 'top', maxWidth: infoCellWidth - (2 * cellPadding) });
       
-      // Value (larger, bottom-center)
       doc.setFontSize(infoBlockValueFontSize);
-      doc.setFont('helvetica', 'normal');
-      doc.text(infoBlockValues[index], cellX + infoCellWidth / 2, currentY + infoRowHeight - cellPadding - 1, { align: 'center', baseline: 'bottom', maxWidth: infoCellWidth - (2 * cellPadding) });
+      doc.setFont('helvetica', 'bold'); // Values are more prominent
+      // Position value below the label, ensuring it's still within the cell height
+      const valueY = labelY + infoBlockLabelFontSize * 0.35 + 1.5; // Adjust spacing as needed
+      doc.text(infoBlockValues[index], cellX + infoCellWidth / 2, valueY, { align: 'center', baseline: 'top', maxWidth: infoCellWidth - (2 * cellPadding) });
     });
-    currentY += infoRowHeight + 5;
+    currentY += infoRowHeight + 5; // Gap after this block
 
     // Totals Block (4 columns)
     const totalsBlockLabels = ["Total Pallets", "Total Bags", "Total Net Weight", "Total Gross Weight"];
@@ -226,26 +225,26 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
       doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]);
       doc.rect(cellX, currentY, totalsCellWidth, infoRowHeight, 'FD');
       
-      // Label (smaller, top-center)
       doc.setFontSize(infoBlockLabelFontSize);
-      doc.setFont('helvetica', 'bold');
-      doc.text(label, cellX + totalsCellWidth / 2, currentY + cellPadding + 1, { align: 'center', baseline: 'top', maxWidth: totalsCellWidth - (2 * cellPadding) });
-      
-      // Value (larger, bottom-center)
-      doc.setFontSize(infoBlockValueFontSize);
       doc.setFont('helvetica', 'normal');
-      doc.text(totalsBlockValues[index], cellX + totalsCellWidth / 2, currentY + infoRowHeight - cellPadding -1 , { align: 'center', baseline: 'bottom', maxWidth: totalsCellWidth - (2 * cellPadding) });
+      const labelY = currentY + cellPadding + 1;
+      doc.text(label, cellX + totalsCellWidth / 2, labelY, { align: 'center', baseline: 'top', maxWidth: totalsCellWidth - (2 * cellPadding) });
+      
+      doc.setFontSize(infoBlockValueFontSize);
+      doc.setFont('helvetica', 'bold');
+      const valueY = labelY + infoBlockLabelFontSize * 0.35 + 1.5;
+      doc.text(totalsBlockValues[index], cellX + totalsCellWidth / 2, valueY, { align: 'center', baseline: 'top', maxWidth: totalsCellWidth - (2 * cellPadding) });
     });
-    currentY += infoRowHeight + 5;
+    currentY += infoRowHeight + 5; // Gap
 
     // Service Type Header Block
     const serviceHeaderY = currentY;
-    const serviceBoxHeight = 7;
+    const serviceBoxHeight = 7; // mm
     
-    const customerColWidth = 30; 
-    const dispatchNoColWidth = 20;
-    const doeColWidth = 15;
-    const formatColumnWidth = 18; 
+    const customerColWidth = 30; // Corresponds to autoTable colStyles[0]
+    const dispatchNoColWidth = 20; // Corresponds to autoTable colStyles[1]
+    const doeColWidth = 15;       // Corresponds to autoTable colStyles[2]
+    const formatColumnWidth = 18; // Corresponds to autoTable colStyles[3,4,5]
 
     const hubTextWidth = customerColWidth + dispatchNoColWidth + doeColWidth;
     const hubText = "ROISSY HUB & Cellule S3C";
@@ -257,20 +256,21 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     doc.text(hubText, pageMargin + hubTextWidth / 2, serviceHeaderY + serviceBoxHeight / 2, { align: 'center', baseline: 'middle', maxWidth: hubTextWidth - 2*cellPadding });
 
     const initialPrioBoxX = pageMargin + hubTextWidth;
-    doc.setFillColor(0, 0, 255); 
+    doc.setFillColor(0, 0, 255); // Blue for Prio
     doc.rect(initialPrioBoxX, serviceHeaderY, formatColumnWidth, serviceBoxHeight, 'FD');
-    doc.setTextColor(255, 255, 255); 
+    doc.setTextColor(255, 255, 255); // White text
     doc.text("Prio", initialPrioBoxX + formatColumnWidth / 2, serviceHeaderY + serviceBoxHeight / 2, { align: 'center', baseline: 'middle' });
 
     const initialEcoBoxX = initialPrioBoxX + formatColumnWidth;
-    doc.setFillColor(255, 255, 0); 
+    doc.setFillColor(255, 255, 0); // Yellow for Eco
     doc.rect(initialEcoBoxX, serviceHeaderY, formatColumnWidth, serviceBoxHeight, 'FD');
-    doc.setTextColor(0, 0, 0); 
+    doc.setTextColor(0, 0, 0); // Black text
     doc.text("Eco", initialEcoBoxX + formatColumnWidth / 2, serviceHeaderY + serviceBoxHeight / 2, { align: 'center', baseline: 'middle' });
 
     const initialS3CBoxX = initialEcoBoxX + formatColumnWidth;
-    doc.setFillColor(230, 159, 0); 
+    doc.setFillColor(230, 159, 0); // Orange/Dark Yellow for S3C
     doc.rect(initialS3CBoxX, serviceHeaderY, formatColumnWidth, serviceBoxHeight, 'FD');
+    doc.setTextColor(0,0,0); // Black text for S3C as per sample
     doc.text("S3C", initialS3CBoxX + formatColumnWidth / 2, serviceHeaderY + serviceBoxHeight / 2, { align: 'center', baseline: 'middle' });
 
     const weightKgTextX = initialS3CBoxX + formatColumnWidth;
@@ -278,8 +278,9 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     const weightKgText = "Weight Kg";
     doc.setFillColor(lightYellowBg[0], lightYellowBg[1], lightYellowBg[2]);
     doc.rect(weightKgTextX, serviceHeaderY, weightKgTextBlockWidth, serviceBoxHeight, 'FD');
+    doc.setTextColor(0,0,0);
     doc.text(weightKgText, weightKgTextX + weightKgTextBlockWidth / 2, serviceHeaderY + serviceBoxHeight / 2, { align: 'center', baseline: 'middle' });
-    currentY += serviceBoxHeight;
+    currentY += serviceBoxHeight; // Advance Y after drawing this header row
 
     // Main Details Table
     const tableHeadData = [['Customer', 'Dispatch No', 'D-OE', 'Format', 'Format', 'Format', 'Tare Weight', 'Gross Weight', 'Net Weight']];
@@ -289,11 +290,12 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
       let formatPrio = '', formatEco = '', formatS3C = '';
       const serviceKey = detail.serviceId?.toLowerCase();
       const mappedFormatCollection = serviceKey && SERVICE_FORMAT_MAPPING[serviceKey] ? SERVICE_FORMAT_MAPPING[serviceKey] : null;
-      let formatLabel = detail.formatId || '';
+      let formatLabel = detail.formatId || ''; // Show ID if no label
       if (mappedFormatCollection && detail.formatId) {
           formatLabel = getLabelFromMap(dropdownMaps[mappedFormatCollection], detail.formatId, detail.formatId);
       }
 
+      // Determine which format column to populate
       if (serviceKey === 'e' || serviceKey === 'prior' || serviceKey === 'priority') { formatPrio = formatLabel; }
       else if (serviceKey === 'c' || serviceKey === 'eco' || serviceKey === 'economy') { formatEco = formatLabel; }
       else if (serviceKey === 's' || serviceKey === 's3c') { formatS3C = formatLabel; }
@@ -323,7 +325,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
       theme: 'plain', 
       styles: {
         fontSize: 8,
-        cellPadding: { top: 1.5, right: 2, bottom: 1.5, left: 2 },
+        cellPadding: { top: 1.5, right: 2, bottom: 1.5, left: 2 }, // Universal cell padding
         lineWidth: 0.1, 
         lineColor: [180,180,180], 
         textColor: [0,0,0], 
@@ -337,22 +339,23 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
         lineWidth: 0.1, 
         lineColor: [150,150,150], 
       },
-      bodyStyles: {
-        fillColor: lightYellowBg, 
+      bodyStyles: { // Apply to all body cells
+        fillColor: lightYellowBg, // Light yellow background for body cells
       },
       columnStyles: {
-        0: { cellWidth: customerColWidth, halign: 'left' },   
-        1: { cellWidth: dispatchNoColWidth, halign: 'center' }, 
-        2: { cellWidth: doeColWidth, halign: 'center' },    
-        3: { cellWidth: formatColumnWidth, halign: 'center' }, 
-        4: { cellWidth: formatColumnWidth, halign: 'center' }, 
-        5: { cellWidth: formatColumnWidth, halign: 'center' }, 
-        6: { cellWidth: weightColWidth, halign: 'right' },  
-        7: { cellWidth: weightColWidth, halign: 'right' },  
-        8: { cellWidth: weightColWidth, halign: 'right' },  
+        0: { cellWidth: customerColWidth, halign: 'left' },   // Customer
+        1: { cellWidth: dispatchNoColWidth, halign: 'center' }, // Dispatch No
+        2: { cellWidth: doeColWidth, halign: 'center' },    // D-OE
+        3: { cellWidth: formatColumnWidth, halign: 'center' }, // Format Prio
+        4: { cellWidth: formatColumnWidth, halign: 'center' }, // Format Eco
+        5: { cellWidth: formatColumnWidth, halign: 'center' }, // Format S3C
+        6: { cellWidth: weightColWidth, halign: 'right' },  // Tare Weight
+        7: { cellWidth: weightColWidth, halign: 'right' },  // Gross Weight
+        8: { cellWidth: weightColWidth, halign: 'right' },  // Net Weight
       },
       margin: { left: pageMargin, right: pageMargin },
       didDrawPage: (dataArg: any) => { 
+        // Redraw logo and header on new pages if table spans multiple pages
         if (dataArg.pageNumber > 1) { 
              addAsendiaStyleLogo(doc, pageMargin, pageMargin);
         }
@@ -390,8 +393,9 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     const contentWidth = pageWidth - 2 * pageMargin;
     let currentY = pageMargin;
 
+    // Helper to draw text box with better control
     const drawTextBox = (text: string | string[], x: number, y: number, width: number, height: number, options: any = {}) => {
-      doc.rect(x, y, width, height);
+      doc.rect(x, y, width, height); // Draw border
       const defaultOptions = { align: 'left', baseline: 'top', flags: {noBOM: true, autoencode: true} };
       const mergedOptions = {...defaultOptions, ...options};
 
@@ -404,63 +408,74 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
 
       const lines: string[] = [];
       const originalFontSize = doc.getFontSize();
-      const effectiveFontSize = options.fontSize || originalFontSize; 
+      const effectiveFontSize = options.fontSize || originalFontSize;
       doc.setFontSize(effectiveFontSize);
 
       textToPrint.forEach(line => {
-          const currentLine = typeof line === 'string' ? line : ''; 
-          const splitLines = doc.splitTextToSize(currentLine, width - 4); 
+          const currentLine = typeof line === 'string' ? line : '';
+          const splitLines = doc.splitTextToSize(currentLine, width - 4); // 2mm padding on each side
           lines.push(...splitLines);
       });
       
       const originalFont = doc.getFont();
       if (options.fontStyle) doc.setFont(originalFont.fontName, options.fontStyle);
       
-      const originalTextColor = doc.getTextColor(); 
-      if (options.textColor) doc.setTextColor(options.textColor[0], options.textColor[1], options.textColor[2]);
+      const originalTextColorArray = doc.getTextColor(); // This is an array [r, g, b] or a single number
+      if (options.textColor) {
+        doc.setTextColor(options.textColor[0], options.textColor[1], options.textColor[2]);
+      }
 
-      const textYPos = y + 2 + (effectiveFontSize / 3.5); 
-      let textXPos = x + 2; 
+      const textYPos = y + 2 + (effectiveFontSize / 3.5); // Adjusted for better first line placement
+      let textXPos = x + 2; // Default left alignment with padding
 
       if (mergedOptions.align === 'right') {
-        textXPos = x + width - 2; 
+        textXPos = x + width - 2; // Right alignment with padding
       } else if (mergedOptions.align === 'center') {
-        textXPos = x + width / 2; 
+        textXPos = x + width / 2; // Center alignment
       }
       
       doc.text(lines, textXPos, textYPos, mergedOptions);
 
       doc.setFontSize(originalFontSize);
-      doc.setFont(originalFont.fontName, originalFont.fontStyle || 'normal'); 
-      doc.setTextColor(originalTextColor); 
+      doc.setFont(originalFont.fontName, originalFont.fontStyle || 'normal');
+      // Reset text color to what it was before this function call
+      if (typeof originalTextColorArray === 'object' && originalTextColorArray !== null && 'r' in originalTextColorArray) { // For {r,g,b} object
+        doc.setTextColor(originalTextColorArray.r, originalTextColorArray.g, originalTextColorArray.b);
+      } else if (Array.isArray(originalTextColorArray)) { // For [r,g,b] array
+         doc.setTextColor(originalTextColorArray[0], originalTextColorArray[1], originalTextColorArray[2]);
+      } else { // For single number (grayscale)
+         doc.setTextColor(originalTextColorArray);
+      }
     };
 
     addAsendiaStyleLogo(doc, pageMargin, currentY);
 
-    const crmLogoX = pageMargin + 35 + 2;
+    const crmLogoX = pageMargin + 35 + 2; // Spacing after Asendia logo
     const crmLogoRadius = 5;
-    doc.setFillColor(200, 200, 200);
+    doc.setFillColor(200, 200, 200); // Light gray for CRM circle
     doc.circle(crmLogoX + crmLogoRadius, currentY + crmLogoRadius, crmLogoRadius, 'F');
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0,0,0); 
+    doc.setTextColor(0,0,0); // Black text for "CRM"
     doc.text("CRM", crmLogoX + crmLogoRadius, currentY + crmLogoRadius, { align: 'center', baseline: 'middle' });
-    doc.setFont('helvetica', 'normal'); 
+    doc.setFont('helvetica', 'normal'); // Reset font style
 
-    const titleX = crmLogoX + crmLogoRadius * 2 + 5;
+    const titleX = crmLogoX + crmLogoRadius * 2 + 5; // Spacing after CRM logo
     doc.setFontSize(7);
     doc.text("LETTRE DE VOITURE INTERNATIONALE", titleX, currentY + 3);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.text("INTERNATIONAL CONSIGNMENT NOTE", titleX, currentY + 8);
-    doc.setFont('helvetica', 'normal'); 
-    currentY += 12;
+    doc.setFont('helvetica', 'normal'); // Reset font style
+    currentY += 12; // Move Y down after header
 
+    // Define column widths and X positions
     const col1Width = contentWidth * 0.5;
     const col2Width = contentWidth * 0.5;
     const col1X = pageMargin;
     const col2X = pageMargin + col1Width;
 
+    // Box 1 & 2 & 3
     let boxHeight = 30;
     const senderText = `1 Sender (Name, Address, Country) Expéditeur (Nom, Adresse, Pays)\n\n${shipment.senderAddress || 'Asendia UK\nUnit 8-12 The Heathrow Estate\nSilver Jubilee way\nHounslow\nTW4 6NF'}`;
     drawTextBox(senderText, col1X, currentY, col1Width, boxHeight, {fontSize: 7});
@@ -468,36 +483,40 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     drawTextBox("3 Senders Agents Reference Ref expéditeur de l'agent\n\nN/A", col2X, currentY + boxHeight / 2, col2Width, boxHeight / 2, {fontSize: 7});
     currentY += boxHeight;
 
+    // Box 4 & 5
     boxHeight = 30;
     const consigneeText = `4 Consignee, Final Delivery Point (Name, Address) Destinataire (Nom, Adresse, Pays)\n\n${shipment.consigneeAddress || 'LA POSTE ROISSY HUB\n7 Rue Du Haute de Laval\n93290 Tremblay-en-France\nFrance'}`;
-    drawTextBox(consigneeText, col1X, currentY, col1Width, boxHeight, {fontSize: 7, fontStyle: 'bold'});
+    drawTextBox(consigneeText, col1X, currentY, col1Width, boxHeight, {fontSize: 7, fontStyle: 'bold'}); // Consignee bold as per sample
     const truckTrailer = `${shipment.truckRegistration || 'N/A'} / ${shipment.trailerRegistration || 'N/A'}`;
     const carrierText = `5 Carrier (Name, Address, Country) Transporteur (Nom, Adresse, Pays)\n\nCarrier Name: ${carrierName}\nTruck & Trailer: ${truckTrailer}`;
-    drawTextBox(carrierText, col2X, currentY, col2Width, boxHeight, {fontSize: 7, textColor: [255,0,0], fontStyle: 'bold'});
+    drawTextBox(carrierText, col2X, currentY, col2Width, boxHeight, {fontSize: 7, textColor: [255,0,0], fontStyle: 'bold'}); // Red and bold
     currentY += boxHeight;
 
-    boxHeight = 20; 
+    // Box 6 & 7
+    boxHeight = 20; // Adjusted height
     drawTextBox("6 Senders instructions for customs, etc... Instructions de l'expéditeur (optionel)\n\nN/A", col1X, currentY, col1Width, boxHeight, {fontSize: 7});
     drawTextBox("7 Successive Carrier Transporteurs successifs\n\nN/A", col2X, currentY, col2Width, boxHeight, {fontSize: 7});
     currentY += boxHeight;
-
-    boxHeight = 20; 
+    
+    // Box 8
+    boxHeight = 20; // Increased height for Box 8
     const dynamicTakingOverText = `${shipment.senderAddress || 'Asendia UK, Unit 5, The Hub, Solent Business Park, Fareham, PO15 7FH'}, UK ${formatDateForPdf(shipment.departureDate)}`;
     const takingOverGoodsTextLines = [
         `8 Place and date of taking over the goods (place, country, date)`,
         `Lieu et date de prise en charge des marchandises (lieu, pays, date)`,
-        ``, 
+        ``, // Empty line for spacing
         dynamicTakingOverText
     ];
     drawTextBox(takingOverGoodsTextLines, col1X, currentY, contentWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
 
+    // Box 9, 10, 11, 12 - Goods Details Header
     const goodsCol1Width = contentWidth * 0.4;
     const goodsCol2Width = contentWidth * 0.2;
     const goodsCol3Width = contentWidth * 0.2;
     const goodsCol4Width = contentWidth * 0.2;
-    let goodsTableHeaderHeight = 10;
+    let goodsTableHeaderHeight = 10; // Height for this header row
 
     drawTextBox("9 Marks & Nos; No & Kind of Packages; Description of Goods\nMarques et Nos; Nb et nature des colis; Désignation des marchandises", col1X, currentY, goodsCol1Width, goodsTableHeaderHeight, {fontSize: 6});
     drawTextBox("10 No. of packages\n(statistical)", col1X + goodsCol1Width, currentY, goodsCol2Width, goodsTableHeaderHeight, {fontSize: 6});
@@ -505,44 +524,47 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     drawTextBox("12 Volume (m³)\nCubage (m³)", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsTableHeaderHeight, {fontSize: 6});
     currentY += goodsTableHeaderHeight;
 
-    const goodsDataHeight = 30;
+    // Box 9, 10, 11, 12 - Goods Data
+    const goodsDataHeight = 30; // Height for this data row
     let goodsDescTextLines = [
         `Pallets:        ${shipment.totalPallets || 0}`,
-        `Sacks:          ${shipment.totalBags || 0}`, 
+        `Sacks:          ${shipment.totalBags || 0}`, // Changed from Total Bags
         ``,
         `SEAL #1 Number:   ${shipment.sealNumber || 'N/A'}`,
-        `SEAL #2 Number:   N/A`, 
+        `SEAL #2 Number:   N/A`, // Placeholder as per sample
         ``,
-        `Description of Goods: cross border eCommerce B2C parcels`
+        `Description of Goods: cross border eCommerce B2C parcels` // As per sample
     ];
-    drawTextBox(goodsDescTextLines, col1X, currentY, goodsCol1Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0]});
+    drawTextBox(goodsDescTextLines, col1X, currentY, goodsCol1Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0]}); // Red and bold
 
-    drawTextBox("", col1X + goodsCol1Width, currentY, goodsCol2Width, goodsDataHeight); 
+    drawTextBox("", col1X + goodsCol1Width, currentY, goodsCol2Width, goodsDataHeight); // Box 10 data (empty in sample)
 
+    // Box 11 Data - Gross Weight, Bag Weight, Total
     const grossWeightVal = shipment.totalGrossWeight || 0;
-    const grossWeightOfBags = (shipment.totalBags || 0) * BAG_WEIGHT_MULTIPLIER; 
-    const totalCalculatedWeight = grossWeightVal + grossWeightOfBags; 
+    const grossWeightOfBags = (shipment.totalBags || 0) * BAG_WEIGHT_MULTIPLIER; // Calculate gross weight of bags
+    const totalCalculatedWeight = grossWeightVal + grossWeightOfBags; // As per new requirement
 
     console.log(`[PDFService] CMR: Box 11 - Data: grossWeightVal=${grossWeightVal.toFixed(2)}, grossWeightOfBags=${grossWeightOfBags.toFixed(2)}, totalCalculatedWeight=${totalCalculatedWeight.toFixed(2)}`);
     let weightTextLines = [
-        `${grossWeightVal.toFixed(2)} Kgs`, 
+        `${grossWeightVal.toFixed(2)} Kgs`, // Gross weight of pallets/goods
         ``,
-        `${grossWeightOfBags.toFixed(2)} Kgs`, 
+        `${grossWeightOfBags.toFixed(2)} Kgs`, // Gross Weight of Bags
         ``,
         ``,
         `TOTAL: ${totalCalculatedWeight.toFixed(2)} Kgs`
     ];
     drawTextBox(weightTextLines, col1X + goodsCol1Width + goodsCol2Width, currentY, goodsCol3Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0], align: 'right'});
 
-    drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsDataHeight); 
+    drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsDataHeight); // Box 12 data (empty in sample)
     currentY += goodsDataHeight;
 
-
-    boxHeight = 7;
+    // Box 13
+    boxHeight = 7; // Single line height
     drawTextBox("13 Carriage Charges Prix de transport", col1X, currentY, contentWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
-    const midPointXBox1415 = pageMargin + contentWidth * 0.6; 
+    // Box 14 & 15
+    const midPointXBox1415 = pageMargin + contentWidth * 0.6; // Adjusted split point
     const resWidth = midPointXBox1415 - pageMargin;
     const docAttachWidth = contentWidth - resWidth;
     boxHeight = 15;
@@ -550,26 +572,33 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     drawTextBox("15 Documents attached Documents Annexes (optional)", midPointXBox1415, currentY, docAttachWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
+    // Box 16
     boxHeight = 10;
     drawTextBox("16 Special agreements Conventions particulières (optional)", col1X, currentY, contentWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
+    // Box 17, 18, 19 - Signatures
     const sigBoxWidth = contentWidth / 3;
-    boxHeight = 30;
+    boxHeight = 30; // Taller signature boxes
 
+    // Box 17 - Goods Received
     const consigneeAddressFirstLine = (shipment.consigneeAddress || 'Consignee Address').split('\n')[0];
     const goodsReceivedText = `17 Goods Received/Marchandises Recues\n\n\n\nDate: ${formatDateForPdf(Timestamp.now())}\n${consigneeAddressFirstLine}`;
     drawTextBox(goodsReceivedText, col1X, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
 
+    // Box 18 - Carrier Signature
     drawTextBox("18 Signature and stamp of Carrier/Signature du Transporteur", col1X + sigBoxWidth, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
+
+    // Box 19 - Sender/Agent Signature
     drawTextBox("19 Place and date, Signature Lieu et date, Signature", col1X + sigBoxWidth * 2, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
-    currentY += 2; 
+    // Bottom Date Lines
+    currentY += 2; // Small gap
     doc.setFontSize(7);
-    doc.text(`Date: ${formatDateForPdf(Timestamp.now())}`, pageMargin + 5, currentY + 5); 
-    doc.text(`Date: ${formatDateForPdf(Timestamp.now())}`, pageMargin + sigBoxWidth + 5, currentY + 5); 
-    doc.text(`Date: __ / __ / __`, pageMargin + sigBoxWidth * 2 + 5, currentY + 5); 
+    doc.text(`Date: ${formatDateForPdf(Timestamp.now())}`, pageMargin + 5, currentY + 5); // Under Box 17
+    doc.text(`Date: ${formatDateForPdf(Timestamp.now())}`, pageMargin + sigBoxWidth + 5, currentY + 5); // Under Box 18
+    doc.text(`Date: __ / __ / __`, pageMargin + sigBoxWidth * 2 + 5, currentY + 5); // Under Box 19
 
 
     console.log(`[PDFService] ${pdfType}: Content added to PDF.`);
