@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Eye, Trash2, AlertTriangle, Loader2 } from 'lucide-react'; // Removed Edit icon as it's not used here
+import { PlusCircle, Eye, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SearchFilterBar from '@/components/shipments/search-filter-bar';
@@ -28,7 +28,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
-import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
+import { useAuth } from '@/contexts/AuthContext';
 
 const formatDate = (timestamp: Timestamp | Date | undefined): string => {
     if (!timestamp) return 'N/A';
@@ -85,7 +85,7 @@ export default function ShipmentsPage() {
       const term = filters.searchTerm.toLowerCase().trim();
       if (term) {
         result = result.filter(s =>
-          (s.id || '').toLowerCase().includes(term) || // Ensure s.id is not null
+          (s.id || '').toLowerCase().includes(term) ||
           (s.carrierId || '').toLowerCase().includes(term) ||
           (s.driverName || '').toLowerCase().includes(term)
         );
@@ -140,7 +140,6 @@ export default function ShipmentsPage() {
 
       await deleteShipment(id);
       toast({ title: "Shipment Deleted", description: `Shipment ${id} removed successfully.` });
-      // Refetch or filter out locally
       setAllShipments(prev => prev.filter(s => s.id !== id));
       setFilteredShipments(prev => prev.filter(s => s.id !== id)); 
     } catch (error: any) {
@@ -196,7 +195,7 @@ export default function ShipmentsPage() {
                     <Table>
                     <TableHeader>
                         <TableRow>
-                        <TableHead className="w-[120px]">ID</TableHead>
+                        <TableHead className="w-[120px]">Link</TableHead>
                         <TableHead>Carrier</TableHead>
                         <TableHead>Driver</TableHead>
                         <TableHead>Departure</TableHead>
@@ -217,7 +216,7 @@ export default function ShipmentsPage() {
                             <TableRow key={shipment.id} className="hover:bg-muted/50">
                                 <TableCell className="font-medium truncate max-w-[120px]">
                                     <Link href={`/shipments/${shipment.id}`} className='hover:underline text-primary'>
-                                        {shipment.id}
+                                        View Details
                                     </Link>
                                 </TableCell>
                                 <TableCell>{shipment.carrierId}</TableCell>
@@ -254,8 +253,7 @@ export default function ShipmentsPage() {
                                             <AlertDialogHeader>
                                                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                                 <AlertDialogDescription>
-                                                    This action cannot be undone. This will permanently delete the shipment{' '}
-                                                    <strong className="break-all">{shipment.id}</strong>.
+                                                    This action cannot be undone. This will permanently delete the shipment referred to as '{shipment.driverName} - {shipment.carrierId}'.
                                                     {(shipment.status === 'Completed' && !isAdmin) && " Regular users cannot delete completed shipments."}
                                                     {(shipment.status === 'Completed' && isAdmin) && " This is a completed shipment."}
                                                 </AlertDialogDescription>
@@ -286,4 +284,3 @@ export default function ShipmentsPage() {
     </div>
   );
 }
-
