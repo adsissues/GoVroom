@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getDropdownOptions,
@@ -30,7 +30,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { PlusCircle, Edit, Trash2, Loader2, AlertTriangle, Download, Upload } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, AlertTriangle, ArrowUp, ArrowDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import DropdownFormDialog from './dropdown-form-dialog';
 import { Skeleton } from '../ui/skeleton';
@@ -46,6 +46,7 @@ export default function DropdownTable({ collectionId, collectionName }: Dropdown
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<DropdownItem | null>(null);
   const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>({});
+  const [displayedItems, setDisplayedItems] = useState<DropdownItem[]>([]);
 
   const queryKey = useMemo(() => ['dropdownOptions', collectionId], [collectionId]);
 
@@ -54,13 +55,38 @@ export default function DropdownTable({ collectionId, collectionName }: Dropdown
     queryFn: () => getDropdownOptions(collectionId),
   });
 
+  useEffect(() => {
+    setDisplayedItems(items || []);
+    setSelectedItems({}); // Reset selection when items change (e.g., new collection)
+  }, [items]);
+
+  const handleMoveUp = (index: number) => {
+    if (index > 0) {
+      setDisplayedItems(prevItems => {
+        const newItems = [...prevItems];
+        [newItems[index - 1], newItems[index]] = [newItems[index], newItems[index - 1]];
+        return newItems;
+      });
+    }
+  };
+
+  const handleMoveDown = (index: number) => {
+    if (index < displayedItems.length - 1) {
+      setDisplayedItems(prevItems => {
+        const newItems = [...prevItems];
+        [newItems[index + 1], newItems[index]] = [newItems[index], newItems[index + 1]];
+        return newItems;
+      });
+    }
+  };
+
   const deleteMutation = useMutation({
     mutationFn: (itemId: string) => deleteDropdownItem(collectionId, itemId),
     onSuccess: (_, itemId) => {
       toast({ title: "Item Deleted", description: `Item removed successfully from ${collectionName}.` });
-      queryClient.invalidateQueries({ queryKey: queryKey });
+      queryClient.invalidateQueries({ queryKey: queryKey }); // This will refetch and reset displayedItems via useEffect
       queryClient.invalidateQueries({ queryKey: ['dropdownMaps'] });
-      queryClient.invalidateQueries({ queryKey: [`${collectionId}FilterList`] }); // Invalidate specific filter list cache
+      queryClient.invalidateQueries({ queryKey: [`${collectionId}FilterList`] });
       setSelectedItems(prev => {
         const newSelection = { ...prev };
         delete newSelection[itemId];
@@ -76,7 +102,7 @@ export default function DropdownTable({ collectionId, collectionName }: Dropdown
     mutationFn: (itemIds: string[]) => deleteDropdownItemsBatch(collectionId, itemIds),
     onSuccess: (_, variables) => {
       toast({ title: "Items Deleted", description: `${variables.length} items removed successfully.` });
-      queryClient.invalidateQueries({ queryKey: queryKey });
+      queryClient.invalidateQueries({ queryKey: queryKey }); // This will refetch and reset displayedItems
       queryClient.invalidateQueries({ queryKey: ['dropdownMaps'] });
       queryClient.invalidateQueries({ queryKey: [`${collectionId}FilterList`] });
       setSelectedItems({});
@@ -116,8 +142,8 @@ export default function DropdownTable({ collectionId, collectionName }: Dropdown
   const handleSelectAll = (checked: boolean | string) => {
     const isChecked = checked === true;
     const newSelection: Record<string, boolean> = {};
-    if (isChecked && items) {
-      items.forEach(item => {
+    if (isChecked && displayedItems) {
+      displayedItems.forEach(item => {
         newSelection[item.id] = true;
       });
     }
@@ -138,8 +164,8 @@ export default function DropdownTable({ collectionId, collectionName }: Dropdown
     }
   };
 
-  const isAllSelected = items && items.length > 0 && selectedItemIds.length === items.length;
-  const isIndeterminate = selectedItemIds.length > 0 && selectedItemIds.length < (items?.length || 0);
+  const isAllSelected = displayedItems && displayedItems.length > 0 && selectedItemIds.length === displayedItems.length;
+  const isIndeterminate = selectedItemIds.length > 0 && selectedItemIds.length < (displayedItems?.length || 0);
   const selectAllState = isAllSelected ? true : (isIndeterminate ? 'indeterminate' : false);
 
   return (
@@ -181,6 +207,9 @@ export default function DropdownTable({ collectionId, collectionName }: Dropdown
           </Button>
         </div>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Note: Reordering items (using ▲/▼ buttons) is for display purposes only on this page and will not be saved.
+      </p>
 
       {isLoading && (
         <div className="space-y-2">
@@ -202,7 +231,7 @@ export default function DropdownTable({ collectionId, collectionName }: Dropdown
         </Alert>
       )}
 
-      {!isLoading && !error && items && (
+      {!isLoading && !error && displayedItems && (
         <div className="border rounded-md overflow-hidden">
           <Table>
             <TableHeader>
@@ -212,23 +241,23 @@ export default function DropdownTable({ collectionId, collectionName }: Dropdown
                     checked={selectAllState}
                     onCheckedChange={handleSelectAll}
                     aria-label="Select all rows"
-                    disabled={!items || items.length === 0}
+                    disabled={!displayedItems || displayedItems.length === 0}
                   />
                 </TableHead>
                 <TableHead>Label (User-facing text)</TableHead>
                 <TableHead>Value (Stored identifier)</TableHead>
-                <TableHead className="text-right w-[100px]">Actions</TableHead>
+                <TableHead className="text-right w-[150px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.length === 0 ? (
+              {displayedItems.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                     No items found in this list. Add items using the button above.
                   </TableCell>
                 </TableRow>
               ) : (
-                items.map((item) => (
+                displayedItems.map((item, index) => (
                   <TableRow key={item.id} data-state={selectedItems[item.id] ? "selected" : ""}>
                     <TableCell>
                       <Checkbox
@@ -240,7 +269,15 @@ export default function DropdownTable({ collectionId, collectionName }: Dropdown
                     <TableCell className="font-medium">{item.label}</TableCell>
                     <TableCell className="font-mono text-xs">{item.value}</TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end space-x-1">
+                      <div className="flex justify-end items-center space-x-0.5">
+                        <Button variant="ghost" size="icon" title="Move Up" onClick={() => handleMoveUp(index)} disabled={index === 0}>
+                          <ArrowUp className="h-4 w-4" />
+                          <span className="sr-only">Move Up</span>
+                        </Button>
+                        <Button variant="ghost" size="icon" title="Move Down" onClick={() => handleMoveDown(index)} disabled={index === displayedItems.length - 1}>
+                          <ArrowDown className="h-4 w-4" />
+                          <span className="sr-only">Move Down</span>
+                        </Button>
                         <Button variant="ghost" size="icon" title="Edit Item" onClick={() => handleEditItem(item)}>
                           <Edit className="h-4 w-4" />
                           <span className="sr-only">Edit</span>
