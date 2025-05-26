@@ -50,15 +50,18 @@ export default function DropdownTable({ collectionId, collectionName }: Dropdown
 
   const queryKey = useMemo(() => ['dropdownOptions', collectionId], [collectionId]);
 
-  const { data: items = [], isLoading, error, refetch } = useQuery<DropdownItem[], Error>({
+  // Let fetchedDataFromQuery be undefined initially if data is not yet available
+  const { data: fetchedDataFromQuery, isLoading, error, refetch } = useQuery<DropdownItem[], Error>({
     queryKey: queryKey,
     queryFn: () => getDropdownOptions(collectionId),
   });
 
   useEffect(() => {
-    setDisplayedItems(items || []);
-    setSelectedItems({}); // Reset selection when items change (e.g., new collection)
-  }, [items]);
+    // Use fetchedDataFromQuery directly. If it's undefined (loading), set displayedItems to an empty array.
+    setDisplayedItems(fetchedDataFromQuery || []);
+    // Reset selection when the actual list of items from the query changes.
+    setSelectedItems({});
+  }, [fetchedDataFromQuery]); // Depend on the direct output of useQuery
 
   const handleMoveUp = (index: number) => {
     if (index > 0) {
@@ -84,7 +87,7 @@ export default function DropdownTable({ collectionId, collectionName }: Dropdown
     mutationFn: (itemId: string) => deleteDropdownItem(collectionId, itemId),
     onSuccess: (_, itemId) => {
       toast({ title: "Item Deleted", description: `Item removed successfully from ${collectionName}.` });
-      queryClient.invalidateQueries({ queryKey: queryKey }); // This will refetch and reset displayedItems via useEffect
+      queryClient.invalidateQueries({ queryKey: queryKey });
       queryClient.invalidateQueries({ queryKey: ['dropdownMaps'] });
       queryClient.invalidateQueries({ queryKey: [`${collectionId}FilterList`] });
       setSelectedItems(prev => {
@@ -102,7 +105,7 @@ export default function DropdownTable({ collectionId, collectionName }: Dropdown
     mutationFn: (itemIds: string[]) => deleteDropdownItemsBatch(collectionId, itemIds),
     onSuccess: (_, variables) => {
       toast({ title: "Items Deleted", description: `${variables.length} items removed successfully.` });
-      queryClient.invalidateQueries({ queryKey: queryKey }); // This will refetch and reset displayedItems
+      queryClient.invalidateQueries({ queryKey: queryKey });
       queryClient.invalidateQueries({ queryKey: ['dropdownMaps'] });
       queryClient.invalidateQueries({ queryKey: [`${collectionId}FilterList`] });
       setSelectedItems({});
@@ -328,3 +331,4 @@ export default function DropdownTable({ collectionId, collectionName }: Dropdown
     </div>
   );
 }
+
