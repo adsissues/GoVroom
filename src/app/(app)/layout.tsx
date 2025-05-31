@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import AppHeader from '@/components/layout/app-header';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/app/(app)/AuthContext'; // Adjusted path
 import { useRouter, usePathname } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { getAppSettings } from '@/lib/firebase/settingsService';
