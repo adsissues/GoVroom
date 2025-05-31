@@ -58,7 +58,7 @@ export default function LoginFormCore() {
       const redirectPath = searchParams.get('redirect') || '/dashboard';
       setTimeout(() => {
         router.replace(redirectPath);
-      }, 1500); // 1.5 second delay for the animation
+      }, 3000); // Changed to 3 seconds
     } catch (error: any) {
       console.error("Login failed:", error);
       toast({
