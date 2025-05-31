@@ -86,6 +86,7 @@ export interface AppSettings {
   id?: 'global'; // Fixed ID for the global settings document
   defaultSenderAddress: string;
   defaultConsigneeAddress: string;
+  logoutAfterMinutes?: number; // Duration in minutes for auto-logout
   // Add other global settings as needed
   lastUpdated?: Timestamp;
 }
