@@ -13,7 +13,7 @@ import { signInWithEmail } from '@/lib/firebase/authService';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { APP_NAME } from '@/lib/constants';
-import { LogIn, Loader2 } from 'lucide-react';
+import { LogIn, Loader2, CheckCircle2 } from 'lucide-react'; // Added CheckCircle2
 import { useAuth } from '@/contexts/AuthContext';
 
 const loginFormSchema = z.object({
@@ -24,7 +24,7 @@ const loginFormSchema = z.object({
 type LoginFormValues = z.infer<typeof loginFormSchema>;
 
 export default function LoginFormCore() {
-  const [isLoading, setIsLoading] = useState(false);
+  const [loginStatus, setLoginStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -39,23 +39,26 @@ export default function LoginFormCore() {
   });
 
   useEffect(() => {
-    if (!authLoading && currentUser) {
+    // Redirect if user is already logged in, but not if we are in the 'success' animation phase
+    if (loginStatus !== 'success' && !authLoading && currentUser) {
       const redirectPath = searchParams.get('redirect') || '/dashboard';
-      // console.log(`User already logged in, redirecting to: ${redirectPath}`);
       router.replace(redirectPath);
     }
-  }, [currentUser, authLoading, router, searchParams]);
+  }, [currentUser, authLoading, router, searchParams, loginStatus]);
 
   const onSubmit = async (data: LoginFormValues) => {
-    setIsLoading(true);
+    setLoginStatus('submitting');
     try {
       await signInWithEmail(data.email, data.password);
       toast({
         title: 'Login Successful',
         description: `Welcome back to ${APP_NAME}!`,
       });
+      setLoginStatus('success');
       const redirectPath = searchParams.get('redirect') || '/dashboard';
-      router.replace(redirectPath);
+      setTimeout(() => {
+        router.replace(redirectPath);
+      }, 1500); // 1.5 second delay for the animation
     } catch (error: any) {
       console.error("Login failed:", error);
       toast({
@@ -63,8 +66,7 @@ export default function LoginFormCore() {
         description: error.message || 'Invalid email or password. Please try again.',
         variant: 'destructive',
       });
-    } finally {
-      setIsLoading(false);
+      setLoginStatus('idle'); // Reset to idle on error
     }
   };
 
@@ -76,10 +78,30 @@ export default function LoginFormCore() {
     );
   }
 
-  if (currentUser) {
+  // This case should be handled by the useEffect above, but as a fallback:
+  if (loginStatus !== 'success' && currentUser) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background to-secondary/30 p-4">
         <p className="text-muted-foreground">Already logged in. Redirecting...</p>
+      </div>
+    );
+  }
+
+  if (loginStatus === 'success') {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background to-secondary/30 p-4">
+        <Card className="w-full max-w-md shadow-xl rounded-xl border">
+          <CardHeader className="text-center space-y-3">
+            <div className="mx-auto bg-green-100 dark:bg-green-900/30 p-3 rounded-full w-fit">
+              <CheckCircle2 className="h-10 w-10 text-green-500 dark:text-green-400" />
+            </div>
+            <CardTitle className="text-2xl font-bold">Login Successful!</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center space-y-4 py-6">
+            <p className="text-muted-foreground">Preparing your dashboard...</p>
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -104,7 +126,7 @@ export default function LoginFormCore() {
                   <FormItem>
                     <FormLabel htmlFor="email">Email</FormLabel>
                     <FormControl>
-                      <Input id="email" type="email" placeholder="you@example.com" {...field} disabled={isLoading} />
+                      <Input id="email" type="email" placeholder="you@example.com" {...field} disabled={loginStatus === 'submitting'} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -117,14 +139,14 @@ export default function LoginFormCore() {
                   <FormItem>
                     <FormLabel htmlFor="password">Password</FormLabel>
                     <FormControl>
-                      <Input id="password" type="password" placeholder="••••••••" {...field} disabled={isLoading} />
+                      <Input id="password" type="password" placeholder="••••••••" {...field} disabled={loginStatus === 'submitting'} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
+              <Button type="submit" className="w-full" disabled={loginStatus === 'submitting'}>
+                {loginStatus === 'submitting' ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Logging in...
