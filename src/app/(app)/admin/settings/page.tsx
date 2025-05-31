@@ -7,9 +7,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { UserCog, Save, Loader2, AlertTriangle } from "lucide-react";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { UserCog, Save, Loader2, AlertTriangle, Clock } from "lucide-react";
 import { getAppSettings, updateAppSettings } from '@/lib/firebase/settingsService';
 import type { AppSettings } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +21,11 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 const settingsFormSchema = z.object({
   defaultSenderAddress: z.string().min(10, "Sender address must be at least 10 characters."),
   defaultConsigneeAddress: z.string().min(10, "Consignee address must be at least 10 characters."),
+  logoutAfterMinutes: z.coerce
+    .number({ invalid_type_error: "Must be a number" })
+    .min(0, "Logout duration must be 0 or greater (0 to disable).")
+    .optional()
+    .default(0), // Default to 0 (disabled) if not provided
 });
 
 type SettingsFormValues = z.infer<typeof settingsFormSchema>;
@@ -35,6 +41,7 @@ export default function AdminSettingsPage() {
     defaultValues: {
       defaultSenderAddress: '',
       defaultConsigneeAddress: '',
+      logoutAfterMinutes: 0, // Initialize with 0
     },
   });
 
@@ -49,15 +56,17 @@ export default function AdminSettingsPage() {
           form.reset({
             defaultSenderAddress: settings?.defaultSenderAddress || DEFAULT_SENDER_ADDRESS,
             defaultConsigneeAddress: settings?.defaultConsigneeAddress || DEFAULT_CONSIGNEE_ADDRESS,
+            logoutAfterMinutes: settings?.logoutAfterMinutes ?? 0, // Use ?? 0 to ensure a number
           });
         }
       } catch (err) {
         console.error("Error fetching settings:", err);
         if (isMounted) {
           setError(err instanceof Error ? err.message : "Failed to load settings.");
-          form.reset({ // Fallback to constants on error
+          form.reset({ // Fallback to constants and 0 for logout on error
             defaultSenderAddress: DEFAULT_SENDER_ADDRESS,
             defaultConsigneeAddress: DEFAULT_CONSIGNEE_ADDRESS,
+            logoutAfterMinutes: 0,
           });
         }
       } finally {
@@ -68,16 +77,21 @@ export default function AdminSettingsPage() {
     };
     fetchSettings();
     return () => { isMounted = false; };
-  }, [form]); // form is stable, form.reset is also stable
+  }, [form]);
 
   const onSubmit = async (data: SettingsFormValues) => {
     setIsSaving(true);
     setError(null);
     try {
-      await updateAppSettings(data);
+      // Ensure logoutAfterMinutes is treated as a number, even if form sends it as string after coerce
+      const dataToSave: Partial<AppSettings> = {
+        ...data,
+        logoutAfterMinutes: Number(data.logoutAfterMinutes),
+      };
+      await updateAppSettings(dataToSave);
       toast({
         title: "Settings Updated",
-        description: "Default addresses saved successfully.",
+        description: "Application settings saved successfully.",
       });
     } catch (err) {
       console.error("Error saving settings:", err);
@@ -101,7 +115,7 @@ export default function AdminSettingsPage() {
             <UserCog className="h-6 w-6 text-primary" />
             <CardTitle className="text-2xl">Application Settings</CardTitle>
           </div>
-          <CardDescription>Manage global application settings like default addresses.</CardDescription>
+          <CardDescription>Manage global application settings like default addresses and session timeout.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -110,6 +124,8 @@ export default function AdminSettingsPage() {
               <Skeleton className="h-20 w-full" />
               <Skeleton className="h-10 w-1/3" />
               <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-10 w-1/3" />
+              <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-24 mt-4" />
             </div>
           ) : error && !isSaving ? (
@@ -159,6 +175,33 @@ export default function AdminSettingsPage() {
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="logoutAfterMinutes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        Auto-logout After (minutes)
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="0"
+                          placeholder="e.g., 30"
+                          {...field}
+                          value={field.value ?? 0} // Ensure value is not undefined for input
+                          onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)}
+                          disabled={isSaving}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        User will be logged out after this many minutes of inactivity. Set to 0 to disable auto-logout.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <div className="flex justify-end">
                   <Button type="submit" disabled={isSaving || isLoading || !form.formState.isDirty}>
                     {isSaving ? (
@@ -187,3 +230,4 @@ export default function AdminSettingsPage() {
     </div>
   );
 }
+
