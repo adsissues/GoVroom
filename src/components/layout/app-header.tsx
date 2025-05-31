@@ -105,12 +105,6 @@ export default function AppHeader() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Notifications Button - kept for consistency, functionality can be added later */}
-        <Button variant="ghost" size="icon" className="rounded-full" aria-label="Notifications">
-          <Bell className="h-5 w-5 text-muted-foreground" />
-          <span className="sr-only">Toggle notifications</span>
-        </Button>
-
         {/* User Menu */}
         {authLoading ? (
              <Skeleton className="h-8 w-8 rounded-full" />

@@ -19,11 +19,13 @@ export const getAppSettings = async (): Promise<AppSettings | null> => {
     if (docSnap.exists()) {
       const data = docSnap.data();
       return {
-        id: 'global', // Ensure id is set
+        id: 'global',
         defaultSenderAddress: data.defaultSenderAddress || '',
         defaultConsigneeAddress: data.defaultConsigneeAddress || '',
+        logoutAfterMinutes: typeof data.logoutAfterMinutes === 'number' ? data.logoutAfterMinutes : undefined,
         lastUpdated: data.lastUpdated instanceof Timestamp ? data.lastUpdated : undefined,
       } as AppSettings;
+      
     }
     return null; // No settings document found
   } catch (error) {
