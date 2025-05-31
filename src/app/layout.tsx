@@ -7,7 +7,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AuthProvider } from '@/contexts/AuthContext'; // Import AuthProvider
+import { AuthProvider } from '@/app/(app)/AuthContext'; // UPDATED IMPORT PATH
 import { ThemeProvider } from '@/contexts/ThemeContext'; // Import ThemeProvider
 
 const inter = Inter({
