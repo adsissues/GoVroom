@@ -5,7 +5,7 @@ import { Bell, UserCircle, LogOut, Sun, Moon, Menu, PackageSearch, LayoutDashboa
 import { Button } from '@/components/ui/button';
 import { APP_NAME } from '@/lib/constants';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/app/(app)/AuthContext'; // Corrected import path
 import { useTheme } from '@/contexts/ThemeContext';
 import {
   DropdownMenu,
