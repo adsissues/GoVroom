@@ -3,7 +3,7 @@
 
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/app/(app)/AuthContext'; // Corrected import path
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -75,3 +75,4 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   console.log(`[AdminLayout Rendering] User is admin (${currentUser.email}), rendering children.`);
   return <div className="space-y-6">{children}</div>;
 }
+
