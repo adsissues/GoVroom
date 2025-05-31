@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { APP_NAME } from '@/lib/constants';
 import { LogIn, Loader2, CheckCircle2 } from 'lucide-react'; // Added CheckCircle2
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/app/(app)/AuthContext'; // UPDATED IMPORT PATH
 
 const loginFormSchema = z.object({
   email: z.string().email("Invalid email address").min(1, "Email is required"),
