@@ -278,7 +278,15 @@ export default function ShipmentForm({
               <FormItem>
                 <FormLabel>Driver Name</FormLabel>
                 <FormControl>
-                  <Input placeholder="Enter driver's name" {...field} value={field.value || ''} disabled={formDisabled} />
+                  <Input
+                    placeholder="Enter driver's name"
+                    {...field}
+                    value={field.value || ''}
+                    onChange={(e) => {
+                      field.onChange(e.target.value.toUpperCase());
+                    }}
+                    disabled={formDisabled}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
