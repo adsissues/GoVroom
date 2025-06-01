@@ -1,4 +1,3 @@
-
 "use client";
 
 import jsPDF from 'jspdf';
@@ -65,7 +64,6 @@ const triggerDownload = (doc: jsPDF, filename: string, pdfType: string): void =>
   }
 };
 
-
 const formatDateForPdf = (timestamp?: Timestamp): string => {
   if (!timestamp) return 'N/A';
   try {
@@ -95,18 +93,17 @@ const addAsendiaStyleLogo = (doc: jsPDF, x: number, y: number) => {
     doc.setFont('helvetica', 'normal'); // Using normal weight as per visual preference
     doc.setTextColor(255, 255, 255); // White text
 
-    const textMetrics = doc.getTextDimensions(text, { fontSize: textFontSize });
-    
-    // Calculate X for horizontal centering
-    const textX = x + (logoWidth - textMetrics.w) / 2;
-    // Calculate Y for vertical centering (adjusting for baseline)
-    const textY = y + (logoHeight / 2) + (textMetrics.h / 3.5); // Common adjustment for jsPDF text
+    // Calculate center position
+    const textX = x + (logoWidth / 2);
+    const textY = y + (logoHeight / 2);
 
-    doc.text(text, textX, textY, { baseline: 'middle', align: 'left' }); // Use align: 'left' with calculated textX
+    doc.text(text, textX, textY, { 
+        align: 'center', 
+        baseline: 'middle'
+    });
 
     doc.setTextColor(0, 0, 0); // Reset text color
 };
-
 
 const getShipmentDetails = async (shipmentId: string): Promise<ShipmentDetail[]> => {
   console.log(`[PDFService] getShipmentDetails CALLED for shipmentId: ${shipmentId}`);
@@ -161,7 +158,6 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     const infoRowHeight = 10; // Adjusted for two lines
     const infoBlockLabelFontSize = 6.5;
     const infoBlockValueFontSize = 8;
-
 
     // Header: Logo, Title, Dates
     addAsendiaStyleLogo(doc, pageMargin, currentY);
@@ -329,6 +325,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
       body: tableBodyData,
       startY: currentY,
       theme: 'plain', 
+      showHead: 'everyPage', // This ensures headers are repeated on each page
       styles: {
         fontSize: 8,
         cellPadding: { top: 1.5, right: 2, bottom: 1.5, left: 2 }, 
@@ -378,8 +375,6 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
 };
-
-
 export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
   const pdfType = "CMR";
   
@@ -599,7 +594,6 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     doc.text(`Date: ${formatDateForPdf(Timestamp.now())}`, pageMargin + sigBoxWidth + 5, currentY + 5);
     doc.text(`Date: __ / __ / __`, pageMargin + sigBoxWidth * 2 + 5, currentY + 5);
 
-
     console.log(`[PDFService] ${pdfType}: Content added to PDF.`);
     triggerDownload(doc, filename, pdfType);
     console.log(`[PDFService] ${pdfType}: triggerDownload completed for ${filename}.`);
@@ -610,3 +604,4 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
 };
+

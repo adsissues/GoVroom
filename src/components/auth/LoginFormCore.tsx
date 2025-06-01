@@ -13,8 +13,8 @@ import { signInWithEmail } from '@/lib/firebase/authService';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { APP_NAME } from '@/lib/constants';
-import { LogIn, Loader2, CheckCircle2 } from 'lucide-react'; // Added CheckCircle2
-import { useAuth } from '@/app/(app)/AuthContext'; // UPDATED IMPORT PATH
+import { LogIn, Loader2, CheckCircle2 } from 'lucide-react';
+import { useAuth } from '@/app/(app)/AuthContext';
 
 const loginFormSchema = z.object({
   email: z.string().email("Invalid email address").min(1, "Email is required"),
@@ -39,7 +39,6 @@ export default function LoginFormCore() {
   });
 
   useEffect(() => {
-    // Redirect if user is already logged in, but not if we are in the 'success' animation phase
     if (loginStatus !== 'success' && !authLoading && currentUser) {
       const redirectPath = searchParams.get('redirect') || '/dashboard';
       router.replace(redirectPath);
@@ -58,15 +57,21 @@ export default function LoginFormCore() {
       const redirectPath = searchParams.get('redirect') || '/dashboard';
       setTimeout(() => {
         router.replace(redirectPath);
-      }, 3000); // Changed to 3 seconds
+      }, 3000);
     } catch (error: any) {
       console.error("Login failed:", error);
+      let description = 'An unexpected error occurred. Please try again.';
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        description = 'Invalid email or password. Please check your credentials and try again.';
+      } else if (error.message) {
+        description = error.message;
+      }
       toast({
         title: 'Login Failed',
-        description: error.message || 'Invalid email or password. Please try again.',
+        description: description,
         variant: 'destructive',
       });
-      setLoginStatus('idle'); // Reset to idle on error
+      setLoginStatus('idle');
     }
   };
 
@@ -78,7 +83,6 @@ export default function LoginFormCore() {
     );
   }
 
-  // This case should be handled by the useEffect above, but as a fallback:
   if (loginStatus !== 'success' && currentUser) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background to-secondary/30 p-4">
