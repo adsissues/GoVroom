@@ -934,7 +934,7 @@
 
 "@next/swc-linux-x64-musl@15.4.0-canary.60":
   version "15.4.0-canary.60"
-  resolved "https://registry.yarnpkg.com/@next/swc-linux-x64-musl/-/swc-linux-x64-musl-15.4.0-canary.60.tgz#30cfcfbc129a095218e94bfdc636c6456cfba62d"
+  resolved "https://registry.npmjs.org/@next/swc-linux-x64-musl/-/swc-linux-x64-musl-15.4.0-canary.60.tgz"
   integrity sha512-HA8gtUctjcUw95lahahpgITQ3p1kWPsk2EBRbl3a7DV7ZUznwXXQzOzCQpPkThF67/hlP000jGetmilzNG1ctw==
 
 "@next/swc-win32-arm64-msvc@15.4.0-canary.60":
