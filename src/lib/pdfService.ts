@@ -495,7 +495,10 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     drawTextBox(senderText, col1X, currentY, col1Width, boxHeight, {fontSize: 7});
     drawTextBox("2 Customs Reference/Status Ref douane/Statut\n\nN/A", col2X, currentY, col2Width, boxHeight / 2, {fontSize: 7});
     drawTextBox("3 Senders Agents Reference Ref expéditeur de l'agent\n\nN/A", col2X, currentY + boxHeight / 2, col2Width, boxHeight / 2, {fontSize: 7});
-    currentY += boxHeight;    const consigneeText = `4 Consignee, Final Delivery Point (Name, Address) Destinataire (Nom, Adresse, Pays)\n\n${shipment.consigneeAddress || 'LA POSTE ROISSY HUB\n7 Rue Du Haute de Laval\n93290 Tremblay-en-France\nFrance'}`;
+    currentY += boxHeight;
+
+    boxHeight = 30;
+    const consigneeText = `4 Consignee, Final Delivery Point (Name, Address) Destinataire (Nom, Adresse, Pays)\n\n${shipment.consigneeAddress || 'LA POSTE ROISSY HUB\n7 Rue Du Haute de Laval\n93290 Tremblay-en-France\nFrance'}`;
     drawTextBox(consigneeText, col1X, currentY, col1Width, boxHeight, {fontSize: 7, fontStyle: 'bold'});
     const truckTrailer = `${shipment.truckRegistration || 'N/A'} / ${shipment.trailerRegistration || 'N/A'}`;
     const carrierText = `5 Carrier (Name, Address, Country) Transporteur (Nom, Adresse, Pays)\n\nCarrier Name: ${carrierName}\nTruck & Trailer: ${truckTrailer}`;
@@ -550,10 +553,8 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
 
     console.log(`[PDFService] CMR: Box 11 - Data: grossWeightVal=${grossWeightVal}, grossWeightOfBags=${grossWeightOfBags}, totalCalculatedWeight=${totalCalculatedWeight}`);
     let weightTextLines = [
-        `${grossWeightVal.toFixed(2)} Kgs`,
-        ``,
-        `${grossWeightOfBags.toFixed(2)} Kgs`,
-        ``,
+        `Pallets: ${grossWeightVal.toFixed(2)} Kgs`,
+        `Bags: ${grossWeightOfBags.toFixed(2)} Kgs`,
         ``,
         `TOTAL: ${totalCalculatedWeight.toFixed(2)} Kgs`
     ];
@@ -606,5 +607,6 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
 };
+
 
 

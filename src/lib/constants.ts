@@ -105,7 +105,7 @@ export const TRANSIT_LIGHT_CUSTOMER_ID = "1234"; // For "Transit Light"
 
 // Constants for calculations (used in Details Form & Shipment Calculations features)
 export const TARE_WEIGHT_DEFAULT = 25.7; // Default tare weight if no bags
-export const BAG_WEIGHT_MULTIPLIER = 0.125; // Weight per bag in kg
+export const BAG_WEIGHT_MULTIPLIER = 0.11; // Weight per bag in kg
 
 // For dashboard summary cards
 export const DASHBOARD_STATS_MAP: { [key: string]: { title: string; icon: React.ElementType; unit?: string; bgColorClass: string; textColorClass: string, isUnavailable?: boolean } } = {
@@ -119,3 +119,4 @@ export const DEFAULT_PRIOR_SERVICE_ID = "E"; // You confirmed "Prior" service ha
 // Default "DOE" (Date of Entry) VALUE (Internal ID) for ShipmentDetailForm
 // This value MUST EXACTLY match the 'value' field of your default DOE document in Firestore.
 export const DEFAULT_DOE_ID = "UZ1"; // You confirmed default DOE is "UZ1"
+
