@@ -1,3 +1,4 @@
+
 "use client";
 
 import jsPDF from 'jspdf';
@@ -397,6 +398,10 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
     console.log(`[PDFService] ${pdfType}: jsPDF instance created successfully.`);
 
+    // Fetch shipment details first
+    const details = await getShipmentDetails(shipment.id);
+    console.log(`[PDFService] ${pdfType}: Fetched ${details.length} shipment details.`);
+
     const dropdownMaps = await getDropdownOptionsMap(['carriers']);
     const carrierName = getLabelFromMap(dropdownMaps['carriers'], shipment.carrierId, shipment.carrierId);
 
@@ -431,7 +436,7 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
       if (options.fontStyle) doc.setFont(originalFont.fontName, options.fontStyle); 
       
       const originalTextColorArray = doc.getTextColor();
-      let tempTextColor: string | number | number[] = originalTextColorArray; // Store it to restore
+      let tempTextColor: string | number | number[] = originalTextColorArray;
 
       if (options.textColor) {
         if (Array.isArray(options.textColor) && options.textColor.length === 3) {
@@ -460,7 +465,7 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
       } else if (Array.isArray(tempTextColor) && tempTextColor.length === 3) {
         doc.setTextColor(tempTextColor[0], tempTextColor[1], tempTextColor[2]);
       } else {
-        doc.setTextColor(0,0,0); // Fallback to black
+        doc.setTextColor(0,0,0);
       }
     };
 
@@ -533,36 +538,43 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     drawTextBox("12 Volume (m³)\nCubage (m³)", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsTableHeaderHeight, {fontSize: 6});
     currentY += goodsTableHeaderHeight;
 
-    const goodsDataHeight = 30;
-    let goodsDescTextLines = [
-        `Pallets:        ${shipment.totalPallets || 0}`,
-        `Sacks:          ${shipment.totalBags || 0}`,
-        ``,
-        `SEAL #1 Number:   ${shipment.sealNumber || 'N/A'}`,
-        `SEAL #2 Number:   N/A`,
-        ``,
-        `Description of Goods: cross border eCommerce B2C parcels`
-    ];
-    drawTextBox(goodsDescTextLines, col1X, currentY, goodsCol1Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0]});
+  const goodsDataHeight = 30;
+let goodsDescTextLines = [
+    `Pallets:        ${shipment.totalPallets || 0}`,
+    `Sacks:          ${shipment.totalBags || 0}`,
+    ``,
+    `SEAL #1 Number:   ${shipment.sealNumber || 'N/A'}`,
+    `SEAL #2 Number:   N/A`,
+    ``,
+    `Description of Goods: cross border eCommerce B2C parcels`
+];
+drawTextBox(goodsDescTextLines, col1X, currentY, goodsCol1Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0]});
 
-    drawTextBox("", col1X + goodsCol1Width, currentY, goodsCol2Width, goodsDataHeight);
+drawTextBox("", col1X + goodsCol1Width, currentY, goodsCol2Width, goodsDataHeight);
 
-    const grossWeightVal = shipment.totalGrossWeight || 0;
-    const grossWeightOfBags = (shipment.totalBags || 0) * BAG_WEIGHT_MULTIPLIER;
-    const totalCalculatedWeight = grossWeightVal + grossWeightOfBags;
+// CORRECTED WEIGHT CALCULATION
+const palletDetails = details.filter(detail => {
+  const formatId = detail.formatId?.toLowerCase();
+  return formatId !== 'bag' && formatId !== 'bags';
+});
 
-    console.log(`[PDFService] CMR: Box 11 - Data: grossWeightVal=${grossWeightVal}, grossWeightOfBags=${grossWeightOfBags}, totalCalculatedWeight=${totalCalculatedWeight}`);
-    let weightTextLines = [
-        `Pallets: ${grossWeightVal.toFixed(2)} Kgs`,
-        `Bags: ${grossWeightOfBags.toFixed(2)} Kgs`,
-        ``,
-        `TOTAL: ${totalCalculatedWeight.toFixed(2)} Kgs`
-    ];
-    drawTextBox(weightTextLines, col1X + goodsCol1Width + goodsCol2Width, currentY, goodsCol3Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0], align: 'right'});
-    console.log(`[PDFService] CMR: Drew Box 11 with: ${JSON.stringify(weightTextLines)}`);
+const bagDetails = details.filter(detail => {
+  const formatId = detail.formatId?.toLowerCase();
+  return formatId === 'bag' || formatId === 'bags';
+});
 
-    drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsDataHeight);
-    currentY += goodsDataHeight;
+const palletGrossWeight = palletDetails.reduce((sum, detail) => sum + (detail.grossWeight || 0), 0);
+const bagGrossWeight = bagDetails.reduce((sum, detail) => sum + (detail.grossWeight || 0), 0);
+const totalGrossWeight = palletGrossWeight + bagGrossWeight;
+
+let weightTextLines = [
+    `Pallets: ${palletGrossWeight.toFixed(2)} Kgs`,
+    `Bags: ${bagGrossWeight.toFixed(2)} Kgs`,
+    ``,
+    `TOTAL: ${totalGrossWeight.toFixed(2)} Kgs`
+];
+drawTextBox(weightTextLines, col1X + goodsCol1Width + goodsCol2Width, currentY, goodsCol3Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0], align: 'right'});
+drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsDataHeight);    currentY += goodsDataHeight;
 
     boxHeight = 7;
     drawTextBox("13 Carriage Charges Prix de transport", col1X, currentY, contentWidth, boxHeight, {fontSize: 7});
@@ -607,6 +619,3 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
 };
-
-
-

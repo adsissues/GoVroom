@@ -19,8 +19,8 @@ import {
     ASENDIA_UK_CUSTOMER_ID, // Use this for default customer
     SERVICE_FORMAT_MAPPING,
     DEFAULT_PRIOR_SERVICE_ID,
-    TARE_WEIGHT_DEFAULT,
     BAG_WEIGHT_MULTIPLIER,
+    TARE_WEIGHT_DEFAULT,
     DEFAULT_DOE_ID
 } from '@/lib/constants';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -167,7 +167,7 @@ export default function ShipmentDetailForm({
         const resetValues = {
           numPallets: initialPallets,
           numBags: initialBags,
-          customerId: detail.customerId || ASENDIA_UK_CUSTOMER_ID, // Fallback to Asendia UK for existing
+          customerId: detail.customerId || initialBags > 0 || initialPallets === 0 ? 'KyBDlXiojWzHOAdsI7QR' : ASENDIA_UK_CUSTOMER_ID, // Fallback to Asendia UK for existing, or Asendia UK/BAGS if bags > 0 or pallets === 0
           serviceId: detail.serviceId || DEFAULT_PRIOR_SERVICE_ID,
           formatId: detail.formatId || '',
           tareWeight: initialTareWeight,
@@ -187,7 +187,6 @@ export default function ShipmentDetailForm({
     }
   }, [isOpen, detail, reset, newFormDefaults, isLoadingCustomers, isLoadingServices, isLoadingDoes]);
 
-
   useEffect(() => {
     syncPalletBagRHFValues(showPalletInputMode);
   }, [showPalletInputMode, syncPalletBagRHFValues]);
@@ -199,7 +198,7 @@ export default function ShipmentDetailForm({
     } else {
         if (numBagsWatched > 0) {
             newTareWeight = parseFloat((numBagsWatched * BAG_WEIGHT_MULTIPLIER).toFixed(3));
-        } else {
+        } else { // numBagsWatched === 0
             if (detail && detail.numPallets === 0 && detail.numBags === 0 && typeof detail.tareWeight === 'number') {
                  newTareWeight = detail.tareWeight;
             } else {
@@ -234,7 +233,6 @@ export default function ShipmentDetailForm({
       trigger('formatId');
     }
   }, [watchedFormatId, formState.isSubmitted, formHook.getFieldState, trigger, currentServiceId, formHook]);
-
 
   const handleToggleInputMode = () => {
     setShowPalletInputMode(prev => !prev);
@@ -298,13 +296,14 @@ export default function ShipmentDetailForm({
           </DialogDescription>
         </DialogHeader>
 
-         {dropdownsLoading && isOpen ? (
+        {dropdownsLoading && isOpen ? (
              <div className="space-y-4 p-6">
                  {[...Array(7)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
              </div>
          ) : (
              <Form {...formHook}>
                  <form onSubmit={formHook.handleSubmit(onSubmit)} className="overflow-y-auto">
+                    <>
                     <div className="space-y-6 p-6 max-h-[calc(90vh-180px)] overflow-y-auto">
 
                      <div className="flex justify-end mb-4">
@@ -323,6 +322,7 @@ export default function ShipmentDetailForm({
 
                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6">
                         {showPalletInputMode && (
+                            <>
                             <FormField
                                control={control}
                                name="numPallets"
@@ -338,15 +338,22 @@ export default function ShipmentDetailForm({
                                         if (newPalletValue <= 0 && showPalletInputMode) {
                                             setShowPalletInputMode(false);
                                         }
+                                        if (newPalletValue === 0) {
+                                            setValue('customerId', 'KyBDlXiojWzHOAdsI7QR', { shouldValidate: true }); 
+                                        } else {
+                                            setValue('customerId', ASENDIA_UK_CUSTOMER_ID, { shouldValidate: true }); 
+                                        }
                                      }}
-                                     />
+                                    />
                                   </FormControl>
                                   <FormMessage />
                                </FormItem>
                                )}
                             />
+                            </>
                         )}
                         {!showPalletInputMode && (
+                           <>
                            <FormField
                               control={control}
                               name="numBags"
@@ -362,6 +369,12 @@ export default function ShipmentDetailForm({
                                             if (newBagValue <= 0 && !showPalletInputMode) {
                                                  setShowPalletInputMode(true);
                                             }
+                                            const currentPallets = getValues('numPallets');
+                                            if (currentPallets === 0 || newBagValue > 0) {
+                                                setValue('customerId', 'KyBDlXiojWzHOAdsI7QR', { shouldValidate: true });
+                                            } else {
+                                                setValue('customerId', ASENDIA_UK_CUSTOMER_ID, { shouldValidate: true });
+                                            }
                                         }}
                                        disabled={isSaving} />
                                     </FormControl>
@@ -369,6 +382,7 @@ export default function ShipmentDetailForm({
                                  </FormItem>
                               )}
                            />
+                           </>
                          )}
 
                          <FormField
@@ -595,7 +609,8 @@ export default function ShipmentDetailForm({
                                )}
                             />
                         </div>
-                    </div>
+                    </div> 
+                    </>
 
                       <DialogFooter className="p-6 border-t mt-0 sticky bottom-0 bg-card z-10">
                          <DialogClose asChild>
@@ -617,5 +632,3 @@ export default function ShipmentDetailForm({
     </Dialog>
   );
 }
-
-    
