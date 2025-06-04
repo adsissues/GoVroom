@@ -100,6 +100,7 @@ export const DEFAULT_CONSIGNEE_ADDRESS = "La Poste, Avenue de la Poste, 75000 Pa
 // *** YOU MUST ENSURE THESE VALUES MATCH THE 'value' FIELD IN YOUR /customers COLLECTION ***
 export const PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN = "123456789"; // For "Asendia A/C"
 export const ASENDIA_UK_CUSTOMER_ID = "12345678"; // For "Asendia UK"
+export const ASENDIA_UK_BAGS_CUSTOMER_ID = 'KyBDlXiojWzHOAdsI7QR'; // For "Asendia UK/BAGS"
 export const TRANSIT_LIGHT_CUSTOMER_ID = "1234"; // For "Transit Light"
 
 
