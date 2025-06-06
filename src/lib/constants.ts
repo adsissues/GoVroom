@@ -98,10 +98,11 @@ export const DEFAULT_CONSIGNEE_ADDRESS = "La Poste, Avenue de la Poste, 75000 Pa
 
 // Customer IDs for specific dashboard breakdowns
 // *** YOU MUST ENSURE THESE VALUES MATCH THE 'value' FIELD IN YOUR /customers COLLECTION ***
-export const PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN = "123456789"; // For "Asendia A/C"
-export const ASENDIA_UK_CUSTOMER_ID = "12345678"; // For "Asendia UK"
-export const ASENDIA_UK_BAGS_CUSTOMER_ID = 'KyBDlXiojWzHOAdsI7QR'; // For "Asendia UK/BAGS"
-export const TRANSIT_LIGHT_CUSTOMER_ID = "1234"; // For "Transit Light"
+// Values updated as per user request for dashboard calculation fix.
+export const PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN = 'asendia-ac';      // For "Asendia A/C"
+export const ASENDIA_UK_CUSTOMER_ID = 'asendia-uk';                                    // For "Asendia UK"
+export const ASENDIA_UK_BAGS_CUSTOMER_ID = 'asendia-uk-bags';                          // For "Asendia UK/BAGS"
+export const TRANSIT_LIGHT_CUSTOMER_ID = 'transit-light';                              // For "Transit Light"
 
 
 // Constants for calculations (used in Details Form & Shipment Calculations features)
