@@ -28,7 +28,8 @@ import type { Shipment, ShipmentDetail, ShipmentStatus, DropdownItem } from '@/l
 import { 
     PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN,
     ASENDIA_UK_CUSTOMER_ID,
-    TRANSIT_LIGHT_CUSTOMER_ID
+    TRANSIT_LIGHT_CUSTOMER_ID,
+    ASENDIA_UK_BAGS_CUSTOMER_ID,
 } from '@/lib/constants';
 
 // --- Helper Functions ---
@@ -339,10 +340,7 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
       let overallTotalGrossWeight = 0;
       let overallTotalTareWeight = 0;
       let overallTotalNetWeight = 0;
-
       let specificAsendiaACNetWeight = 0;
-      let specificAsendiaUKNetWeight = 0;
-      let specificTransitLightNetWeight = 0;
       let remainingCustomersAggregateNetWeight = 0;
 
       details.forEach((detail, index) => {
@@ -355,29 +353,20 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
         totalPallets += detail.numPallets || 0;
         totalBags += detail.numBags || 0;
         overallTotalGrossWeight += (detail.grossWeight || 0);
-        overallTotalTareWeight += (detail.tareWeight || 0);
+ overallTotalTareWeight += (detail.tareWeight || 0);
         overallTotalNetWeight += itemNetWeight;
 
+        // Aggregate net weight based on customer ID
         if (detail.customerId === PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN) {
           console.log(`[ShipmentService DEBUG]   ^-- Item MATCHED PRIMARY_ASENDIA_CUSTOMER_ID ("${PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN}"). Adding its Net Wt: ${itemNetWeight.toFixed(3)} to Asendia A/C totals.`);
           specificAsendiaACNetWeight += itemNetWeight;
-        } else if (detail.customerId === ASENDIA_UK_CUSTOMER_ID) {
-          console.log(`[ShipmentService DEBUG]   ^-- Item MATCHED ASENDIA_UK_CUSTOMER_ID ("${ASENDIA_UK_CUSTOMER_ID}"). Adding its Net Wt: ${itemNetWeight.toFixed(3)} to Asendia UK totals.`);
-          specificAsendiaUKNetWeight += itemNetWeight;
-        } else if (detail.customerId === TRANSIT_LIGHT_CUSTOMER_ID) {
-          console.log(`[ShipmentService DEBUG]   ^-- Item MATCHED TRANSIT_LIGHT_CUSTOMER_ID ("${TRANSIT_LIGHT_CUSTOMER_ID}"). Adding its Net Wt: ${itemNetWeight.toFixed(3)} to Transit Light totals.`);
-          specificTransitLightNetWeight += itemNetWeight;
         } else {
-          console.log(`[ShipmentService DEBUG]   ^-- Item DID NOT MATCH specific customer IDs (IDs checked: "${PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN}", "${ASENDIA_UK_CUSTOMER_ID}", "${TRANSIT_LIGHT_CUSTOMER_ID}"). Adding its Net Wt: ${itemNetWeight.toFixed(3)} to remaining customers totals.`);
+          // All other customer IDs (including ASENDIA_UK, Transit Light, ASENDIA UK/BAGS, and any others) go into remainingCustomersAggregateNetWeight
+          console.log(`[ShipmentService DEBUG]   ^-- Item DID NOT MATCH PRIMARY_ASENDIA_CUSTOMER_ID ("${PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN}"). Adding its Net Wt: ${itemNetWeight.toFixed(3)} to remaining customers totals.`);
           remainingCustomersAggregateNetWeight += itemNetWeight;
         }
       });
 
-      console.log(`[ShipmentService DEBUG] Calculated FINAL Component Totals - 
-        Asendia A/C Net: ${specificAsendiaACNetWeight.toFixed(3)}, 
-        Asendia UK Net: ${specificAsendiaUKNetWeight.toFixed(3)}, 
-        Transit Light Net: ${specificTransitLightNetWeight.toFixed(3)}, 
-        Remaining Cust. Net: ${remainingCustomersAggregateNetWeight.toFixed(3)}`);
       console.log(`[ShipmentService DEBUG] Calculated FINAL Overall Totals - Total Net: ${overallTotalNetWeight.toFixed(3)}, Total Gross: ${overallTotalGrossWeight.toFixed(3)}, Total Tare: ${overallTotalTareWeight.toFixed(3)}`);
 
       const updates = {
@@ -388,8 +377,7 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
         totalNetWeight: parseFloat(overallTotalNetWeight.toFixed(3)),
         
         asendiaACNetWeight: parseFloat(specificAsendiaACNetWeight.toFixed(3)),
-        asendiaUKNetWeight: parseFloat(specificAsendiaUKNetWeight.toFixed(3)),
-        transitLightNetWeight: parseFloat(specificTransitLightNetWeight.toFixed(3)),
+        // All other customer net weights are aggregated into remainingCustomersNetWeight
         remainingCustomersNetWeight: parseFloat(remainingCustomersAggregateNetWeight.toFixed(3)),
         
         lastUpdated: serverTimestamp(),

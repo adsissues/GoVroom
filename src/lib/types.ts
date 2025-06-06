@@ -42,6 +42,7 @@ export interface Shipment {
     preAlert?: string;
     cmr?: string;
   };
+  details?: ShipmentDetail[]; // Optional: Include details when fetched with shipment
   scannedDocuments?: string[]; // Placeholder for mobile camera upload
 }
 

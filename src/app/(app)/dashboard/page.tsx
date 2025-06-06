@@ -168,13 +168,6 @@ export default function DashboardPage() {
     
     const itemsToShow = showAll ? shipments : shipments.slice(0, 2); 
 
-    // Calculate "Other" net weight for display purposes within each card
-    const calculateOtherNetWeight = (shipment: Shipment) => {
-      return (shipment.asendiaUKNetWeight || 0) + 
-             (shipment.transitLightNetWeight || 0) + 
-             (shipment.remainingCustomersNetWeight || 0);
-    };
-
     return (
       <>
         {itemsToShow.length === 0 && shipments.length === 0 ? ( 
@@ -184,7 +177,9 @@ export default function DashboardPage() {
         ) : (
           <ul className="space-y-3">
             {itemsToShow.map((shipment) => {
-              const shipmentOtherNetWeight = calculateOtherNetWeight(shipment);
+              // Use pre-calculated net weights directly from the shipment object
+              const shipmentOtherNetWeight = shipment.remainingCustomersNetWeight || 0;
+              const shipmentAsendiaACNetWeight = shipment.asendiaACNetWeight || 0;
               return (
                 <li key={shipment.id}>
                   <Link href={`/shipments/${shipment.id}`}>
@@ -207,12 +202,12 @@ export default function DashboardPage() {
                         {/* Net weight breakdown per shipment card */}
                         <div className="mt-2 pt-2 border-t border-muted/50 text-xs space-y-1">
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground flex items-center"><ShoppingCart className="mr-1.5 h-3.5 w-3.5 text-primary/70" /> Asendia A/C Net:</span>
-                            <span className="font-medium">{(shipment.asendiaACNetWeight || 0).toFixed(2)} kg</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground flex items-center"><Users className="mr-1.5 h-3.5 w-3.5 text-slate-500/70" /> Other Net:</span>
+                            <span className="text-muted-foreground flex items-center"><ShoppingCart className="mr-1.5 h-3.5 w-3.5 text-primary/70" /> Other Net Weight:</span>
                             <span className="font-medium">{shipmentOtherNetWeight.toFixed(2)} kg</span>
+                          </div>
+                           <div className="flex justify-between">
+                            <span className="text-muted-foreground flex items-center"><ShoppingCart className="mr-1.5 h-3.5 w-3.5 text-primary/70" /> Asendia A/C Net:</span>
+                            <span className="font-medium">{shipmentAsendiaACNetWeight.toFixed(2)} kg</span>
                           </div>
                         </div>
                       </CardContent>
