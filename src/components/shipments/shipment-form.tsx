@@ -35,23 +35,29 @@ const shipmentFormSchema = z.object({
   departureDate: z.date({
     required_error: "Departure date is required.",
     invalid_type_error: "Invalid date format.",
-   }),
+  }),
   arrivalDate: z.date({
     required_error: "Arrival date is required.",
     invalid_type_error: "Invalid date format.",
-   }),
+  }).nullable(), // Allow null initially before date selection
   status: z.enum(['Pending', 'Completed'], { required_error: "Status is required." }).default('Pending'),
-  sealNumber: z.string().optional().default(''),
-  truckRegistration: z.string().optional().default(''),
-  trailerRegistration: z.string().optional().default(''),
+  sealNumber: z.string().min(1, "Seal number is required.").default(''),
+  truckRegistration: z.string().min(1, "Truck registration is required.").default(''),
+  trailerRegistration: z.string().min(1, "Trailer registration is required.").default(''),
   senderAddress: z.string().optional().default(FALLBACK_SENDER_ADDRESS),
   consigneeAddress: z.string().optional().default(FALLBACK_CONSIGNEE_ADDRESS),
 }).refine(data => data.arrivalDate >= data.departureDate, {
-    message: "Arrival date cannot be before departure date.",
-    path: ["arrivalDate"],
+  message: "Arrival date cannot be before departure date.",
 });
 
-type ShipmentFormValues = z.infer<typeof shipmentFormSchema>;
+// Define a partial schema for validation during editing if needed,
+// making truckRegistration and trailerRegistration optional.
+// The sealNumber remains required based on the full schema.
+const partialShipmentFormSchema = z.object({}).partial({
+  truckRegistration: true,
+  trailerRegistration: true,
+})
+type ShipmentFormValues = z.infer<typeof shipmentFormSchema>
 
 interface ShipmentFormProps {
   isAdmin: boolean;
@@ -83,7 +89,7 @@ export default function ShipmentForm({
   const [isLoadingAppSettings, setIsLoadingAppSettings] = useState(true);
 
 
-  const isEffectivelyEditing = initialData ? isEditingProp ?? false : true;
+  const isEffectivelyEditing = initialData ? isEditingProp ?? false : true; // True if creating new or explicitly editing
 
   const { data: carrierOptions, isLoading: isLoadingCarriers, error: errorCarriers } = useQuery({
       queryKey: ['carriers'],
@@ -118,7 +124,7 @@ export default function ShipmentForm({
 
 
   const formHook = useForm<ShipmentFormValues>({
-    resolver: zodResolver(shipmentFormSchema),
+    resolver: zodResolver(shipmentFormSchema), // Use the main schema for validation
     // Default values will be set/reset by the useEffect below
     defaultValues: { // Provide initial structure for defaultValues
         carrierId: '',
@@ -146,8 +152,8 @@ export default function ShipmentForm({
             subcarrierId: initialData.subcarrierId ?? '',
             driverName: initialData.driverName ?? '',
             departureDate: initialData.departureDate?.toDate() ?? new Date(),
-            arrivalDate: initialData.arrivalDate?.toDate() ?? new Date(Date.now() + 24 * 60 * 60 * 1000),
-            status: initialData.status ?? 'Pending',
+            arrivalDate: initialData.arrivalDate?.toDate() ?? null, // Initialize with null if no initial data date
+            status: initialData.status || 'Pending', // Default to Pending if status is somehow missing
             sealNumber: initialData.sealNumber ?? '',
             truckRegistration: initialData.truckRegistration ?? '',
             trailerRegistration: initialData.trailerRegistration ?? '',
@@ -160,7 +166,7 @@ export default function ShipmentForm({
             subcarrierId: '',
             driverName: '',
             departureDate: new Date(),
-            arrivalDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            arrivalDate: null, // Initialize new form with null arrival date
             status: 'Pending',
             sealNumber: '',
             truckRegistration: '',
@@ -176,11 +182,11 @@ export default function ShipmentForm({
     try {
         const shipmentDataToSave: Partial<Shipment> = {
              ...data,
-             departureDate: Timestamp.fromDate(data.departureDate),
-             arrivalDate: Timestamp.fromDate(data.arrivalDate),
-             subcarrierId: data.subcarrierId || undefined, // Ensure empty string becomes undefined
-             sealNumber: data.sealNumber || undefined,
-             truckRegistration: data.truckRegistration || undefined,
+             departureDate: Timestamp.fromDate(new Date(data.departureDate)),
+             // Ensure arrivalDate is only set if it's not null (required by schema now, but nullable initial state)
+             arrivalDate: data.arrivalDate ? Timestamp.fromDate(new Date(data.arrivalDate)) : null,
+             sealNumber: data.sealNumber, // Seal number is required now
+             truckRegistration: data.truckRegistration, // Truck registration is required now
              trailerRegistration: data.trailerRegistration || undefined,
              senderAddress: data.senderAddress || undefined,
              consigneeAddress: data.consigneeAddress || undefined,
@@ -401,7 +407,7 @@ export default function ShipmentForm({
             name="sealNumber"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Seal Number (Optional)</FormLabel>
+                <FormLabel>Seal Number</FormLabel>
                 <FormControl>
                   <Input placeholder="Enter seal number" {...field} value={field.value || ''} disabled={formDisabled} />
                 </FormControl>
@@ -415,7 +421,7 @@ export default function ShipmentForm({
             name="truckRegistration"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Truck Reg # (Optional)</FormLabel>
+                <FormLabel>Truck Reg #</FormLabel>
                 <FormControl>
                   <Input placeholder="Enter truck registration" {...field} value={field.value || ''} disabled={formDisabled} />
                 </FormControl>
@@ -429,7 +435,7 @@ export default function ShipmentForm({
             name="trailerRegistration"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Trailer Reg # (Optional)</FormLabel>
+                <FormLabel>Trailer Reg #</FormLabel>
                 <FormControl>
                   <Input placeholder="Enter trailer registration" {...field} value={field.value || ''} disabled={formDisabled} />
                 </FormControl>
