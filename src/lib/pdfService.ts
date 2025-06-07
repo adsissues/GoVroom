@@ -553,15 +553,9 @@ drawTextBox(goodsDescTextLines, col1X, currentY, goodsCol1Width, goodsDataHeight
 drawTextBox("", col1X + goodsCol1Width, currentY, goodsCol2Width, goodsDataHeight);
 
 // CORRECTED WEIGHT CALCULATION
-const palletDetails = details.filter(detail => {
-  const formatId = detail.formatId?.toLowerCase();
-  return formatId !== 'bag' && formatId !== 'bags';
-});
+const palletDetails = details.filter(detail => detail.numPallets > 0);
 
-const bagDetails = details.filter(detail => {
-  const formatId = detail.formatId?.toLowerCase();
-  return formatId === 'bag' || formatId === 'bags';
-});
+const bagDetails = details.filter(detail => detail.numBags > 0);
 
 const palletGrossWeight = palletDetails.reduce((sum, detail) => sum + (detail.grossWeight || 0), 0);
 const bagGrossWeight = bagDetails.reduce((sum, detail) => sum + (detail.grossWeight || 0), 0);

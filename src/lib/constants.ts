@@ -1,32 +1,30 @@
-
 import type { SelectOption } from './types';
 import {
   LayoutDashboard,
   Settings,
-  PackageSearch, // For App Logo
-  Truck, // Placeholder for Shipments Nav Item
-  List, // Placeholder for Dropdown Management
-  Users, // Placeholder for Customers
-  Wrench, // Placeholder for Services
-  Boxes, // Placeholder for Formats
-  CalendarDays, // Placeholder for DOE
-  AlertTriangle, // For dashboard stats & pending shipments
-  CheckCircle2, // For dashboard stats & completed shipments
-  Weight, // For dashboard stats
-  PlusCircle, // For Add New Shipment
-  FileText, // For Audit Logs / PDF
-  Bell, // For Notifications
-  Camera, // For Mobile Camera
-  Database, // For Offline Mode
-  CloudUpload, // For CSV Import/Export
-  UserCog, // For User Management (Admin) & App Settings
-  Sheet, // For CSV Import/Export icon
-  Users2, // Icon for User Management
-  ListChecks, // Icon for Dropdown Management in AppHeader
-  Menu // Icon for main navigation menu
+  PackageSearch,
+  Truck,
+  List,
+  Users,
+  Wrench,
+  Boxes,
+  CalendarDays,
+  AlertTriangle,
+  CheckCircle2,
+  Weight,
+  PlusCircle,
+  FileText,
+  Bell,
+  Camera,
+  Database,
+  CloudUpload,
+  UserCog,
+  Sheet,
+  Users2,
+  ListChecks,
+  Menu
 } from 'lucide-react';
-import type React from 'react'; // Import React for type React.ElementType
-
+import type React from 'react';
 
 export const APP_NAME = "GoVroom";
 
@@ -45,20 +43,19 @@ export const HEADER_NAV_ITEMS: NavMenuItem[] = [
 ];
 
 export const ADMIN_NAV_ITEMS: NavMenuItem[] = [
-  // { title: 'Admin Dashboard', href: '/admin', icon: Settings, adminOnly: true },
   { title: 'Manage Dropdowns', href: '/admin/dropdowns', icon: ListChecks, adminOnly: true },
   { title: 'App Settings', href: '/admin/settings', icon: UserCog, adminOnly: true },
   { title: 'User Management', href: '/admin/users', icon: Users2, adminOnly: true },
 ];
 
-
 // Constants for Dropdown Management (used in Admin UI and Forms)
 export interface DropdownCollectionConfig {
-  id: string; // Firestore collection name
-  name: string; // User-friendly name
+  id: string;
+  name: string;
   description: string;
-  icon: React.ElementType; // Icon for the admin UI
+  icon: React.ElementType;
 }
+
 export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
   { id: 'carriers', name: 'Carriers', description: 'Manage transport carriers', icon: Truck },
   { id: 'subcarriers', name: 'Subcarriers', description: 'Manage specific sub-carrier services', icon: Truck },
@@ -76,49 +73,53 @@ export const MANAGED_DROPDOWN_COLLECTIONS: DropdownCollectionConfig[] = [
  * from your '/services' Firestore collection.
  */
 export const SERVICE_FORMAT_MAPPING: { [serviceValueKey: string]: string | null } = {
-  // For "Prior" service
   'e': 'formats_prior',
   'prior': 'formats_prior',
   'priority': 'formats_prior',
-
-  // For "Economy" service
   'c': 'formats_eco',
   'eco': 'formats_eco',
   'economy': 'formats_eco',
-
-  // For "S3C" service
   's': 'formats_s3c',
   's3c': 'formats_s3c',
 };
-
 
 // Default addresses (will be part of Admin Settings feature)
 export const DEFAULT_SENDER_ADDRESS = "Asendia UK, Unit 5, The Hub, Solent Business Park, Fareham, PO15 7FH";
 export const DEFAULT_CONSIGNEE_ADDRESS = "La Poste, Avenue de la Poste, 75000 Paris, France";
 
 // Customer IDs for specific dashboard breakdowns
-// *** YOU MUST ENSURE THESE VALUES MATCH THE 'value' FIELD IN YOUR /customers COLLECTION ***
-// Values updated as per user request for dashboard calculation fix.
-export const PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN = 'asendia-ac';      // For "Asendia A/C"
-export const ASENDIA_UK_CUSTOMER_ID = 'asendia-uk';                                    // For "Asendia UK"
-export const ASENDIA_UK_BAGS_CUSTOMER_ID = 'asendia-uk-bags';                          // For "Asendia UK/BAGS"
-export const TRANSIT_LIGHT_CUSTOMER_ID = 'transit-light';                              // For "Transit Light"
+// These values must match the 'value' field in your Firestore /customers collection
+export const PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN = '2'; // Asendia A/C
+export const ASENDIA_UK_CUSTOMER_ID = '3';                              // Asendia UK
+export const ASENDIA_UK_BAGS_CUSTOMER_ID = '4';                         // Asendia UK/BAGS
+export const TRANSIT_LIGHT_CUSTOMER_ID = '5';                           // Transit Light
 
-
-// Constants for calculations (used in Details Form & Shipment Calculations features)
-export const TARE_WEIGHT_DEFAULT = 25.7; // Default tare weight if no bags
-export const BAG_WEIGHT_MULTIPLIER = 0.11; // Weight per bag in kg
+// Constants for calculations
+export const TARE_WEIGHT_DEFAULT = 25.7;
+export const BAG_WEIGHT_MULTIPLIER = 0.11;
 
 // For dashboard summary cards
-export const DASHBOARD_STATS_MAP: { [key: string]: { title: string; icon: React.ElementType; unit?: string; bgColorClass: string; textColorClass: string, isUnavailable?: boolean } } = {
-  lastUpdateTimestamp: { title: "Last Updated", icon: CalendarDays, unit: "", bgColorClass: "bg-gray-100", textColorClass: "text-gray-600" },
+export const DASHBOARD_STATS_MAP: {
+  [key: string]: {
+    title: string;
+    icon: React.ElementType;
+    unit?: string;
+    bgColorClass: string;
+    textColorClass: string;
+    isUnavailable?: boolean;
+  };
+} = {
+  lastUpdateTimestamp: {
+    title: "Last Updated",
+    icon: CalendarDays,
+    unit: "",
+    bgColorClass: "bg-gray-100",
+    textColorClass: "text-gray-600",
+  },
 };
 
-// Default "Prior" service VALUE (Internal ID) for ShipmentDetailForm
-// This value MUST EXACTLY match the 'value' field of your "Prior" service document in Firestore.
-export const DEFAULT_PRIOR_SERVICE_ID = "E"; // You confirmed "Prior" service has value "E"
+// Default values for dropdowns
+export const DEFAULT_PRIOR_SERVICE_ID = "E";  // Must match 'value' in /services
+export const DEFAULT_DOE_ID = "UZ1";          // Must match 'value' in /doe
 
-// Default "DOE" (Date of Entry) VALUE (Internal ID) for ShipmentDetailForm
-// This value MUST EXACTLY match the 'value' field of your default DOE document in Firestore.
-export const DEFAULT_DOE_ID = "UZ1"; // You confirmed default DOE is "UZ1"
 

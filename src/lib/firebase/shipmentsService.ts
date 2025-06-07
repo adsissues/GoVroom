@@ -22,7 +22,7 @@ import {
   type DocumentSnapshot,
   collectionGroup,
   runTransaction,
-  getCountFromServer,
+ getCountFromServer
 } from 'firebase/firestore';
 import type { Shipment, ShipmentDetail, ShipmentStatus, DropdownItem } from '@/lib/types';
 import { 
@@ -342,11 +342,11 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
       let overallTotalNetWeight = 0;
       let specificAsendiaACNetWeight = 0;
       let remainingCustomersAggregateNetWeight = 0;
-
+      
       details.forEach((detail, index) => {
         const itemNetWeight = detail.netWeight !== undefined ? detail.netWeight : 0;
-        // const itemGrossWeight = detail.grossWeight !== undefined ? detail.grossWeight : 0;
-        // const itemTareWeight = detail.tareWeight !== undefined ? detail.tareWeight : 0;
+        const itemGrossWeight = detail.grossWeight !== undefined ? detail.grossWeight : 0;
+        const itemTareWeight = detail.tareWeight !== undefined ? detail.tareWeight : 0;
 
         console.log(`[ShipmentService DEBUG] Detail item ${index + 1} (ID: ${detail.id}): Customer ID: "${detail.customerId}", Net Wt: ${itemNetWeight.toFixed(3)}`);
         
@@ -358,13 +358,13 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
 
         // Aggregate net weight based on customer ID
         if (detail.customerId === PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN) {
-          console.log(`[ShipmentService DEBUG]   ^-- Item MATCHED PRIMARY_ASENDIA_CUSTOMER_ID ("${PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN}"). Adding its Net Wt: ${itemNetWeight.toFixed(3)} to Asendia A/C totals.`);
+ console.log(`[ShipmentService DEBUG]   ^-- Item MATCHED PRIMARY_ASENDIA_CUSTOMER_ID ("${PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN}"). Adding its Net Wt: ${itemNetWeight.toFixed(3)} to Asendia A/C totals.`);
           specificAsendiaACNetWeight += itemNetWeight;
         } else {
           // All other customer IDs (including ASENDIA_UK, Transit Light, ASENDIA UK/BAGS, and any others) go into remainingCustomersAggregateNetWeight
           console.log(`[ShipmentService DEBUG]   ^-- Item DID NOT MATCH PRIMARY_ASENDIA_CUSTOMER_ID ("${PRIMARY_ASENDIA_CUSTOMER_ID_FOR_DASHBOARD_BREAKDOWN}"). Adding its Net Wt: ${itemNetWeight.toFixed(3)} to remaining customers totals.`);
           remainingCustomersAggregateNetWeight += itemNetWeight;
-        }
+ }
       });
 
       console.log(`[ShipmentService DEBUG] Calculated FINAL Overall Totals - Total Net: ${overallTotalNetWeight.toFixed(3)}, Total Gross: ${overallTotalGrossWeight.toFixed(3)}, Total Tare: ${overallTotalTareWeight.toFixed(3)}`);
