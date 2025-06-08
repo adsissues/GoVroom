@@ -35,12 +35,14 @@ const detailFormSchema = z.object({
   customerId: z.string().min(1, "Customer is required."),
   serviceId: z.string().min(1, "Service is required."),
   formatId: z.string().optional().default(''),
-  tareWeight: z.coerce.number().min(0, "Tare weight cannot be negative."),
-  grossWeight: z.coerce.number({invalid_type_error: "Gross weight must be a valid number."}).min(0, "Gross weight cannot be negative.").default(0),
-  dispatchNumber: z.string().optional().refine(val => val === undefined || val === '' || /^[0-9]+$/.test(val), {
-    message: "Dispatch Number must contain only digits.",
-  }).default(''),
-  doeId: z.string().optional().default(''),
+  tareWeight: z.coerce.number({invalid_type_error: "Tare weight must be a valid number."}).min(0.001, "Tare weight must be a positive number."), // Tare weight must be positive
+ grossWeight: z.coerce.number({invalid_type_error: "Gross weight must be a valid number."}).min(0.001, "Gross weight must be a positive number."), // Gross weight must be positive
+  dispatchNumber: z.string().min(1, "Dispatch Number is required.")
+  .refine(val => val === undefined || val === '' || /^[0-9]+$/.test(val), { // Keep digit-only validation
+ message: "Dispatch Number must contain only digits.",
+  }),
+ doeId: z.string().min(1, "DOE is required."), // Make DOE required
+
 }).refine(data => {
     const serviceKey = data.serviceId ? data.serviceId.toLowerCase() : '';
     const serviceRequiresFormat = serviceKey ? !!SERVICE_FORMAT_MAPPING[serviceKey] : false;
@@ -97,7 +99,7 @@ export default function ShipmentDetailForm({
     serviceId: DEFAULT_PRIOR_SERVICE_ID,
     formatId: '',
     tareWeight: TARE_WEIGHT_DEFAULT,
-    grossWeight: 0,
+    grossWeight: undefined, // Remove default to force user input
     dispatchNumber: '',
     doeId: DEFAULT_DOE_ID,
   }), []);
@@ -171,7 +173,7 @@ export default function ShipmentDetailForm({
           serviceId: detail.serviceId || DEFAULT_PRIOR_SERVICE_ID,
           formatId: detail.formatId || '',
           tareWeight: initialTareWeight,
-          grossWeight: detail.grossWeight ?? 0,
+ grossWeight: detail.grossWeight, // Use existing value or undefined
           dispatchNumber: detail.dispatchNumber || '',
           doeId: detail.doeId || DEFAULT_DOE_ID,
         };
@@ -518,13 +520,8 @@ export default function ShipmentDetailForm({
                                         step="0.001"
                                         placeholder="Enter gross weight"
                                         {...field}
-                                        value={
-                                          (field.value === 0 && !formHook.getFieldState(field.name).isTouched && !detail)
-                                            ? "" 
-                                            : (field.value ?? "") 
-                                        }
                                         onChange={(e) => {
-                                          const val = e.target.value;
+                                          const val = e.target.value.replace(',', '.'); // Handle comma input
                                           field.onChange(val === "" ? "" : parseFloat(val) || 0);
                                         }}
                                         onBlur={(e) => { 
