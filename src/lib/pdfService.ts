@@ -309,9 +309,13 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
       else if (serviceKey === 'c' || serviceKey === 'eco' || serviceKey === 'economy') { formatEco = formatLabel; }
       else if (serviceKey === 's' || serviceKey === 's3c') { formatS3C = formatLabel; }
 
+      // Replace empty format strings with a dash
+      formatPrio = formatPrio === '' ? '-' : formatPrio;
+      formatEco = formatEco === '' ? '-' : formatEco;
+      formatS3C = formatS3C === '' ? '-' : formatS3C;
+
       return [
         customerLabel,
-        detail.dispatchNumber || 'N/A',
         doeLabel,
         formatPrio,
         formatEco,
