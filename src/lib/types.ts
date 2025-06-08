@@ -37,6 +37,8 @@ export interface Shipment {
   asendiaACGrossWeight?: number;
   asendiaACTareWeight?: number;
 
+  otherNetWeight?: number;
+  asendiaACNet?: number;
 
   pdfUrls?: { // Placeholder for PDF generation feature
     preAlert?: string;

@@ -206,7 +206,7 @@ export default function ShipmentForm({
   };
 
   const dropdownsLoading = isLoadingCarriers || isLoadingSubcarriers || isLoadingAppSettings;
-  const formDisabled = !isEffectivelyEditing || isSubmitting || dropdownsLoading || (initialData?.status === 'Completed' && !isAdmin);
+  const formDisabled = !isEffectivelyEditing || isSubmitting || dropdownsLoading;
 
   return (
     <Form {...formHook}>
@@ -312,7 +312,7 @@ export default function ShipmentForm({
                                 id="status-switch"
                                 checked={field.value === 'Completed'}
                                 onCheckedChange={(checked) => field.onChange(checked ? 'Completed' : 'Pending')}
-                                disabled={formDisabled || (initialData?.status === 'Completed' && !isAdmin)}
+                                disabled={formDisabled}
                                 aria-readonly={formDisabled || (initialData?.status === 'Completed' && !isAdmin)}
                             />
                         </FormControl>
@@ -491,14 +491,9 @@ export default function ShipmentForm({
             </div>
          )}
 
-         {!isEffectivelyEditing && !formDisabled && initialData?.status !== 'Completed' && (
+         {!isEffectivelyEditing && !formDisabled && (
              <p className="text-sm text-muted-foreground text-center pt-4 italic">
                  Click the 'Edit' button to make changes to the main shipment details.
-             </p>
-         )}
-          {initialData?.status === 'Completed' && !isAdmin && (
-             <p className="text-sm text-destructive text-center pt-4">
-                 This shipment is completed. Main details cannot be edited by users.
              </p>
          )}
       </form>

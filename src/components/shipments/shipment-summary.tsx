@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import type { Timestamp } from 'firebase/firestore';
 import { useQuery } from '@tanstack/react-query';
-import { getDropdownOptionsMap } from '@/lib/firebase/dropdownService';
+import { getDropdownOptionsMap } from '@/lib/firebase/dropdownService'; // Using a local alias for this file
+import { Truck } from 'lucide-react';
 import { Skeleton } from '../ui/skeleton';
 
 interface ShipmentSummaryProps {
@@ -56,10 +57,14 @@ export default function ShipmentSummary({ shipment }: ShipmentSummaryProps) {
         <p><span className="font-semibold">Driver:</span> {shipment.driverName || 'N/A'}</p>
         <p><span className="font-semibold">Departure:</span> {formatDateForSummary(shipment.departureDate)}</p>
         <p><span className="font-semibold">Arrival:</span> {formatDateForSummary(shipment.arrivalDate)}</p>
-        {shipment.sealNumber && <p><span className="font-semibold">Seal #:</span> {shipment.sealNumber}</p>}
-        {shipment.truckRegistration && <p><span className="font-semibold">Truck Reg:</span> {shipment.truckRegistration}</p>}
-        {shipment.trailerRegistration && <p><span className="font-semibold">Trailer Reg:</span> {shipment.trailerRegistration}</p>}
+        {shipment.otherNetWeight !== undefined && shipment.otherNetWeight !== null && (
+ <p><span className="font-semibold"><Truck className="inline w-4 h-4 mr-1" />Other Net Weight:</span> {shipment.otherNetWeight} kg</p>
+ )}
+        {shipment.asendiaACNet !== undefined && shipment.asendiaACNet !== null && (
+ <p><span className="font-semibold"><Truck className="inline w-4 h-4 mr-1" />Asendia A/C Net:</span> {shipment.asendiaACNet} kg</p>
+ )}
       </div>
     </div>
   );
 }
+

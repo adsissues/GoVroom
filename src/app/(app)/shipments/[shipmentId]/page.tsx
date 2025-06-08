@@ -42,7 +42,7 @@ export default function ShipmentDetailPage() {
   const previousShipmentStatusRef = useRef<ShipmentStatus | undefined | 'processing_pdf'>(undefined);
 
   const isAdmin = currentUser?.role === 'admin';
-  const canEditForm = isEditing && isShowingFullDetails && (shipment?.status === 'Pending' || isAdmin);
+  const canEditForm = isEditing && isShowingFullDetails && isAdmin;
 
   const fetchShipment = useCallback(async (showLoadingIndicator = true) => {
     console.log(`[ShipmentDetailPage] fetchShipment called for ID: ${shipmentId}, showLoading: ${showLoadingIndicator}`);
@@ -283,7 +283,7 @@ export default function ShipmentDetailPage() {
               {isShowingFullDetails ? 'Hide Main Details' : 'View Main Details'}
             </Button>
             { (shipment.status === 'Pending' || isAdmin) && ( // Edit button logic
-              <Button 
+              <Button
                 onClick={handleEditMainInfo} 
                 variant="default" 
                 size="sm" 
