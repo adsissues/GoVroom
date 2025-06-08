@@ -33,6 +33,7 @@ export const getUserDocument = async (uid: string): Promise<User | null> => {
         email: data.email || null,
         role: role,
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt : undefined,
+        displayName: typeof data.displayName === 'string' ? data.displayName : null, // Include displayName
         lastLogin: data.lastLogin instanceof Timestamp ? data.lastLogin : undefined,
       };
       console.log(`[users.ts] getUserDocument: Successfully processed document for UID ${uid}. Determined role: "${role}". Returning user object:`, JSON.parse(JSON.stringify(resolvedUser)));
@@ -55,7 +56,7 @@ export const getUserDocument = async (uid: string): Promise<User | null> => {
  * @param email The user's email address.
  * @param role The user's role (defaults to 'user').
  */
-export const createUserDocument = async (uid: string, email: string | null, role: UserRole = 'user'): Promise<void> => {
+export const createUserDocument = async (uid: string, email: string | null, role: UserRole = 'user', displayName?: string | null): Promise<void> => {
    if (!uid) {
        console.error("[users.ts] createUserDocument called with no UID.");
        throw new Error("User UID is required to create a document.");

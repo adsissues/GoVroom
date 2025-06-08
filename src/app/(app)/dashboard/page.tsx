@@ -234,7 +234,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 md:space-y-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-             <h1 className="text-2xl md:text-3xl font-bold">Welcome, {currentUser?.email || 'User'}!</h1>
+             <h1 className="text-2xl md:text-3xl font-bold">Welcome, {currentUser?.displayName || 'there'}!</h1>
              {/* Only "Last Updated" card remains from the original stat cards */}
              {DASHBOARD_STATS_MAP.lastUpdateTimestamp && ( 
                  <StatCard

@@ -79,6 +79,7 @@ export type UserRole = 'admin' | 'user';
 export interface User {
   uid: string;
   email: string | null;
+  displayName?: string | null;
   role: UserRole; // Ensure role is always set
   createdAt?: Timestamp; // Optional: track user creation
   lastLogin?: Timestamp; // Optional: track last login
