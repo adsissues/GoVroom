@@ -408,9 +408,9 @@ export default function ShipmentForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Seal Number</FormLabel>
-                <FormControl>
-                  <Input placeholder="Enter seal number" {...field} value={field.value || ''} disabled={formDisabled} />
-                </FormControl>
+               <FormControl>
+                 <Input placeholder="Enter seal number" {...field} value={field.value || ''} onChange={(e) => field.onChange(e.target.value.toUpperCase())} disabled={formDisabled} />
+               </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -422,9 +422,12 @@ export default function ShipmentForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Truck Reg #</FormLabel>
-                <FormControl>
-                  <Input placeholder="Enter truck registration" {...field} value={field.value || ''} disabled={formDisabled} />
-                </FormControl>
+                 <FormControl>
+                  <Input placeholder="Enter truck registration" {...field} value={field.value || ''}
+                   onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                   disabled={formDisabled}
+                  />
+                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -437,7 +440,10 @@ export default function ShipmentForm({
               <FormItem>
                 <FormLabel>Trailer Reg #</FormLabel>
                 <FormControl>
-                  <Input placeholder="Enter trailer registration" {...field} value={field.value || ''} disabled={formDisabled} />
+                 <Input placeholder="Enter trailer registration" {...field} value={field.value || ''}
+                 onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                 disabled={formDisabled}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
