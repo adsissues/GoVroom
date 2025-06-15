@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
@@ -39,24 +38,22 @@ const shipmentFormSchema = z.object({
   arrivalDate: z.date({
     required_error: "Arrival date is required.",
     invalid_type_error: "Invalid date format.",
-  }).nullable(), // Allow null initially before date selection
+ }).nullable(), // Allow null initially before date selection
   status: z.enum(['Pending', 'Completed'], { required_error: "Status is required." }).default('Pending'),
   sealNumber: z.string().min(1, "Seal number is required.").default(''),
   truckRegistration: z.string().min(1, "Truck registration is required.").default(''),
   trailerRegistration: z.string().min(1, "Trailer registration is required.").default(''),
   senderAddress: z.string().optional().default(FALLBACK_SENDER_ADDRESS),
   consigneeAddress: z.string().optional().default(FALLBACK_CONSIGNEE_ADDRESS),
-}).refine(data => data.arrivalDate >= data.departureDate, {
+}).refine(data => data.arrivalDate === null || data.arrivalDate >= data.departureDate, {
   message: "Arrival date cannot be before departure date.",
 });
 
 // Define a partial schema for validation during editing if needed,
 // making truckRegistration and trailerRegistration optional.
 // The sealNumber remains required based on the full schema.
-const partialShipmentFormSchema = z.object({}).partial({
-  truckRegistration: true,
-  trailerRegistration: true,
-})
+// This is commented out because it doesn't appear to be used, but if needed, it should be based on shipmentFormSchema.
+// const partialShipmentFormSchema = shipmentFormSchema.partial(['truckRegistration', 'trailerRegistration']);
 type ShipmentFormValues = z.infer<typeof shipmentFormSchema>
 
 interface ShipmentFormProps {
@@ -131,7 +128,7 @@ export default function ShipmentForm({
         subcarrierId: '',
         driverName: '',
         departureDate: new Date(),
-        arrivalDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        arrivalDate: new Date(new Date().setDate(new Date().getDate() + 1)), // Set to TODAY + 1 as default
         status: 'Pending',
         sealNumber: '',
         truckRegistration: '',
@@ -166,7 +163,7 @@ export default function ShipmentForm({
             subcarrierId: '',
             driverName: '',
             departureDate: new Date(),
-            arrivalDate: null, // Initialize new form with null arrival date
+            arrivalDate: new Date(new Date().setDate(new Date().getDate() + 1)), // Set to TODAY + 1 as default
             status: 'Pending',
             sealNumber: '',
             truckRegistration: '',
@@ -183,8 +180,8 @@ export default function ShipmentForm({
         const shipmentDataToSave: Partial<Shipment> = {
              ...data,
              departureDate: Timestamp.fromDate(new Date(data.departureDate)),
-             // Ensure arrivalDate is only set if it's not null (required by schema now, but nullable initial state)
-             arrivalDate: data.arrivalDate ? Timestamp.fromDate(new Date(data.arrivalDate)) : null,
+             // Ensure arrivalDate is only set if it's not null/undefined
+             arrivalDate: data.arrivalDate ? Timestamp.fromDate(new Date(data.arrivalDate)) : undefined,
              sealNumber: data.sealNumber, // Seal number is required now
              truckRegistration: data.truckRegistration, // Truck registration is required now
              trailerRegistration: data.trailerRegistration || undefined,
@@ -388,7 +385,7 @@ export default function ShipmentForm({
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
-                      selected={field.value}
+                      selected={field.value ?? undefined}
                       onSelect={field.onChange}
                        disabled={(date) =>
                          (formHook.getValues("departureDate") && date < formHook.getValues("departureDate")) || formDisabled

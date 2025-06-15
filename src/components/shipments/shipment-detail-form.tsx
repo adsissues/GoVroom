@@ -167,13 +167,13 @@ export default function ShipmentDetailForm({
         }
 
         const resetValues = {
-          numPallets: initialPallets,
-          numBags: initialBags,
-          customerId: detail.customerId || ASENDIA_UK_CUSTOMER_ID, // Fallback to Asendia UK for existing
-          serviceId: detail.serviceId || DEFAULT_PRIOR_SERVICE_ID,
-          formatId: detail.formatId || '',
+ numPallets: initialPallets, // Already handled with ?? above
+ numBags: initialBags, // Already handled with ?? above
+ customerId: detail.customerId ?? ASENDIA_UK_CUSTOMER_ID, // Ensure ?? for fallback
+ serviceId: detail.serviceId ?? DEFAULT_PRIOR_SERVICE_ID, // Ensure ?? for fallback
+ formatId: detail.formatId ?? '', // Ensure ?? for empty string fallback
           tareWeight: initialTareWeight,
- grossWeight: detail.grossWeight, // Use existing value or undefined
+ grossWeight: detail.grossWeight ?? 0, // Default to 0 for numbers
           dispatchNumber: detail.dispatchNumber || '',
           doeId: detail.doeId || DEFAULT_DOE_ID,
         };
@@ -523,11 +523,6 @@ export default function ShipmentDetailForm({
                                         onChange={(e) => {
                                           const val = e.target.value.replace(',', '.'); // Handle comma input
                                           field.onChange(val === "" ? "" : parseFloat(val) || 0);
-                                        }}
-                                        onBlur={(e) => { 
-                                            if (e.target.value === "") {
-                                                field.onChange(0);
-                                            }
                                         }}
                                         disabled={isSaving}
                                      />
