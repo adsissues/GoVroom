@@ -11,9 +11,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { signInWithEmail } from '@/lib/firebase/authService';
 import { useToast } from '@/hooks/use-toast';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams, } from 'next/navigation';
 import { APP_NAME } from '@/lib/constants';
-import { LogIn, Loader2, CheckCircle2 } from 'lucide-react';
+import { LogIn, Loader2, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/app/(app)/AuthContext';
 
 const loginFormSchema = z.object({
@@ -25,6 +25,7 @@ type LoginFormValues = z.infer<typeof loginFormSchema>;
 
 export default function LoginFormCore() {
   const [loginStatus, setLoginStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
+  const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -141,10 +142,15 @@ export default function LoginFormCore() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel htmlFor="password">Password</FormLabel>
-                    <FormControl>
-                      <Input id="password" type="password" placeholder="••••••••" {...field} disabled={loginStatus === 'submitting'} />
-                    </FormControl>
+ <FormLabel htmlFor="password">Password</FormLabel>
+                  <div className="relative">
+ <FormControl>
+                    <Input id="password" type={showPassword ? 'text' : 'password'} placeholder="••••••••" {...field} disabled={loginStatus === 'submitting'} className="pr-10" />
+ </FormControl>
+ <button type="button" className="absolute inset-y-0 right-0 flex items-center pr-3 focus:outline-none" onClick={() => setShowPassword(!showPassword)}>
+                      {showPassword ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                    </button>
+                  </div>
                     <FormMessage />
                   </FormItem>
                 )}

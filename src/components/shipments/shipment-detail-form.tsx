@@ -28,6 +28,7 @@ import { AlertCircle, Loader2, RotateCcw } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 
+
 // Zod schema
 const detailFormSchema = z.object({
   numPallets: z.coerce.number().min(0, "Pallets cannot be negative").default(1),
@@ -63,6 +64,7 @@ interface ShipmentDetailFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated' | 'netWeight'>) => Promise<void>;
+ onOpen?: () => void; // Added optional onOpen prop
 }
 
 const fetchCustomers = () => getDropdownOptions('customers');
@@ -79,6 +81,7 @@ export default function ShipmentDetailForm({
   isOpen,
   onClose,
   onSave,
+  onOpen, // Destructure onOpen
 }: ShipmentDetailFormProps) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
@@ -99,7 +102,7 @@ export default function ShipmentDetailForm({
     serviceId: DEFAULT_PRIOR_SERVICE_ID,
     formatId: '',
     tareWeight: TARE_WEIGHT_DEFAULT,
-    grossWeight: undefined, // Remove default to force user input
+    grossWeight: 0, 
     dispatchNumber: '',
     doeId: DEFAULT_DOE_ID,
   }), []);
@@ -194,7 +197,23 @@ export default function ShipmentDetailForm({
     syncPalletBagRHFValues(showPalletInputMode);
   }, [showPalletInputMode, syncPalletBagRHFValues]);
 
-  useEffect(() => {
+ useEffect(() => {
+ // Effect to change customer based on input mode
+ const asendiaUkOption = validCustomerOptions.find(opt => opt.label === 'Asendia UK');
+ const asendiaUkBagsOption = validCustomerOptions.find(opt => opt.label === 'Asendia UK/BAGS');
+
+    if (showPalletInputMode) {
+ if (asendiaUkOption && getValues('customerId') !== asendiaUkOption.value) {
+ setValue('customerId', asendiaUkOption.value, { shouldValidate: true });
+ }
+    } else {
+ if (asendiaUkBagsOption && getValues('customerId') !== asendiaUkBagsOption.value) {
+ setValue('customerId', asendiaUkBagsOption.value, { shouldValidate: true });
+ }
+    }
+ }, [showPalletInputMode, validCustomerOptions, setValue, getValues]);
+
+    useEffect(() => {
     let newTareWeight;
     if (showPalletInputMode) {
         newTareWeight = TARE_WEIGHT_DEFAULT;
@@ -268,7 +287,9 @@ export default function ShipmentDetailForm({
          doeId: finalData.doeId || undefined, 
        };
       await onSave(saveData);
-      onClose();
+ formHook.reset(newFormDefaults); // Reset the form fields to default values
+ onClose(); // Close the current form (this might be called from parent if onOpen is used)
+      if (onOpen) onOpen(); // Reopen if onOpen prop is provided (handled in parent)
     } catch (error) {
       console.error("Error saving shipment detail:", error);
       toast({

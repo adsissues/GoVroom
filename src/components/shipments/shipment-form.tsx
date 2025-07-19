@@ -16,7 +16,7 @@ from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Switch } from '@/components/ui/switch';
+// import { Switch } from '@/components/ui/switch'; // Removed as it's not directly used here
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
@@ -26,6 +26,7 @@ import { format } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
 import { Skeleton } from '../ui/skeleton';
 import { useQuery } from '@tanstack/react-query';
+import { Switch } from '../ui/switch';
 
 const shipmentFormSchema = z.object({
   carrierId: z.string().min(1, "Carrier is required"),
@@ -176,6 +177,7 @@ export default function ShipmentForm({
 
   const handleFormSubmit = async (data: ShipmentFormValues) => {
     setIsSubmitting(true);
+    // Note: Item details (pallet/bag numbers) are handled in a separate section/component
     try {
         const shipmentDataToSave: Partial<Shipment> = {
              ...data,
@@ -202,6 +204,7 @@ export default function ShipmentForm({
     }
   };
 
+  // Combine loading states for disabling the form
   const dropdownsLoading = isLoadingCarriers || isLoadingSubcarriers || isLoadingAppSettings;
   const formDisabled = !isEffectivelyEditing || isSubmitting || dropdownsLoading;
 
@@ -301,7 +304,7 @@ export default function ShipmentForm({
             name="status"
             render={({ field }) => (
               <FormItem className="flex flex-col pt-2 md:pt-0 md:justify-end">
-                <div className="space-y-1">
+                <div className="flex items-center justify-between space-x-2"> {/* Use flex to align items */}
                     <FormLabel className='mb-2'>Status</FormLabel>
                     <div className='flex items-center space-x-2 pt-2'>
                         <FormControl>
@@ -317,7 +320,6 @@ export default function ShipmentForm({
                             {field.value}
                         </Label>
                     </div>
-                    <FormMessage />
                 </div>
               </FormItem>
             )}

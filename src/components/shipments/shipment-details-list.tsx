@@ -169,7 +169,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
         }
          await action;
          toast({ title: editingDetail ? "Detail Updated" : "Detail Added", description: "Shipment item saved successfully." });
-         setIsFormOpen(false);
+         setIsFormOpen(true); // Keep form open to allow adding multiple items
          // Invalidate queries related to shipment totals if necessary
          queryClient.invalidateQueries({ queryKey: ['shipment', shipmentId] });
     } catch (error) {
@@ -426,6 +426,7 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
               isOpen={isFormOpen}
               onClose={() => setIsFormOpen(false)}
               onSave={handleSaveDetail}
+              onOpen={() => setIsFormOpen(true)}
         />
       )}
     </Card>
