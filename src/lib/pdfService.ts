@@ -293,7 +293,7 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
     currentY += serviceBoxHeight; // Move Y down after drawing this header row
 
     // Main Details Table
-    const tableHeadData = [['Customer', 'Dispatch No', 'D-OE', 'Format', 'Format', 'Format', 'Tare Weight', 'Gross Weight', 'Net Weight']];
+    const tableHeadData = [['Customer', 'Dispatch No', 'D-OE', 'Prio', 'Eco', 'S3C', 'Tare Weight', 'Gross Weight', 'Net Weight']];
     const tableBodyData = details.map(detail => {
       const customerLabel = getLabelFromMap(dropdownMaps['customers'], detail.customerId, detail.customerId);
       const doeLabel = getLabelFromMap(dropdownMaps['doe'], detail.doeId, detail.doeId || 'N/A');
@@ -315,8 +315,9 @@ export const generatePreAlertPdf = async (shipment: Shipment): Promise<void> => 
       formatS3C = formatS3C === '' ? '-' : formatS3C;
 
       return [
-        customerLabel,
-        doeLabel,
+        customerLabel, // Customer
+        detail.dispatchNumber || 'N/A', // Dispatch No
+ doeLabel, // D-OE
         formatPrio,
         formatEco,
         formatS3C,
@@ -593,8 +594,12 @@ drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, curren
     const sigBoxWidth = contentWidth / 3;
     boxHeight = 30;
 
+    const today = Timestamp.now().toDate();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
     const consigneeFirstLine = (shipment.consigneeAddress || 'Consignee, Destination Country').split('\n')[0];
-    const goodsReceivedText = `17 Goods Received/Marchandises Recues\n\n\n\nDate: ${formatDateForPdf(Timestamp.now())}\n${consigneeFirstLine}`;
+    const goodsReceivedText = `17 Goods Received/Marchandises Recues\n\n\n\nDate: ${formatDateForPdf(Timestamp.fromDate(tomorrow))}\n${consigneeFirstLine}`;
     drawTextBox(goodsReceivedText, col1X, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
 
     drawTextBox("18 Signature and stamp of Carrier/Signature du Transporteur", col1X + sigBoxWidth, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
@@ -603,9 +608,7 @@ drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, curren
 
     currentY += 2;
     doc.setFontSize(7);
-    doc.text(`Date: ${formatDateForPdf(Timestamp.now())}`, pageMargin + 5, currentY + 5);
-    doc.text(`Date: ${formatDateForPdf(Timestamp.now())}`, pageMargin + sigBoxWidth + 5, currentY + 5);
-    doc.text(`Date: __ / __ / __`, pageMargin + sigBoxWidth * 2 + 5, currentY + 5);
+ doc.text(`Date: ${formatDateForPdf(Timestamp.fromDate(tomorrow))}`, pageMargin + sigBoxWidth * 2 + 5, currentY + 5);
 
     console.log(`[PDFService] ${pdfType}: Content added to PDF.`);
     triggerDownload(doc, filename, pdfType);

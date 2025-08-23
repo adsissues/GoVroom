@@ -159,6 +159,19 @@ export default function ShipmentDetailPage() {
           await generateCmrPdf(shipment); 
           
           console.log('[ShipmentDetailPage] PDF Effect: PDF generation calls ostensibly complete.');
+
+          // Open Outlook with pre-filled email
+          const recipients = 'customs@example.com,client@example.com';
+          const subject = `Dispatch Pre-Alert – Truck ${shipment.truckRegNo || shipment.id}`; // Fallback to ID if reg no is missing
+          const body = 'Please find attached the Pre-Alert and CMR for this dispatch.';
+          
+          const mailtoUrl = `mailto:${recipients}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+          
+          // Note: window.open(mailto:...) cannot reliably attach files across browsers.
+          // The user will need to manually attach the generated PDF files from their downloads.
+          console.log('[ShipmentDetailPage] PDF Effect: Opening email client with mailto URL:', mailtoUrl);
+ window.open(mailtoUrl);
+          
         } catch(pdfError) {
           console.error("[ShipmentDetailPage] PDF Effect: Error during PDF generation functions:", pdfError);
           toast({
