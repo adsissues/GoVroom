@@ -283,8 +283,8 @@ export default function ShipmentDetailForm({
          formatId: formatRequiredForSave ? (finalData.formatId || '') : '',
          tareWeight: finalData.tareWeight,
          grossWeight: finalData.grossWeight,
-         dispatchNumber: finalData.dispatchNumber || undefined, 
-         doeId: finalData.doeId || undefined, 
+ dispatchNumber: finalData.dispatchNumber || '', // Ensure empty string for empty dispatch
+ doeId: finalData.doeId || DEFAULT_DOE_ID, // Ensure fallback for DOE
        };
       await onSave(saveData);
  formHook.reset(newFormDefaults); // Reset the form fields to default values

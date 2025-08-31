@@ -1,13 +1,15 @@
 
 import type { Timestamp } from 'firebase/firestore';
-
+                                                                                                          
 export type ShipmentStatus = 'Pending' | 'Completed';
 
 // Main Shipment document
 export interface Shipment {
+  truckRegNo: string;
+  descriptionOfGoods: string;
   id: string; // Firestore document ID
   carrierId: string; // Reference to /carriers/{id} -> value field
-  subcarrierId?: string; // Reference to /subcarriers/{id} -> value field
+  subcarrierId: string | null | undefined; // Reference to /subcarriers/{id} -> value field
   driverName: string;
   departureDate: Timestamp;
   arrivalDate: Timestamp;
@@ -62,6 +64,7 @@ export interface ShipmentDetail {
   grossWeight: number;
   dispatchNumber?: string;
   doeId?: string; // Reference to /doe/{id} -> value field
+  descriptionOfGoods?: string; // Added for CMR cell 9
   createdAt: Timestamp;
   lastUpdated: Timestamp;
   // Calculated

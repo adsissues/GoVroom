@@ -544,14 +544,16 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     currentY += goodsTableHeaderHeight;
 
   const goodsDataHeight = 30;
-let goodsDescTextLines = [
+
+const goodsDescTextLines: string[] = [
     `Pallets:        ${shipment.totalPallets || 0}`,
     `Sacks:          ${shipment.totalBags || 0}`,
     ``,
     `SEAL #1 Number:   ${shipment.sealNumber || 'N/A'}`,
     `SEAL #2 Number:   N/A`,
     ``,
-    `Description of Goods: cross border eCommerce B2C parcels`
+    `Description of Goods:`,
+    shipment.descriptionOfGoods || 'N/A'
 ];
 drawTextBox(goodsDescTextLines, col1X, currentY, goodsCol1Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0]});
 
@@ -573,6 +575,13 @@ let weightTextLines = [
     `TOTAL: ${totalGrossWeight.toFixed(2)} Kgs`
 ];
 drawTextBox(weightTextLines, col1X + goodsCol1Width + goodsCol2Width, currentY, goodsCol3Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0], align: 'right'});
+
+// Add dynamic Description of Goods from each detail
+details.forEach((detail, index) => {
+    if (detail.descriptionOfGoods) {
+        drawTextBox(`Item ${index + 1} Description: ${detail.descriptionOfGoods}`, col1X, currentY + goodsDescTextLines.length * 3.5 + (index * 5), goodsCol1Width, goodsDataHeight, {fontSize: 7}); // Adjust Y based on previous lines and index
+    }
+});
 drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsDataHeight);    currentY += goodsDataHeight;
 
     boxHeight = 7;

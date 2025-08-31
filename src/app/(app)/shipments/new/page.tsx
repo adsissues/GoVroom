@@ -27,6 +27,7 @@ export default function NewShipmentPage() {
         const newShipmentId = await addShipment(data as any); // Cast needed as addShipment expects more specific type
         toast({
             title: 'Shipment Created',
+
             description: `Shipment ${newShipmentId} added successfully. You can now add details.`,
         });
         // Navigate to the newly created shipment's detail page

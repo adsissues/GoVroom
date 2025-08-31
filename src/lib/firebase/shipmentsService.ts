@@ -69,7 +69,7 @@ export const shipmentFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): 
     trailerRegistration: data.trailerRegistration || undefined,
     senderAddress: data.senderAddress || '',
     consigneeAddress: data.consigneeAddress || '',
-    lastUpdated: data.lastUpdated instanceof Timestamp ? data.lastUpdated : Timestamp.now(),
+    descriptionOfGoods: data && data.descriptionOfGoods !== undefined && data.descriptionOfGoods !== null ? data.descriptionOfGoods : '',
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt : Timestamp.now(),
     totalPallets: typeof data.totalPallets === 'number' ? data.totalPallets : 0,
     totalBags: typeof data.totalBags === 'number' ? data.totalBags : 0,
@@ -82,6 +82,7 @@ export const shipmentFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): 
     transitLightNetWeight: typeof data.transitLightNetWeight === 'number' ? data.transitLightNetWeight : 0,
     remainingCustomersNetWeight: typeof data.remainingCustomersNetWeight === 'number' ? data.remainingCustomersNetWeight : 0,
 
+ lastUpdated: data.lastUpdated instanceof Timestamp ? data.lastUpdated : Timestamp.now(),
     pdfUrls: data.pdfUrls || undefined,
     scannedDocuments: Array.isArray(data.scannedDocuments) ? data.scannedDocuments : undefined,
   } as Shipment;
@@ -133,10 +134,16 @@ export const detailFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): Sh
 
 export const addShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'lastUpdated' | 'totalPallets' | 'totalBags' | 'totalGrossWeight' | 'totalTareWeight' | 'totalNetWeight' | 'asendiaACNetWeight' | 'asendiaUKNetWeight' | 'transitLightNetWeight' | 'remainingCustomersNetWeight' >>): Promise<string> => {
   try {
-    const docRef = await addDoc(collection(db, 'shipments'), {
-      ...shipmentData,
-      departureDate: shipmentData.departureDate instanceof Date ? Timestamp.fromDate(shipmentData.departureDate) : shipmentData.departureDate,
-      arrivalDate: shipmentData.arrivalDate instanceof Date ? Timestamp.fromDate(shipmentData.arrivalDate) : shipmentData.arrivalDate,
+    const baseDataToSave: DocumentData = {
+      driverName: shipmentData.driverName || '',
+ departureDate: shipmentData.departureDate, // Assume already Timestamp or Date handled before
+ arrivalDate: shipmentData.arrivalDate, // Assume already Timestamp or undefined handled before
+      sealNumber: shipmentData.sealNumber || undefined,
+      truckRegistration: shipmentData.truckRegistration || undefined,
+      trailerRegistration: shipmentData.trailerRegistration || undefined,
+      senderAddress: shipmentData.senderAddress || '',
+      consigneeAddress: shipmentData.consigneeAddress || '',
+      descriptionOfGoods: shipmentData.descriptionOfGoods || '', // Explicitly include
       totalPallets: 0,
       totalBags: 0,
       totalGrossWeight: 0,
@@ -144,34 +151,57 @@ export const addShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'c
       totalNetWeight: 0,
       asendiaACNetWeight: 0,
       asendiaUKNetWeight: 0,
-      transitLightNetWeight: 0,
       remainingCustomersNetWeight: 0,
-      status: shipmentData.status || 'Pending', 
       createdAt: serverTimestamp(),
       lastUpdated: serverTimestamp(),
-    });
+      status: shipmentData.status || 'Pending',
+    };
+
+    const dataToSave = { ...baseDataToSave };
+    if (shipmentData.subcarrierId) {
+ dataToSave.subcarrierId = shipmentData.subcarrierId;
+    }
+ if (shipmentData.carrierId) {
+ dataToSave.carrierId = shipmentData.carrierId;
+    }
+    console.log('[ShipmentService] Data being sent to addDoc:', JSON.parse(JSON.stringify(dataToSave)));
+    const docRef = await addDoc(collection(db, 'shipments'), dataToSave);
     return docRef.id;
   } catch (error) {
-    console.error("[ShipmentService] Error adding shipment:", error);
+    console.error("[ShipmentService] Error adding shipment:", error); // Log the full error object
+    console.log('[ShipmentService] Failed data:', JSON.parse(JSON.stringify((error as any).customData?.content || shipmentData))); // Log data that caused failure if available, fallback to input data
     throw error; 
   }
 };
 
 export const updateShipment = async (shipmentId: string, updates: Partial<Omit<Shipment, 'id' | 'createdAt'>>): Promise<void> => {
+  console.log(`[ShipmentService] Attempting to update shipment with ID: ${shipmentId}`);
   const shipmentRef = doc(db, 'shipments', shipmentId);
   try {
-    const dataToUpdate: DocumentData = { ...updates };
+    const dataToUpdate: DocumentData = {
+      carrierId: updates.carrierId,
+      subcarrierId: updates.subcarrierId,
+      driverName: updates.driverName,
+      status: updates.status,
+      sealNumber: updates.sealNumber,
+      truckRegistration: updates.truckRegistration,
+      trailerRegistration: updates.trailerRegistration,
+      senderAddress: updates.senderAddress,
+      consigneeAddress: updates.consigneeAddress,
+       descriptionOfGoods: updates.descriptionOfGoods, // Explicitly include
+    };
     if (updates.departureDate instanceof Date) {
       dataToUpdate.departureDate = Timestamp.fromDate(updates.departureDate);
     }
-     if (updates.arrivalDate instanceof Date) {
-       dataToUpdate.arrivalDate = Timestamp.fromDate(updates.arrivalDate);
+    if (updates.arrivalDate instanceof Date || updates.arrivalDate === null || updates.arrivalDate === undefined) { // Handle null/undefined from form
+       dataToUpdate.arrivalDate = updates.arrivalDate === null || updates.arrivalDate === undefined ? null : Timestamp.fromDate(updates.arrivalDate);
     }
-    dataToUpdate.lastUpdated = serverTimestamp(); 
+    dataToUpdate.lastUpdated = serverTimestamp();
 
+ console.log('[ShipmentService] Data being sent to updateDoc:', JSON.parse(JSON.stringify(dataToUpdate)));
     await updateDoc(shipmentRef, dataToUpdate);
   } catch (error) {
-    console.error(`[ShipmentService] Error updating shipment ${shipmentId}:`, error);
+    console.error(`[ShipmentService] Error updating shipment ${shipmentId}:`, error); // Log the full error object
     throw error;
   }
 };
@@ -250,7 +280,10 @@ export const updateShipmentDetail = async (shipmentId: string, detailId: string,
   if (!shipmentId || !detailId) throw new Error("[ShipmentService] Shipment ID and Detail ID are required to update a detail.");
   const detailRef = doc(db, 'shipments', shipmentId, 'details', detailId);
   try {
-    const dataToUpdate: DocumentData = { ...updates };
+    const dataToUpdate: DocumentData = { 
+      ...updates,
+ descriptionOfGoods: updates.descriptionOfGoods || undefined, // Include descriptionOfGoods
+    };
     if (updates.grossWeight !== undefined || updates.tareWeight !== undefined) {
       const currentDocSnap = await getDoc(detailRef);
       const currentData = currentDocSnap.data() || {};

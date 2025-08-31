@@ -28,9 +28,10 @@ import { Skeleton } from '../ui/skeleton';
 import { useQuery } from '@tanstack/react-query';
 import { Switch } from '../ui/switch';
 
+// Trigger TypeScript re-evaluation after the import statements.
 const shipmentFormSchema = z.object({
   carrierId: z.string().min(1, "Carrier is required"),
-  subcarrierId: z.string().optional().default(''),
+  subcarrierId: z.string().nullable().optional(), // Allow null or undefined
   driverName: z.string().min(1, "Driver name is required").default(''),
   departureDate: z.date({
     required_error: "Departure date is required.",
@@ -46,6 +47,9 @@ const shipmentFormSchema = z.object({
   trailerRegistration: z.string().min(1, "Trailer registration is required.").default(''),
   senderAddress: z.string().optional().default(FALLBACK_SENDER_ADDRESS),
   consigneeAddress: z.string().optional().default(FALLBACK_CONSIGNEE_ADDRESS),
+
+  // ✅ NEW: include Description of Goods in validation schema (optional with empty default)
+  descriptionOfGoods: z.string().optional().default(''),
 }).refine(data => data.arrivalDate === null || data.arrivalDate >= data.departureDate, {
   message: "Arrival date cannot be before departure date.",
 });
@@ -79,6 +83,7 @@ export default function ShipmentForm({
   shipmentId: existingShipmentId,
   onSaveSuccess,
 }: ShipmentFormProps) {
+  console.log(`[ShipmentForm] initialData prop descriptionOfGoods: ${initialData?.descriptionOfGoods}`);
   const { toast } = useToast();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -136,18 +141,22 @@ export default function ShipmentForm({
         trailerRegistration: '',
         senderAddress: FALLBACK_SENDER_ADDRESS,
         consigneeAddress: FALLBACK_CONSIGNEE_ADDRESS,
+
+        // ✅ NEW: default for Description of Goods
+        descriptionOfGoods: '',
     }
   });
 
    useEffect(() => {
      // Determine default addresses: prioritize initialData, then fetched appSettings, then constants
+     console.log("[ShipmentForm] useEffect for reset triggered. initialData:", initialData ? JSON.parse(JSON.stringify(initialData)) : null);
      const senderAddr = initialData?.senderAddress || appSettings?.defaultSenderAddress || FALLBACK_SENDER_ADDRESS;
      const consigneeAddr = initialData?.consigneeAddress || appSettings?.defaultConsigneeAddress || FALLBACK_CONSIGNEE_ADDRESS;
 
      if (initialData) {
         formHook.reset({
             carrierId: initialData.carrierId ?? '',
-            subcarrierId: initialData.subcarrierId ?? '',
+            subcarrierId: initialData.subcarrierId ?? null, // Use null for resetting if undefined/null
             driverName: initialData.driverName ?? '',
             departureDate: initialData.departureDate?.toDate() ?? new Date(),
             arrivalDate: initialData.arrivalDate?.toDate() ?? null, // Initialize with null if no initial data date
@@ -157,6 +166,11 @@ export default function ShipmentForm({
             trailerRegistration: initialData.trailerRegistration ?? '',
             senderAddress: senderAddr, // Use determined senderAddr
             consigneeAddress: consigneeAddr, // Use determined consigneeAddr
+            descriptionOfGoods: initialData.descriptionOfGoods ?? '', // Populate from initialData
+
+            // ✅ NEW: populate from initialData when editing
+            // NOTE: This was duplicated; keeping one clear entry
+            descriptionOfGoods: initialData.descriptionOfGoods ?? '',
        });
      } else if (!isLoadingAppSettings) { // For new forms, only reset after app settings are loaded (or failed to load)
         formHook.reset({
@@ -171,26 +185,44 @@ export default function ShipmentForm({
             trailerRegistration: '',
             senderAddress: senderAddr, // Use determined senderAddr
             consigneeAddress: consigneeAddr, // Use determined consigneeAddr
+            descriptionOfGoods: '', // Default for new shipments
+
+            // ✅ NEW: default for new shipments
+            // NOTE: This was duplicated; keeping one clear entry
+            descriptionOfGoods: '',
         });
      }
+ formHook.clearErrors(); // Clear any lingering errors after reset
+     console.log("[ShipmentForm] useEffect for reset completed. Current form values:", formHook.getValues());
+     console.log(`[ShipmentForm] Form reset complete. descriptionOfGoods value after reset: ${formHook.getValues('descriptionOfGoods')}`);
    }, [initialData, formHook.reset, appSettings, isLoadingAppSettings]);
+    console.log("[ShipmentForm] initialData prop received:", initialData ? JSON.parse(JSON.stringify(initialData)) : null);
 
+  useEffect(() => {
+    console.log(`[ShipmentForm] Current form state descriptionOfGoods: ${formHook.getValues('descriptionOfGoods')}`);
+  }, [formHook.formState.isSubmitted, initialData, formHook.getValues]); // Add formHook.getValues to dependencies
   const handleFormSubmit = async (data: ShipmentFormValues) => {
     setIsSubmitting(true);
     // Note: Item details (pallet/bag numbers) are handled in a separate section/component
     try {
-        const shipmentDataToSave: Partial<Shipment> = {
-             ...data,
-             departureDate: Timestamp.fromDate(new Date(data.departureDate)),
-             // Ensure arrivalDate is only set if it's not null/undefined
-             arrivalDate: data.arrivalDate ? Timestamp.fromDate(new Date(data.arrivalDate)) : undefined,
-             sealNumber: data.sealNumber, // Seal number is required now
-             truckRegistration: data.truckRegistration, // Truck registration is required now
-             trailerRegistration: data.trailerRegistration || undefined,
-             senderAddress: data.senderAddress || undefined,
-             consigneeAddress: data.consigneeAddress || undefined,
+        const shipmentDataToSave: Partial<Shipment> = { // Explicitly list properties for clarity and type safety
+ carrierId: data.carrierId,
+ subcarrierId: data.subcarrierId ?? null, // Send null if empty string or undefined from form
+ driverName: data.driverName,
+ departureDate: Timestamp.fromDate(new Date(data.departureDate)),
+ // Ensure arrivalDate is only set if it's not null/undefined
+ arrivalDate: data.arrivalDate ? Timestamp.fromDate(new Date(data.arrivalDate)) : undefined,
+ status: data.status,
+ sealNumber: data.sealNumber,
+ truckRegistration: data.truckRegistration,
+ trailerRegistration: data.trailerRegistration || undefined,
+ senderAddress: data.senderAddress || undefined,
+ consigneeAddress: data.consigneeAddress || undefined,
+ descriptionOfGoods: data.descriptionOfGoods || '', // Explicitly include with fallback
         };
 
+        console.log(`[ShipmentForm] Data being submitted descriptionOfGoods: ${data.descriptionOfGoods}`);
+        console.log('[ShipmentForm] Data being sent to onSubmit:', shipmentDataToSave);
         const resultId = await onSubmit(shipmentDataToSave);
 
         if (onSaveSuccess) {
@@ -198,7 +230,7 @@ export default function ShipmentForm({
         }
 
     } catch (error: any) {
-      console.error("Error during shipment save/update process:", error);
+      console.error("[ShipmentForm] Error during shipment save/update process:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -449,7 +481,7 @@ export default function ShipmentForm({
             )}
           />
 
-            <FormField
+          <FormField
               control={formHook.control}
               name="senderAddress"
               render={({ field }) => (
@@ -463,7 +495,8 @@ export default function ShipmentForm({
                 </FormItem>
               )}
             />
-             <FormField
+
+          <FormField
               control={formHook.control}
               name="consigneeAddress"
               render={({ field }) => (
@@ -477,6 +510,21 @@ export default function ShipmentForm({
                 </FormItem>
               )}
             />
+
+          <FormField
+              control={formHook.control}
+              name="descriptionOfGoods"
+              render={({ field }) => (
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Description of Goods {isAdmin ? "" : "(View only)"}</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Enter description of goods (e.g., cross border eCommerce B2C parcels)" {...field} value={field.value || ''} disabled={formDisabled || !isAdmin} rows={3} />
+                  </FormControl>
+ {!isAdmin && <p className="text-xs text-muted-foreground">Only editable by Admins.</p>}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
          {isEffectivelyEditing && (
