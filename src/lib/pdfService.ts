@@ -1,4 +1,3 @@
-
 "use client";
 
 import jsPDF from 'jspdf';
@@ -510,9 +509,22 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     boxHeight = 30;
     const consigneeText = `4 Consignee, Final Delivery Point (Name, Address) Destinataire (Nom, Adresse, Pays)\n\n${shipment.consigneeAddress || 'LA POSTE ROISSY HUB\n7 Rue Du Haute de Laval\n93290 Tremblay-en-France\nFrance'}`;
     drawTextBox(consigneeText, col1X, currentY, col1Width, boxHeight, {fontSize: 7, fontStyle: 'bold'});
+    
     const truckTrailer = `${shipment.truckRegistration || 'N/A'} / ${shipment.trailerRegistration || 'N/A'}`;
-    const carrierText = `5 Carrier (Name, Address, Country) Transporteur (Nom, Adresse, Pays)\n\nCarrier Name: ${carrierName}\nTruck & Trailer: ${truckTrailer}`;
-    drawTextBox(carrierText, col2X, currentY, col2Width, boxHeight, {fontSize: 7, textColor: [255,0,0], fontStyle: 'bold'});
+    drawTextBox("5 Carrier (Name, Address, Country) Transporteur (Nom, Adresse, Pays)", col2X, currentY, col2Width, boxHeight, {fontSize: 7, textColor: [0,0,0]});
+    let yPos = currentY + 12;
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0,0,0);
+    doc.text("Carrier Name:", col2X + 2, yPos);
+    doc.setTextColor(0,0,0);
+    doc.text(carrierName, col2X + 30, yPos);
+    yPos += 5;
+    doc.setTextColor(0,0,0);
+    doc.text("Truck & Trailer:", col2X + 2, yPos);
+    doc.setTextColor(0,0,0);
+    doc.text(truckTrailer, col2X + 30, yPos);
+    
     currentY += boxHeight;
 
     boxHeight = 20;
@@ -544,18 +556,34 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     currentY += goodsTableHeaderHeight;
 
   const goodsDataHeight = 30;
-
-const goodsDescTextLines: string[] = [
-    `Pallets:        ${shipment.totalPallets || 0}`,
-    `Sacks:          ${shipment.totalBags || 0}`,
-    ``,
-    `SEAL #1 Number:   ${shipment.sealNumber || 'N/A'}`,
-    `SEAL #2 Number:   N/A`,
-    ``,
-    `Description of Goods:`,
-    shipment.descriptionOfGoods || 'N/A'
-];
-drawTextBox(goodsDescTextLines, col1X, currentY, goodsCol1Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0]});
+    drawTextBox("", col1X, currentY, goodsCol1Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold'});
+    let yPosGoods = currentY + 4;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0,0,0);
+    doc.text("Pallets:", col1X + 2, yPosGoods);
+    doc.setTextColor(0,0,0);
+    doc.text(`${shipment.totalPallets || 0}`, col1X + 30, yPosGoods);
+    yPosGoods += 5;
+    doc.setTextColor(0,0,0);
+    doc.text("Sacks:", col1X + 2, yPosGoods);
+    doc.setTextColor(0,0,0);
+    doc.text(`${shipment.totalBags || 0}`, col1X + 30, yPosGoods);
+    yPosGoods += 7;
+    doc.setTextColor(0,0,0);
+    doc.text("SEAL #1 Number:", col1X + 2, yPosGoods);
+    doc.setTextColor(0,0,0);
+    doc.text(`${shipment.sealNumber || 'N/A'}`, col1X + 30, yPosGoods);
+    yPosGoods += 5;
+    doc.setTextColor(0,0,0);
+    doc.text("SEAL #2 Number:", col1X + 2, yPosGoods);
+    doc.setTextColor(0,0,0);
+    doc.text("N/A", col1X + 30, yPosGoods);
+    yPosGoods += 7;
+    doc.setTextColor(0,0,0);
+    doc.text("Description of Goods:", col1X + 2, yPosGoods);
+    doc.setTextColor(0,0,0);
+    doc.text("cross border eCommerce B2C parcels", col1X + 42, yPosGoods);
 
 drawTextBox("", col1X + goodsCol1Width, currentY, goodsCol2Width, goodsDataHeight);
 
@@ -568,20 +596,27 @@ const palletGrossWeight = palletDetails.reduce((sum, detail) => sum + (detail.gr
 const bagGrossWeight = bagDetails.reduce((sum, detail) => sum + (detail.grossWeight || 0), 0);
 const totalGrossWeight = palletGrossWeight + bagGrossWeight;
 
-let weightTextLines = [
-    `Pallets: ${palletGrossWeight.toFixed(2)} Kgs`,
-    `Bags: ${bagGrossWeight.toFixed(2)} Kgs`,
-    ``,
-    `TOTAL: ${totalGrossWeight.toFixed(2)} Kgs`
-];
-drawTextBox(weightTextLines, col1X + goodsCol1Width + goodsCol2Width, currentY, goodsCol3Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold', textColor: [255,0,0], align: 'right'});
+    drawTextBox("", col1X + goodsCol1Width + goodsCol2Width, currentY, goodsCol3Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold'});
+    let yPosWeight = currentY + 4;
+    const xPosWeight = col1X + goodsCol1Width + goodsCol2Width + 2;
+    const xPosWeightValue = col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width -2;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0,0,0);
+    doc.text("Pallets:", xPosWeight, yPosWeight);
+    doc.setTextColor(0,0,0);
+    doc.text(`${palletGrossWeight.toFixed(2)} Kgs`, xPosWeightValue, yPosWeight, {align: 'right'});
+    yPosWeight += 5;
+    doc.setTextColor(0,0,0);
+    doc.text("Bags:", xPosWeight, yPosWeight);
+    doc.setTextColor(0,0,0);
+    doc.text(`${bagGrossWeight.toFixed(2)} Kgs`, xPosWeightValue, yPosWeight, {align: 'right'});
+    yPosWeight += 7;
+    doc.setTextColor(0,0,0);
+    doc.text("TOTAL:", xPosWeight, yPosWeight);
+    doc.setTextColor(0,0,0);
+    doc.text(`${totalGrossWeight.toFixed(2)} Kgs`, xPosWeightValue, yPosWeight, {align: 'right'});
 
-// Add dynamic Description of Goods from each detail
-details.forEach((detail, index) => {
-    if (detail.descriptionOfGoods) {
-        drawTextBox(`Item ${index + 1} Description: ${detail.descriptionOfGoods}`, col1X, currentY + goodsDescTextLines.length * 3.5 + (index * 5), goodsCol1Width, goodsDataHeight, {fontSize: 7}); // Adjust Y based on previous lines and index
-    }
-});
 drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsDataHeight);    currentY += goodsDataHeight;
 
     boxHeight = 7;
@@ -629,3 +664,4 @@ drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, curren
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
 };
+

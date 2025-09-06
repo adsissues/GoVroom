@@ -1,4 +1,4 @@
-
+ 
 import { db } from './config';
 import {
   collection,
@@ -129,7 +129,6 @@ export const detailFromFirestore = (docSnap: DocumentSnapshot<DocumentData>): Sh
     } as ShipmentDetail;
 };
 
-
 // --- Shipment CRUD ---
 
 export const addShipment = async (shipmentData: Partial<Omit<Shipment, 'id' | 'createdAt' | 'lastUpdated' | 'totalPallets' | 'totalBags' | 'totalGrossWeight' | 'totalTareWeight' | 'totalNetWeight' | 'asendiaACNetWeight' | 'asendiaUKNetWeight' | 'transitLightNetWeight' | 'remainingCustomersNetWeight' >>): Promise<string> => {
@@ -190,13 +189,24 @@ export const updateShipment = async (shipmentId: string, updates: Partial<Omit<S
       consigneeAddress: updates.consigneeAddress,
        descriptionOfGoods: updates.descriptionOfGoods, // Explicitly include
     };
-    if (updates.departureDate instanceof Date) {
-      dataToUpdate.departureDate = Timestamp.fromDate(updates.departureDate);
-    }
-    if (updates.arrivalDate instanceof Date || updates.arrivalDate === null || updates.arrivalDate === undefined) { // Handle null/undefined from form
-       dataToUpdate.arrivalDate = updates.arrivalDate === null || updates.arrivalDate === undefined ? null : Timestamp.fromDate(updates.arrivalDate);
-    }
-    dataToUpdate.lastUpdated = serverTimestamp();
+if (updates.departureDate instanceof Date) {
+  // Handle JavaScript Date
+  dataToUpdate.departureDate = Timestamp.fromDate(updates.departureDate);
+} else if (updates.departureDate instanceof Timestamp) {
+  // Handle Firestore Timestamp
+  dataToUpdate.departureDate = updates.departureDate;
+}
+
+if (updates.arrivalDate instanceof Date) {
+  // Handle JavaScript Date
+  dataToUpdate.arrivalDate = Timestamp.fromDate(updates.arrivalDate);
+} else if (updates.arrivalDate instanceof Timestamp) {
+  // Handle Firestore Timestamp
+  dataToUpdate.arrivalDate = updates.arrivalDate;
+} else if (updates.arrivalDate === null || updates.arrivalDate === undefined) {
+  // Explicitly clear the field
+  dataToUpdate.arrivalDate = null;
+}    dataToUpdate.lastUpdated = serverTimestamp();
 
  console.log('[ShipmentService] Data being sent to updateDoc:', JSON.parse(JSON.stringify(dataToUpdate)));
     await updateDoc(shipmentRef, dataToUpdate);
@@ -425,7 +435,6 @@ export const recalculateShipmentTotals = async (shipmentId: string): Promise<voi
   }
 };
 
-
 // --- Dashboard Specific Queries ---
 
 export const getDashboardStats = async (): Promise<{
@@ -453,7 +462,6 @@ export const getDashboardStats = async (): Promise<{
         // });
         // if (allShipmentsSnapshot.empty) totalGrossWeightSum = null;
 
-
         const lastUpdatedQuery = query(shipmentsCollection, orderBy('lastUpdated', 'desc'), limit(1));
         const lastUpdatedSnapshot = await getDocs(lastUpdatedQuery);
         const lastUpdateTimestamp = lastUpdatedSnapshot.empty ? null : (lastUpdatedSnapshot.docs[0].data().lastUpdated as Timestamp);
@@ -474,4 +482,5 @@ export const getDashboardStats = async (): Promise<{
         };
     }
 };
+
 
