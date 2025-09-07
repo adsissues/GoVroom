@@ -1,0 +1,51 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users collection:
+    // - Authenticated users can read their own document.
+    // - Only admins can create/update/delete user documents (e.g., to assign roles).
+    // - For simplicity in this initial step, allow authenticated users to create their own doc if it doesn't exist (e.g. on first sign-up, though app doesn't have sign-up yet).
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId; // User can create their own doc
+      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Shipments collection (and its subcollections like 'details')
+    // - Authenticated users can read/write.
+    // - More granular rules will be added based on roles for specific fields (e.g., senderAddress).
+    match /shipments/{shipmentId} {
+      allow read, write: if request.auth != null; // Or refine with user roles
+
+      // Details subcollection
+      match /details/{detailId} {
+        allow read, write: if request.auth != null; // Or refine based on parent shipment access
+      }
+    }
+
+    // Dropdown collections (carriers, subcarriers, customers, services, doe, formats_*)
+    // - Authenticated users can read.
+    // - Only admins can write (create, update, delete).
+    match /{collectionName}/{docId}
+      where collectionName in ['carriers', 'subcarriers', 'customers', 'services', 'doe', 'formats', 'formats_prior', 'formats_eco', 'formats_s3c'] {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Config collection (for appSettings)
+    // - Authenticated users can read.
+    // - Only admins can write.
+    match /config/{configId} {
+       allow read: if request.auth != null;
+       allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Default deny for any other collections not explicitly matched
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

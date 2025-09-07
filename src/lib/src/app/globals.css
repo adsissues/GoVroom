@@ -1,0 +1,124 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base layer styles */
+@layer base {
+  :root {
+    /* Light Theme - Default */
+    --background: 210 17% 98%; /* #F8F9FA Light Gray */
+    --foreground: 210 10% 23%; /* Dark Gray text on Light Gray */
+
+    --card: 0 0% 100%; /* White */
+    --card-foreground: 240 10% 3.9%; /* Default Dark */
+
+    --popover: 0 0% 100%; /* White */
+    --popover-foreground: 240 10% 3.9%; /* Default Dark */
+
+    --primary: 211 100% 50%; /* #007BFF Blue */
+    --primary-foreground: 0 0% 100%; /* White */
+
+    --secondary: 210 30% 93%; /* Lighter Gray #E9ECEF */
+    --secondary-foreground: 240 5.9% 10%; /* Default Dark */
+
+    --muted: 210 30% 93%; /* Lighter Gray */
+    --muted-foreground: 240 3.8% 46.1%; /* Muted Text */
+
+    --accent: 145 63% 42%; /* #28A745 Green */
+    --accent-foreground: 0 0% 100%; /* White */
+
+    --destructive: 0 84.2% 60.2%; /* Red */
+    --destructive-foreground: 0 0% 98%; /* Light text on Red */
+
+    --border: 210 20% 88%; /* #CED4DA Gray Border */
+    --input: 210 20% 88%; /* Gray Input Border */
+    --ring: 211 100% 50%; /* Blue Ring for focus */
+
+    --radius: 0.5rem; /* Default border radius */
+
+    /* Chart Colors */
+    --chart-1: 211 100% 50%; /* Blue */
+    --chart-2: 145 63% 42%; /* Green */
+    --chart-3: 30 80% 55%;   /* Orange */
+    --chart-4: 280 65% 60%;  /* Purple */
+    --chart-5: 197 37% 24%; /* Teal/Dark Cyan */
+
+    /* Sidebar Theme (Light) */
+    --sidebar-background: 0 0% 100%; /* White sidebar */
+    --sidebar-foreground: 240 10% 3.9%; /* Dark text */
+    --sidebar-border: 210 20% 88%; /* Gray border */
+    --sidebar-primary: 211 100% 50%; /* Blue for primary elements */
+    --sidebar-primary-foreground: 0 0% 100%; /* White text on blue */
+    --sidebar-accent: 210 30% 96%; /* Very Light Gray for hover/active */
+    --sidebar-accent-foreground: 211 100% 50%; /* Blue text on hover/active */
+    --sidebar-ring: 211 100% 50%; /* Blue ring for focus */
+  }
+
+  .dark {
+    /* Dark Theme */
+    --background: 240 10% 3.9%; /* Very Dark Gray/Blue */
+    --foreground: 0 0% 98%; /* Almost White */
+
+    --card: 240 5.9% 10%; /* Dark Gray */
+    --card-foreground: 0 0% 98%; /* Almost White */
+
+    --popover: 240 5.9% 10%; /* Dark Gray */
+    --popover-foreground: 0 0% 98%; /* Almost White */
+
+    --primary: 211 100% 60%; /* Brighter Blue */
+    --primary-foreground: 0 0% 100%; /* White */
+
+    --secondary: 240 3.7% 15.9%; /* Slightly Lighter Dark Gray */
+    --secondary-foreground: 0 0% 98%; /* Almost White */
+
+    --muted: 240 3.7% 15.9%; /* Slightly Lighter Dark Gray */
+    --muted-foreground: 0 0% 63.9%; /* Grayish White */
+
+    --accent: 145 63% 52%; /* Brighter Green */
+    --accent-foreground: 0 0% 100%; /* White */
+
+    --destructive: 0 72% 51%; /* Slightly less intense Red */
+    --destructive-foreground: 0 0% 98%; /* Light text on Red */
+
+    --border: 240 3.7% 15.9%; /* Slightly Lighter Dark Gray */
+    --input: 240 3.7% 15.9%; /* Slightly Lighter Dark Gray */
+    --ring: 211 100% 60%; /* Brighter Blue Ring */
+
+    /* --radius remains the same */
+
+    /* Chart Colors (Dark) - Adjust as needed */
+    --chart-1: 211 100% 60%; /* Brighter Blue */
+    --chart-2: 145 63% 52%; /* Brighter Green */
+    --chart-3: 35 91% 65%;   /* Brighter Orange */
+    --chart-4: 280 70% 70%;  /* Brighter Purple */
+    --chart-5: 197 40% 50%; /* Brighter Teal */
+
+
+    /* Sidebar Theme (Dark) */
+    --sidebar-background: 240 5.9% 10%; /* Dark gray sidebar */
+    --sidebar-foreground: 0 0% 98%; /* Light text */
+    --sidebar-border: 240 3.7% 18%; /* Slightly lighter border */
+    --sidebar-primary: 211 100% 60%; /* Brighter Blue */
+    --sidebar-primary-foreground: 0 0% 100%; /* White */
+    --sidebar-accent: 240 3.7% 15.9%; /* Slightly lighter dark gray */
+    --sidebar-accent-foreground: 211 100% 60%; /* Brighter Blue */
+    --sidebar-ring: 211 100% 60%; /* Brighter Blue ring */
+  }
+}
+
+/* Apply base styles */
+@layer base {
+  * {
+    @apply border-border; /* Apply border color variable */
+  }
+  body {
+    @apply bg-background text-foreground; /* Apply background and text color variables */
+    min-height: 100vh;
+    /* Add font smoothing */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Add any additional global utility classes or component overrides here */
