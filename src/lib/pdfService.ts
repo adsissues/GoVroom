@@ -502,8 +502,8 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     let boxHeight = 30;
     const senderText = `1 Sender (Name, Address, Country) Expéditeur (Nom, Adresse, Pays)\n\n${shipment.senderAddress || 'Asendia UK\nUnit 8-12 The Heathrow Estate\nSilver Jubilee way\nHounslow\nTW4 6NF'}`;
     drawTextBox(senderText, col1X, currentY, col1Width, boxHeight, {fontSize: 7});
-    drawTextBox("2 Customs Reference/Status Ref douane/Statut\n\nN/A", col2X, currentY, col2Width, boxHeight / 2, {fontSize: 7});
-    drawTextBox("3 Senders Agents Reference Ref expéditeur de l'agent\n\nN/A", col2X, currentY + boxHeight / 2, col2Width, boxHeight / 2, {fontSize: 7});
+    drawTextBox("2 Customs Reference/Status Ref douane/Statut\n\nN/A", col2X, currentY, col2Width, boxHeight / 2, {fontSize: 7, fontStyle: 'bold'});
+    drawTextBox("3 Senders Agents Reference Ref expéditeur de l\'agent\n\nN/A", col2X, currentY + boxHeight / 2, col2Width, boxHeight / 2, {fontSize: 7});
     currentY += boxHeight;
 
     boxHeight = 30;
@@ -528,7 +528,7 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     currentY += boxHeight;
 
     boxHeight = 20;
-    drawTextBox("6 Senders instructions for customs, etc... Instructions de l'expéditeur (optionel)\n\nN/A", col1X, currentY, col1Width, boxHeight, {fontSize: 7});
+    drawTextBox("6 Senders instructions for customs, etc... Instructions de l\'expéditeur (optionel)\n\nN/A", col1X, currentY, col1Width, boxHeight, {fontSize: 7});
     drawTextBox("7 Successive Carrier Transporteurs successifs\n\nN/A", col2X, currentY, col2Width, boxHeight, {fontSize: 7});
     currentY += boxHeight;
 
@@ -555,37 +555,51 @@ export const generateCmrPdf = async (shipment: Shipment): Promise<void> => {
     drawTextBox("12 Volume (m³)\nCubage (m³)", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, currentY, goodsCol4Width, goodsTableHeaderHeight, {fontSize: 6});
     currentY += goodsTableHeaderHeight;
 
-  const goodsDataHeight = 30;
-    drawTextBox("", col1X, currentY, goodsCol1Width, goodsDataHeight, {fontSize: 8, fontStyle: 'bold'});
-    let yPosGoods = currentY + 4;
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0,0,0);
-    doc.text("Pallets:", col1X + 2, yPosGoods);
-    doc.setTextColor(0,0,0);
-    doc.text(`${shipment.totalPallets || 0}`, col1X + 30, yPosGoods);
-    yPosGoods += 5;
-    doc.setTextColor(0,0,0);
-    doc.text("Sacks:", col1X + 2, yPosGoods);
-    doc.setTextColor(0,0,0);
-    doc.text(`${shipment.totalBags || 0}`, col1X + 30, yPosGoods);
-    yPosGoods += 7;
-    doc.setTextColor(0,0,0);
-    doc.text("SEAL #1 Number:", col1X + 2, yPosGoods);
-    doc.setTextColor(0,0,0);
-    doc.text(`${shipment.sealNumber || 'N/A'}`, col1X + 30, yPosGoods);
-    yPosGoods += 5;
-    doc.setTextColor(0,0,0);
-    doc.text("SEAL #2 Number:", col1X + 2, yPosGoods);
-    doc.setTextColor(0,0,0);
-    doc.text("N/A", col1X + 30, yPosGoods);
-    yPosGoods += 7;
-    doc.setTextColor(0,0,0);
-    doc.text("Description of Goods:", col1X + 2, yPosGoods);
-    doc.setTextColor(0,0,0);
-    doc.text("cross border eCommerce B2C parcels", col1X + 42, yPosGoods);
+ const goodsDataHeight = 40;
+drawTextBox("", col1X, currentY, goodsCol1Width, goodsDataHeight, { fontSize: 8, fontStyle: 'bold' });
 
+let yPosGoods = currentY + 4;
+doc.setFontSize(8);
+doc.setFont('helvetica', 'bold');
+doc.setTextColor(0, 0, 0);
+
+// Pallets
+doc.text("Pallets:", col1X + 2, yPosGoods);
+doc.text(`${shipment.totalPallets || 0}`, col1X + 30, yPosGoods);
+
+yPosGoods += 5;
+
+// Sacks
+doc.text("Sacks:", col1X + 2, yPosGoods);
+doc.text(`${shipment.totalBags || 0}`, col1X + 30, yPosGoods);
+
+yPosGoods += 7;
+
+// SEAL #1
+doc.text("SEAL #1 Number:", col1X + 2, yPosGoods);
+doc.text(`${shipment.sealNumber || 'N/A'}`, col1X + 30, yPosGoods);
+
+yPosGoods += 5;
+
+// SEAL #2
+doc.text("SEAL #2 Number:", col1X + 2, yPosGoods);
+doc.text("N/A", col1X + 30, yPosGoods);
+
+yPosGoods += 7;
+
+// Description of Goods
+doc.text("Description of Goods:", col1X + 2, yPosGoods);
+
+// Move description to next line
+yPosGoods += 5;
+doc.setFont('helvetica', 'normal');
+doc.text(shipment.descriptionOfGoods || "cross border eCommerce B2C parcels", col1X + 6, yPosGoods, {
+  maxWidth: goodsCol1Width - 10 // ensures text stays inside cell
+});
+
+// Draw the right cell box
 drawTextBox("", col1X + goodsCol1Width, currentY, goodsCol2Width, goodsDataHeight);
+
 
 // CORRECTED WEIGHT CALCULATION
 const palletDetails = details.filter(detail => detail.numPallets > 0);
@@ -638,21 +652,76 @@ drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, curren
     const sigBoxWidth = contentWidth / 3;
     boxHeight = 30;
 
-    const today = Timestamp.now().toDate();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
+    // --- Box 17, 18, 19 ---
 
-    const consigneeFirstLine = (shipment.consigneeAddress || 'Consignee, Destination Country').split('\n')[0];
-    const goodsReceivedText = `17 Goods Received/Marchandises Recues\n\n\n\nDate: ${formatDateForPdf(Timestamp.fromDate(tomorrow))}\n${consigneeFirstLine}`;
-    drawTextBox(goodsReceivedText, col1X, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
-
-    drawTextBox("18 Signature and stamp of Carrier/Signature du Transporteur", col1X + sigBoxWidth, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
-    drawTextBox("19 Place and date, Signature Lieu et date, Signature", col1X + sigBoxWidth * 2, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
-    currentY += boxHeight;
-
-    currentY += 2;
+    // Box 17: Goods Received (Manual layout for address)
+    doc.rect(col1X, currentY, sigBoxWidth, boxHeight); // Draw the main border
+    const titleText = "17 Goods Received/Marchandises Recues";
     doc.setFontSize(7);
- doc.text(`Date: ${formatDateForPdf(Timestamp.fromDate(tomorrow))}`, pageMargin + sigBoxWidth * 2 + 5, currentY + 5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(titleText, col1X + 1, currentY + 3);
+
+    // --- Address Block Logic ---
+    const addressText = shipment.consigneeAddress || 'LA POSTE ROISSY HUB\n5 Rue Du Haute de Laval\nZone Cargo 9\n93290 Tremblay-en-France\nFrance';
+    const addressX = col1X + 1;
+    const addressY = currentY + 8; // Start address below title
+    const addressWidth = sigBoxWidth - 2;
+    const addressHeight = boxHeight - 9;
+    
+    let fontSize = 7;
+    const minFontSize = 4;
+    const lineHeightFactor = 1.15;
+    let lines;
+
+    // Auto-shrink font size to fit
+    while (fontSize > minFontSize) {
+        doc.setFontSize(fontSize);
+        lines = doc.splitTextToSize(addressText, addressWidth);
+        const textHeight = lines.length * (fontSize * lineHeightFactor);
+        if (textHeight <= addressHeight) {
+            break; // It fits
+        }
+        fontSize -= 0.5;
+    }
+
+    // Truncate if still too long (and add ellipsis)
+    doc.setFontSize(fontSize);
+    const lineHeight = fontSize * lineHeightFactor;
+    const maxLines = Math.floor(addressHeight / lineHeight);
+    lines = doc.splitTextToSize(addressText, addressWidth); // Recalculate lines with final font size
+
+    if (lines.length > maxLines) {
+        lines = lines.slice(0, maxLines);
+        if (lines.length > 0) {
+            lines[lines.length - 1] = lines[lines.length - 1].slice(0, -3) + '...';
+        }
+    }
+    
+    doc.text(lines, addressX, addressY);
+    // --- End Address Block ---
+
+    // Box 18: Carrier Signature
+    drawTextBox("18 Signature and stamp of Carrier/Signature du Transporteur", col1X + sigBoxWidth, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
+    
+    // Box 19: Place and Date Signature
+    const placeAndDateText = `19 Place and date, Signature Lieu et date, Signature`;
+    drawTextBox(placeAndDateText, col1X + sigBoxWidth * 2, currentY, sigBoxWidth, boxHeight, {fontSize: 7});
+    
+    // --- Dates below boxes 17 and 19 ---
+    const dateY = currentY + boxHeight + 3; // Y position for the dates, just below the boxes
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+
+    // Date for cell 17 (Arrival)
+    const arrivalDateText = ` ${formatDateForPdf(shipment.arrivalDate)}`;
+    doc.text(arrivalDateText, col1X, dateY);
+
+    // Date for cell 19 (Departure)
+    const departureDateText = ` ${formatDateForPdf(shipment.departureDate)}`;
+    const departureDateX = col1X + sigBoxWidth * 2;
+    doc.text(departureDateText, departureDateX, dateY);
+
+    currentY += boxHeight + 5; // Move Y position down, allowing space for the dates
 
     console.log(`[PDFService] ${pdfType}: Content added to PDF.`);
     triggerDownload(doc, filename, pdfType);
@@ -664,4 +733,3 @@ drawTextBox("", col1X + goodsCol1Width + goodsCol2Width + goodsCol3Width, curren
     alert(`Error creating ${pdfType} PDF for ${shipment.id}: ${errorMsg}`);
   }
 };
-
