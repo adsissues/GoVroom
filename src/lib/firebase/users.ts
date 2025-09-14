@@ -168,19 +168,7 @@ export const deleteUserDocument = async (uid: string): Promise<void> => {
 
 // --- Placeholder functions for Firebase Auth user management (require Admin SDK / Cloud Functions) ---
 
-/**
- * [PLACEHOLDER] Creates a new user in Firebase Authentication.
- * This typically requires the Firebase Admin SDK and should be implemented in a secure backend environment (e.g., Cloud Function).
- * @param email The new user's email.
- * @param password The new user's password.
- * @returns Promise resolving to the new user's UID from Auth.
- */
-export const adminCreateAuthUser = async (email: string, password?: string): Promise<string /* UID */> => {
-  console.warn("[users.ts] adminCreateAuthUser is a placeholder. Actual Firebase Auth user creation requires Admin SDK / Cloud Function.");
-  const mockUid = `mock-auth-uid-${Date.now()}`;
-  console.log(`[users.ts] adminCreateAuthUser (placeholder) returning mock UID: ${mockUid} for email: ${email}`);
-  return mockUid;
-};
+
 
 /**
  * [PLACEHOLDER] Deletes a user from Firebase Authentication.
@@ -215,8 +203,11 @@ export const upsertUserOnLogin = async (firebaseUser: FirebaseUser): Promise<Use
     } else {
       // Document does not exist, create it
       console.log(`[users.ts] upsertUserOnLogin: Document NOT found for UID: ${firebaseUser.uid}. Creating new document.`);
-      const isAdmin = firebaseUser.email?.toLowerCase() === 'admin@exemple.com';
-      const role: UserRole = isAdmin ? 'admin' : 'user';
+      
+      // Get role from custom claims, default to 'user' if not present
+      const claims = await firebaseUser.getIdTokenResult(true); // Force refresh to get latest claims
+      const role: UserRole = (claims.claims.role as UserRole) || 'user';
+
       console.log(`[users.ts] upsertUserOnLogin: Assigning role: "${role}" for email: ${firebaseUser.email}`);
       
       const newUser: Omit<User, 'createdAt' | 'lastLogin'> & { createdAt: any; lastLogin: any } = {
