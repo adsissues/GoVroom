@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { UserCog, Save, Loader2, AlertTriangle, Clock } from "lucide-react";
-import { getAppSettings, updateAppSettings } from '@/lib/firebase/settingsService';
+import { UserCog, Save, Loader2, AlertTriangle, Clock, Mail, Trash2 } from "lucide-react";
+import { getAppSettings, updateAppSettings, getRecipients, updateRecipients } from '@/lib/firebase/settingsService';
 import type { AppSettings } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { DEFAULT_SENDER_ADDRESS, DEFAULT_CONSIGNEE_ADDRESS } from '@/lib/constants';
@@ -35,6 +35,9 @@ export default function AdminSettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recipients, setRecipients] = useState<string[]>([]);
+  const [newRecipient, setNewRecipient] = useState("");
+  const [isRecipientsLoading, setIsRecipientsLoading] = useState(true);
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsFormSchema),
@@ -78,6 +81,33 @@ export default function AdminSettingsPage() {
     fetchSettings();
     return () => { isMounted = false; };
   }, [form]);
+
+  useEffect(() => {
+    const fetchRecipients = async () => {
+      setIsRecipientsLoading(true);
+      const fetchedRecipients = await getRecipients();
+      setRecipients(fetchedRecipients);
+      setIsRecipientsLoading(false);
+    };
+    fetchRecipients();
+  }, []);
+
+  const handleAddRecipient = () => {
+    if (newRecipient && !recipients.includes(newRecipient)) {
+      const updatedRecipients = [...recipients, newRecipient];
+      setRecipients(updatedRecipients);
+      updateRecipients(updatedRecipients);
+      setNewRecipient("");
+    }
+  };
+
+  const handleRemoveRecipient = (recipientToRemove: string) => {
+    const updatedRecipients = recipients.filter(
+      (recipient) => recipient !== recipientToRemove
+    );
+    setRecipients(updatedRecipients);
+    updateRecipients(updatedRecipients);
+  };
 
   const onSubmit = async (data: SettingsFormValues) => {
     setIsSaving(true);
@@ -225,6 +255,41 @@ export default function AdminSettingsPage() {
               </form>
             </Form>
           )}
+
+          {/* Email Recipients Section */}
+<div className="space-y-4 pt-6">
+  <h3 className="text-lg font-medium">Email Recipients for Completed Shipments</h3>
+  <div className="flex w-full max-w-sm items-center space-x-2">
+    <Input
+      type="email"
+      placeholder="Enter recipient's email"
+      value={newRecipient}
+      onChange={(e) => setNewRecipient(e.target.value)}
+    />
+    <Button type="button" onClick={handleAddRecipient}>Add Recipient</Button>
+  </div>
+  <div className="space-y-2">
+    {isRecipientsLoading ? (
+      <p>Loading recipients...</p>
+    ) : (
+      recipients.map((recipient) => (
+        <div key={recipient} className="flex items-center justify-between p-2 border rounded-md">
+          <div className="flex items-center gap-2">
+            <Mail className="h-4 w-4 text-muted-foreground" />
+            <span>{recipient}</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => handleRemoveRecipient(recipient)}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ))
+    )}
+  </div>
+</div>
         </CardContent>
       </Card>
     </div>

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter, notFound } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getShipmentById, updateShipment } from '@/lib/firebase/shipmentsService';
+import { getAppSettings } from '@/lib/firebase/settingsService';
 import type { Shipment, ShipmentStatus } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -155,9 +156,44 @@ export default function ShipmentDetailPage() {
           console.log('[ShipmentDetailPage] PDF Effect: Calling generateCmrPdf...');
           await generateCmrPdf(shipment); 
           
-          const recipients = 'customs@example.com,client@example.com';
-          const subject = `Dispatch Pre-Alert – Truck ${shipment.truckRegNo || shipment.id}`;
-          const body = 'Please find attached the Pre-Alert and CMR for this dispatch.';
+          const appSettings = await getAppSettings();
+          console.log("appSettings:", appSettings);
+
+          const recipients = appSettings?.recipients?.join(',') || '';
+
+          const today = new Date();
+          const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+          const departureDate = shipment.departureDate.toDate().toISOString().split('T')[0];
+
+          const subjectTemplate = appSettings?.emailSubjectTemplate || 'Dispatch Pre-Alert – Truck {seal}';
+          console.log("subjectTemplate:", subjectTemplate);
+
+          const bodyTemplate = appSettings?.emailBodyTemplate || 'Please find attached the Pre-Alert and CMR for this dispatch.';
+
+          const placeholders = {
+            '{consignee}': shipment.consigneeAddress,
+            '{date}': date,
+            '{seal}': shipment.sealNumber || '',
+            '{prealert}': 'Pre-Alert',
+            '{departure}': departureDate,
+            '{truck}': shipment.truckRegistration || '',
+            '{trailer}': shipment.trailerRegistration || '',
+            '{pallets}': shipment.totalPallets?.toString() || '0',
+            '{bags}': shipment.totalBags?.toString() || '0',
+          };
+
+          const replacePlaceholders = (template: string) => {
+            return Object.entries(placeholders).reduce((acc, [placeholder, value]) => {
+              return acc.replace(new RegExp(placeholder, 'g'), value);
+            }, template);
+          };
+
+          const subject = replacePlaceholders(subjectTemplate);
+          console.log("final subject:", subject);
+
+          const body = replacePlaceholders(bodyTemplate);
+
           const mailtoUrl = `mailto:${recipients}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
           
           console.log('[ShipmentDetailPage] PDF Effect: Opening email client with mailto URL:', mailtoUrl);
