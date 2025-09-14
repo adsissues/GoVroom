@@ -26,11 +26,12 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, Loader2, RotateCcw } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { cn } from '@/lib/utils';
+import { cn, parseBarcode, type BarcodeData } from '@/lib/utils';
 
 
 // Zod schema
 const detailFormSchema = z.object({
+  barcode: z.string().optional(), // New barcode field
   numPallets: z.coerce.number().min(0, "Pallets cannot be negative").default(1),
   numBags: z.coerce.number().min(0, "Bags cannot be negative").default(0),
   customerId: z.string().min(1, "Customer is required."),
@@ -96,6 +97,7 @@ export default function ShipmentDetailForm({
       queryKey: ['doe'], queryFn: fetchDoes, staleTime: 5 * 60 * 1000, gcTime: 10 * 60 * 1000 });
 
   const newFormDefaults: DetailFormValues = useMemo(() => ({
+    barcode: '',
     numPallets: 1,
     numBags: 0,
     customerId: ASENDIA_UK_CUSTOMER_ID, // Default to Asendia UK
@@ -170,6 +172,7 @@ export default function ShipmentDetailForm({
         }
 
         const resetValues = {
+ barcode: detail.barcode || '',
  numPallets: initialPallets, // Already handled with ?? above
  numBags: initialBags, // Already handled with ?? above
  customerId: detail.customerId ?? ASENDIA_UK_CUSTOMER_ID, // Ensure ?? for fallback
@@ -329,6 +332,35 @@ export default function ShipmentDetailForm({
              <Form {...formHook}>
                  <form onSubmit={formHook.handleSubmit(onSubmit)} className="overflow-y-auto">
                     <div className="space-y-6 p-6 max-h-[calc(90vh-180px)] overflow-y-auto">
+
+                     {/* Barcode Input Field */}
+                     <FormField
+                        control={control}
+                        name="barcode"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Barcode</FormLabel>
+                                <FormControl>
+                                    <Input
+                                        type="text"
+                                        placeholder="Scan or enter barcode"
+                                        {...field}
+                                        onChange={(e) => {
+                                            field.onChange(e.target.value);
+                                            const barcodeData = parseBarcode(e.target.value);
+                                            if (barcodeData) {
+                                                setValue('doeId', barcodeData.doe, { shouldValidate: true });
+                                                setValue('dispatchNumber', barcodeData.dispatchNumber, { shouldValidate: true });
+                                                setValue('grossWeight', barcodeData.grossWeight, { shouldValidate: true });
+                                            }
+                                        }}
+                                        disabled={isSaving}
+                                    />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                     />
 
                      <div className="flex justify-end mb-4">
                         <Button
