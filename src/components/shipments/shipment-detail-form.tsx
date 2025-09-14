@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
@@ -16,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { ShipmentDetail, DropdownItem } from '@/lib/types';
 import { getDropdownOptions } from '@/lib/firebase/dropdownService';
 import {
-    ASENDIA_UK_CUSTOMER_ID, // Use this for default customer
+    ASENDIA_UK_CUSTOMER_ID,
     SERVICE_FORMAT_MAPPING,
     DEFAULT_PRIOR_SERVICE_ID,
     TARE_WEIGHT_DEFAULT,
@@ -24,7 +23,7 @@ import {
     DEFAULT_DOE_ID
 } from '@/lib/constants';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Loader2, RotateCcw } from 'lucide-react';
+import { AlertCircle, Loader2, RotateCcw, Scan } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { cn, parseBarcode, type BarcodeData } from '@/lib/utils';
 import { BarcodeScannerDialog } from './BarcodeScannerDialog';
@@ -39,12 +38,12 @@ const detailFormSchema = z.object({
   serviceId: z.string().min(1, "Service is required."),
   formatId: z.string().optional().default(''),
   tareWeight: z.coerce.number({invalid_type_error: "Tare weight must be a valid number."}).min(0.001, "Tare weight must be a positive number."), // Tare weight must be positive
- grossWeight: z.coerce.number({invalid_type_error: "Gross weight must be a valid number."}).min(0.001, "Gross weight must be a positive number."), // Gross weight must be positive
+  grossWeight: z.coerce.number({invalid_type_error: "Gross weight must be a valid number."}).min(0.001, "Gross weight must be a positive number."), // Gross weight must be positive
   dispatchNumber: z.string().min(1, "Dispatch Number is required.")
-  .refine(val => val === undefined || val === '' || /^[0-9]+$/.test(val), { // Keep digit-only validation
- message: "Dispatch Number must contain only digits.",
+  .refine(val => val === undefined || val === '' || /^[0-9]+$/.test(val), {
+    message: "Dispatch Number must contain only digits.",
   }),
- doeId: z.string().min(1, "DOE is required."), // Make DOE required
+  doeId: z.string().min(1, "DOE is required."), // Make DOE required
 
 }).refine(data => {
     const serviceKey = data.serviceId ? data.serviceId.toLowerCase() : '';
@@ -66,7 +65,7 @@ interface ShipmentDetailFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated' | 'netWeight'>) => Promise<void>;
- onOpen?: () => void; // Added optional onOpen prop
+  onOpen?: () => void;
 }
 
 const fetchCustomers = () => getDropdownOptions('customers');
@@ -83,7 +82,7 @@ export default function ShipmentDetailForm({
   isOpen,
   onClose,
   onSave,
-  onOpen, // Destructure onOpen
+  onOpen,
 }: ShipmentDetailFormProps) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
@@ -121,11 +120,11 @@ export default function ShipmentDetailForm({
     barcode: '',
     numPallets: 1,
     numBags: 0,
-    customerId: ASENDIA_UK_CUSTOMER_ID, // Default to Asendia UK
+    customerId: ASENDIA_UK_CUSTOMER_ID,
     serviceId: DEFAULT_PRIOR_SERVICE_ID,
     formatId: '',
     tareWeight: TARE_WEIGHT_DEFAULT,
-    grossWeight: 0, 
+    grossWeight: 0,
     dispatchNumber: '',
     doeId: DEFAULT_DOE_ID,
   }), []);
@@ -193,14 +192,14 @@ export default function ShipmentDetailForm({
         }
 
         const resetValues = {
- barcode: detail.barcode || '',
- numPallets: initialPallets, // Already handled with ?? above
- numBags: initialBags, // Already handled with ?? above
- customerId: detail.customerId ?? ASENDIA_UK_CUSTOMER_ID, // Ensure ?? for fallback
- serviceId: detail.serviceId ?? DEFAULT_PRIOR_SERVICE_ID, // Ensure ?? for fallback
- formatId: detail.formatId ?? '', // Ensure ?? for empty string fallback
+          barcode: detail.barcode || '',
+          numPallets: initialPallets,
+          numBags: initialBags,
+          customerId: detail.customerId ?? ASENDia_UK_CUSTOMER_ID,
+          serviceId: detail.serviceId ?? DEFAULT_PRIOR_SERVICE_ID,
+          formatId: detail.formatId ?? '',
           tareWeight: initialTareWeight,
- grossWeight: detail.grossWeight ?? 0, // Default to 0 for numbers
+          grossWeight: detail.grossWeight ?? 0,
           dispatchNumber: detail.dispatchNumber || '',
           doeId: detail.doeId || DEFAULT_DOE_ID,
         };
@@ -221,23 +220,22 @@ export default function ShipmentDetailForm({
     syncPalletBagRHFValues(showPalletInputMode);
   }, [showPalletInputMode, syncPalletBagRHFValues]);
 
- useEffect(() => {
- // Effect to change customer based on input mode
- const asendiaUkOption = validCustomerOptions.find(opt => opt.label === 'Asendia UK');
- const asendiaUkBagsOption = validCustomerOptions.find(opt => opt.label === 'Asendia UK/BAGS');
+  useEffect(() => {
+    const asendiaUkOption = validCustomerOptions.find(opt => opt.label === 'Asendia UK');
+    const asendiaUkBagsOption = validCustomerOptions.find(opt => opt.label === 'Asendia UK/BAGS');
 
     if (showPalletInputMode) {
- if (asendiaUkOption && getValues('customerId') !== asendiaUkOption.value) {
- setValue('customerId', asendiaUkOption.value, { shouldValidate: true });
- }
+      if (asendiaUkOption && getValues('customerId') !== asendiaUkOption.value) {
+        setValue('customerId', asendiaUkOption.value, { shouldValidate: true });
+      }
     } else {
- if (asendiaUkBagsOption && getValues('customerId') !== asendiaUkBagsOption.value) {
- setValue('customerId', asendiaUkBagsOption.value, { shouldValidate: true });
- }
+      if (asendiaUkBagsOption && getValues('customerId') !== asendiaUkBagsOption.value) {
+        setValue('customerId', asendiaUkBagsOption.value, { shouldValidate: true });
+      }
     }
- }, [showPalletInputMode, validCustomerOptions, setValue, getValues]);
+  }, [showPalletInputMode, validCustomerOptions, setValue, getValues]);
 
-    useEffect(() => {
+  useEffect(() => {
     let newTareWeight;
     if (showPalletInputMode) {
         newTareWeight = TARE_WEIGHT_DEFAULT;
@@ -307,13 +305,13 @@ export default function ShipmentDetailForm({
          formatId: formatRequiredForSave ? (finalData.formatId || '') : '',
          tareWeight: finalData.tareWeight,
          grossWeight: finalData.grossWeight,
- dispatchNumber: finalData.dispatchNumber || '', // Ensure empty string for empty dispatch
- doeId: finalData.doeId || DEFAULT_DOE_ID, // Ensure fallback for DOE
+         dispatchNumber: finalData.dispatchNumber || '',
+         doeId: finalData.doeId || DEFAULT_DOE_ID,
        };
       await onSave(saveData);
- formHook.reset(newFormDefaults); // Reset the form fields to default values
- onClose(); // Close the current form (this might be called from parent if onOpen is used)
-      if (onOpen) onOpen(); // Reopen if onOpen prop is provided (handled in parent)
+      formHook.reset(newFormDefaults);
+      onClose();
+      if (onOpen) onOpen();
     } catch (error) {
       console.error("Error saving shipment detail:", error);
       toast({
@@ -336,7 +334,7 @@ export default function ShipmentDetailForm({
     );
 
   return (
-     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto p-0">
         <DialogHeader className="p-6 pb-4 border-b sticky top-0 bg-card z-10">
           <DialogTitle>{detail ? 'Edit Shipment Item' : 'Add Shipment Item'}</DialogTitle>
@@ -345,370 +343,368 @@ export default function ShipmentDetailForm({
           </DialogDescription>
         </DialogHeader>
 
-         {dropdownsLoading && isOpen ? (
-             <div className="space-y-4 p-6">
-                 {[...Array(7)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
-             </div>
-         ) : (
-             <Form {...formHook}>
-                 <form onSubmit={formHook.handleSubmit(onSubmit)} className="overflow-y-auto">
-                    <div className="space-y-6 p-6 max-h-[calc(90vh-180px)] overflow-y-auto">
+        {dropdownsLoading && isOpen ? (
+            <div className="space-y-4 p-6">
+                {[...Array(7)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+            </div>
+        ) : (
+            <Form {...formHook}>
+                <form onSubmit={formHook.handleSubmit(onSubmit)} className="overflow-y-auto">
+                   <div className="space-y-6 p-6 max-h-[calc(90vh-180px)] overflow-y-auto">
 
-                     {/* Barcode Input Field */}
-                     <FormField
-                        control={control}
-                        name="barcode"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Barcode</FormLabel>
-                                <div className="flex space-x-2">
-                                    <FormControl>
-                                        <Input
-                                            type="text"
-                                            placeholder="Scan or enter barcode"
-                                            {...field}
-                                            onChange={(e) => {
-                                                field.onChange(e.target.value);
-                                                const barcodeData = parseBarcode(e.target.value);
-                                                if (barcodeData) {
-                                                    setValue('doeId', barcodeData.doe, { shouldValidate: true });
-                                                    setValue('dispatchNumber', barcodeData.dispatchNumber, { shouldValidate: true });
-                                                    setValue('grossWeight', barcodeData.grossWeight, { shouldValidate: true });
-                                                }
-                                            }}
-                                            disabled={isSaving}
-                                        />
-                                    </FormControl>
-                                    {hasCamera && (
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="icon"
-                                            onClick={() => setIsScannerOpen(true)}
-                                            disabled={isSaving}
-                                            aria-label="Scan Barcode"
-                                        >
-                                            <Scan className="h-4 w-4" />
-                                        </Button>
-                                    )}
-                                </div>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                     />
+                    {/* Barcode Input Field */}
+                    <FormField
+                       control={control}
+                       name="barcode"
+                       render={({ field }) => (
+                           <FormItem>
+                               <FormLabel>Barcode</FormLabel>
+                               <div className="flex space-x-2">
+                                   <FormControl>
+                                       <Input
+                                           type="text"
+                                           placeholder="Scan or enter barcode"
+                                           {...field}
+                                           onChange={(e) => {
+                                               field.onChange(e.target.value);
+                                               const barcodeData = parseBarcode(e.target.value);
+                                               if (barcodeData) {
+                                                   setValue('doeId', barcodeData.doe, { shouldValidate: true });
+                                                   setValue('dispatchNumber', barcodeData.dispatchNumber, { shouldValidate: true });
+                                                   setValue('grossWeight', barcodeData.grossWeight, { shouldValidate: true });
+                                               }
+                                           }}
+                                           disabled={isSaving}
+                                       />
+                                   </FormControl>
+                                   {hasCamera && (
+                                       <Button
+                                           type="button"
+                                           variant="outline"
+                                           size="icon"
+                                           onClick={() => setIsScannerOpen(true)}
+                                           disabled={isSaving}
+                                           aria-label="Scan Barcode"
+                                       >
+                                           <Scan className="h-4 w-4" />
+                                       </Button>
+                                   )}
+                               </div>
+                               <FormMessage />
+                           </FormItem>
+                       )}
+                    />
 
-                     <div className="flex justify-end mb-4">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={handleToggleInputMode}
-                            disabled={isSaving}
-                            className="shadow-sm"
-                        >
-                            <RotateCcw className="mr-2 h-4 w-4" />
-                            {showPalletInputMode ? "Enter Bags Instead" : "Enter Pallets Instead"}
-                        </Button>
-                     </div>
+                    <div className="flex justify-end mb-4">
+                       <Button
+                           type="button"
+                           variant="outline"
+                           size="sm"
+                           onClick={handleToggleInputMode}
+                           disabled={isSaving}
+                           className="shadow-sm"
+                       >
+                           <RotateCcw className="mr-2 h-4 w-4" />
+                           {showPalletInputMode ? "Enter Bags Instead" : "Enter Pallets Instead"}
+                       </Button>
+                    </div>
 
-                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6">
-                        {showPalletInputMode && (
-                            <FormField
-                               control={control}
-                               name="numPallets"
-                               render={({ field }) => (
-                               <FormItem>
-                                  <FormLabel>Pallet Number</FormLabel>
-                                  <FormControl>
-                                     <Input type="number" min="0" {...field} disabled={isSaving}
-                                     onChange={e => {
-                                        const pallets = parseInt(e.target.value, 10);
-                                        const newPalletValue = isNaN(pallets) || pallets < 0 ? 0 : pallets;
-                                        field.onChange(newPalletValue);
-                                        if (newPalletValue <= 0 && showPalletInputMode) {
-                                            setShowPalletInputMode(false);
-                                        }
-                                     }}
-                                     />
-                                  </FormControl>
-                                  <FormMessage />
-                               </FormItem>
-                               )}
-                            />
-                        )}
-                        {!showPalletInputMode && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6">
+                       {showPalletInputMode && (
                            <FormField
                               control={control}
-                              name="numBags"
+                              name="numPallets"
+                              render={({ field }) => (
+                              <FormItem>
+                                 <FormLabel>Pallet Number</FormLabel>
+                                 <FormControl>
+                                    <Input type="number" min="0" {...field} disabled={isSaving}
+                                    onChange={e => {
+                                       const pallets = parseInt(e.target.value, 10);
+                                       const newPalletValue = isNaN(pallets) || pallets < 0 ? 0 : pallets;
+                                       field.onChange(newPalletValue);
+                                       if (newPalletValue <= 0 && showPalletInputMode) {
+                                           setShowPalletInputMode(false);
+                                       }
+                                    }}
+                                    />
+                                 </FormControl>
+                                 <FormMessage />
+                              </FormItem>
+                              )}
+                           />
+                       )}
+                       {!showPalletInputMode && (
+                          <FormField
+                             control={control}
+                             name="numBags"
+                             render={({ field }) => (
+                                <FormItem>
+                                   <FormLabel>Number of Bags</FormLabel>
+                                   <FormControl>
+                                      <Input type="number" min="0" {...field}
+                                       onChange={e => {
+                                           const bags = parseInt(e.target.value, 10);
+                                           const newBagValue = isNaN(bags) || bags < 0 ? 0 : bags;
+                                           field.onChange(newBagValue);
+                                           if (newBagValue <= 0 && !showPalletInputMode) {
+                                                setShowPalletInputMode(true);
+                                           }
+                                       }}
+                                      disabled={isSaving} />
+                                   </FormControl>
+                                   <FormMessage />
+                                </FormItem>
+                             )}
+                          />
+                        )}
+
+                        <FormField
+                           control={control}
+                           name="customerId"
+                           render={({ field }) => (
+                               <FormItem>
+                               <FormLabel>Customer *</FormLabel>
+                               <Controller
+                                 name="customerId"
+                                 control={control}
+                                 render={({ field: controllerField }) => ( 
+                                   <ShadcnLabel 
+                                       className={cn(
+                                           "block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+                                           isLoadingCustomers || isSaving ? "cursor-not-allowed opacity-50" : ""
+                                       )}
+                                       aria-disabled={isLoadingCustomers || isSaving}
+                                   >
+                                       <select
+                                           {...controllerField}
+                                           value={controllerField.value || ""} 
+                                           disabled={isSaving || isLoadingCustomers}
+                                           className="w-full bg-transparent outline-none appearance-none"
+                                           onChange={(e) => {
+                                               controllerField.onChange(e.target.value);
+                                           }}
+                                       >
+                                           <option value="" disabled hidden>{isLoadingCustomers ? "Loading..." : "Select a customer"}</option>
+                                           {validCustomerOptions.map((option) => (
+                                           <option key={option.id} value={option.value}>
+                                               {option.label}
+                                           </option>
+                                           ))}
+                                       </select>
+                                   </ShadcnLabel>
+                                 )}
+                               />
+                               {errorCustomers && <p className="text-xs text-destructive">Error loading customers.</p>}
+                               <FormMessage />
+                               </FormItem>
+                           )}
+                        />
+                       </div>
+
+                       <FormField
+                           control={control}
+                           name="serviceId"
+                           render={({ field }) => (
+                               <FormItem className="space-y-3">
+                               <FormLabel>Service *</FormLabel>
+                               <FormControl>
+                                   <RadioGroup
+                                   onValueChange={(value) => {
+                                       field.onChange(value);
+                                   }}
+                                   value={field.value || ""} 
+                                   className="flex flex-wrap gap-2"
+                                   disabled={isSaving || isLoadingServices}
+                                   >
+                                   {validServiceOptions.map((option) => (
+                                       <FormItem key={option.id} className="flex items-center space-x-0 space-y-0">
+                                           <FormControl>
+                                               <RadioGroupItem value={option.value} id={`serv-${option.id}-${option.value}`} className="peer sr-only" />
+                                           </FormControl>
+                                           <ShadcnLabel htmlFor={`serv-${option.id}-${option.value}`} className={radioButtonStyle(field.value === option.value)}>
+                                               {option.label}
+                                           </ShadcnLabel>
+                                       </FormItem>
+                                   ))}
+                                   </RadioGroup>
+                               </FormControl>
+                               {errorServices && <p className="text-xs text-destructive">Error loading services.</p>}
+                               <FormMessage />
+                               </FormItem>
+                           )}
+                       />
+
+                       {!!formatCollectionId && (
+                           <FormField
+                               control={control}
+                               name="formatId"
+                               render={({ field }) => (
+                               <FormItem className="space-y-3">
+                                   <FormLabel>Format {serviceLabelForFormat} *</FormLabel>
+                                   <FormControl>
+                                       <RadioGroup
+                                           key={`${currentServiceId}-format-group`} 
+                                           onValueChange={(value) => {
+                                               field.onChange(value);
+                                               trigger('formatId');
+                                           }}
+                                           value={field.value || ""} 
+                                           className="flex flex-wrap gap-2"
+                                           disabled={isSaving || isLoadingFormats}
+                                       >
+                                       {isLoadingFormats && <Skeleton className="h-10 w-24" />}
+                                       {!isLoadingFormats && validFormatOptions.length === 0 && <p className="text-sm text-muted-foreground">No formats available for this service.</p>}
+                                       {validFormatOptions.map((option) => (
+                                           <FormItem key={option.id} className="flex items-center space-x-0 space-y-0">
+                                               <FormControl>
+                                                   <RadioGroupItem value={option.value} id={`fmt-${currentServiceId}-${option.id}-${option.value}`} className="peer sr-only" />
+                                               </FormControl>
+                                               <ShadcnLabel htmlFor={`fmt-${currentServiceId}-${option.id}-${option.value}`} className={radioButtonStyle(field.value === option.value)}>
+                                                   {option.label}
+                                               </ShadcnLabel>
+                                           </FormItem>
+                                       ))}
+                                       </RadioGroup>
+                                   </FormControl>
+                                   {errorFormats && <p className="text-xs text-destructive">Error loading formats.</p>}
+                                   <FormMessage />
+                               </FormItem>
+                               )}
+                           />
+                         )}
+
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6">
+                           <FormField
+                              control={control}
+                              name="tareWeight"
                               render={({ field }) => (
                                  <FormItem>
-                                    <FormLabel>Number of Bags</FormLabel>
+                                    <FormLabel>Tare Weight *</FormLabel>
                                     <FormControl>
-                                       <Input type="number" min="0" {...field}
-                                        onChange={e => {
-                                            const bags = parseInt(e.target.value, 10);
-                                            const newBagValue = isNaN(bags) || bags < 0 ? 0 : bags;
-                                            field.onChange(newBagValue);
-                                            if (newBagValue <= 0 && !showPalletInputMode) {
-                                                 setShowPalletInputMode(true);
-                                            }
-                                        }}
-                                       disabled={isSaving} />
+                                       <Input type="number" step="0.001" min="0" {...field}
+                                              disabled={isSaving}
+                                       />
                                     </FormControl>
+                                    {showPalletInputMode && <p className="text-xs text-muted-foreground pt-1">Default for pallets: {TARE_WEIGHT_DEFAULT} kg. Editable.</p>}
+                                    {!showPalletInputMode && numBagsWatched > 0 && <p className="text-xs text-muted-foreground pt-1">Auto-calculated ({numBagsWatched} bags × {BAG_WEIGHT_MULTIPLIER} kg/bag). Editable.</p>}
+                                    {!showPalletInputMode && numBagsWatched === 0 && <p className="text-xs text-muted-foreground pt-1">Default: {TARE_WEIGHT_DEFAULT} kg. Editable.</p>}
                                     <FormMessage />
                                  </FormItem>
                               )}
                            />
-                         )}
 
-                         <FormField
-                            control={control}
-                            name="customerId"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Customer *</FormLabel>
-                                <Controller
-                                  name="customerId"
-                                  control={control}
-                                  render={({ field: controllerField }) => ( 
-                                    <ShadcnLabel 
-                                        className={cn(
-                                            "block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-                                            isLoadingCustomers || isSaving ? "cursor-not-allowed opacity-50" : ""
-                                        )}
-                                        aria-disabled={isLoadingCustomers || isSaving}
-                                    >
-                                        <select
-                                            {...controllerField}
-                                            value={controllerField.value || ""} 
-                                            disabled={isSaving || isLoadingCustomers}
-                                            className="w-full bg-transparent outline-none appearance-none"
-                                            onChange={(e) => {
-                                                controllerField.onChange(e.target.value);
-                                            }}
-                                        >
-                                            <option value="" disabled hidden>{isLoadingCustomers ? "Loading..." : "Select a customer"}</option>
-                                            {validCustomerOptions.map((option) => (
-                                            <option key={option.id} value={option.value}>
-                                                {option.label}
-                                            </option>
-                                            ))}
-                                        </select>
-                                    </ShadcnLabel>
-                                  )}
-                                />
-                                {errorCustomers && <p className="text-xs text-destructive">Error loading customers.</p>}
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                         />
-                        </div>
-
-                        <FormField
-                            control={control}
-                            name="serviceId"
-                            render={({ field }) => (
-                                <FormItem className="space-y-3">
-                                <FormLabel>Service *</FormLabel>
-                                <FormControl>
-                                    <RadioGroup
-                                    onValueChange={(value) => {
-                                        field.onChange(value);
-                                    }}
-                                    value={field.value || ""} 
-                                    className="flex flex-wrap gap-2"
-                                    disabled={isSaving || isLoadingServices}
-                                    >
-                                    {validServiceOptions.map((option) => (
-                                        <FormItem key={option.id} className="flex items-center space-x-0 space-y-0">
-                                            <FormControl>
-                                                <RadioGroupItem value={option.value} id={`serv-${option.id}-${option.value}`} className="peer sr-only" />
-                                            </FormControl>
-                                            <ShadcnLabel htmlFor={`serv-${option.id}-${option.value}`} className={radioButtonStyle(field.value === option.value)}>
-                                                {option.label}
-                                            </ShadcnLabel>
-                                        </FormItem>
-                                    ))}
-                                    </RadioGroup>
-                                </FormControl>
-                                {errorServices && <p className="text-xs text-destructive">Error loading services.</p>}
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-
-                        {!!formatCollectionId && (
-                            <FormField
-                                control={control}
-                                name="formatId"
-                                render={({ field }) => (
-                                <FormItem className="space-y-3">
-                                    <FormLabel>Format {serviceLabelForFormat} *</FormLabel>
-                                    <FormControl>
-                                        <RadioGroup
-                                            key={`${currentServiceId}-format-group`} 
-                                            onValueChange={(value) => {
-                                                field.onChange(value);
-                                                trigger('formatId');
-                                            }}
-                                            value={field.value || ""} 
-                                            className="flex flex-wrap gap-2"
-                                            disabled={isSaving || isLoadingFormats}
-                                        >
-                                        {isLoadingFormats && <Skeleton className="h-10 w-24" />}
-                                        {!isLoadingFormats && validFormatOptions.length === 0 && <p className="text-sm text-muted-foreground">No formats available for this service.</p>}
-                                        {validFormatOptions.map((option) => (
-                                            <FormItem key={option.id} className="flex items-center space-x-0 space-y-0">
-                                                <FormControl>
-                                                    <RadioGroupItem value={option.value} id={`fmt-${currentServiceId}-${option.id}-${option.value}`} className="peer sr-only" />
-                                                </FormControl>
-                                                <ShadcnLabel htmlFor={`fmt-${currentServiceId}-${option.id}-${option.value}`} className={radioButtonStyle(field.value === option.value)}>
-                                                    {option.label}
-                                                </ShadcnLabel>
-                                            </FormItem>
-                                        ))}
-                                        </RadioGroup>
-                                    </FormControl>
-                                    {errorFormats && <p className="text-xs text-destructive">Error loading formats.</p>}
-                                    <FormMessage />
-                                </FormItem>
-                                )}
-                            />
-                          )}
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6">
-                            <FormField
-                               control={control}
-                               name="tareWeight"
-                               render={({ field }) => (
-                                  <FormItem>
-                                     <FormLabel>Tare Weight *</FormLabel>
-                                     <FormControl>
-                                        <Input type="number" step="0.001" min="0" {...field}
-                                               disabled={isSaving}
-                                        />
-                                     </FormControl>
-                                     {showPalletInputMode && <p className="text-xs text-muted-foreground pt-1">Default for pallets: {TARE_WEIGHT_DEFAULT} kg. Editable.</p>}
-                                     {!showPalletInputMode && numBagsWatched > 0 && <p className="text-xs text-muted-foreground pt-1">Auto-calculated ({numBagsWatched} bags × {BAG_WEIGHT_MULTIPLIER} kg/bag). Editable.</p>}
-                                     {!showPalletInputMode && numBagsWatched === 0 && <p className="text-xs text-muted-foreground pt-1">Default: {TARE_WEIGHT_DEFAULT} kg. Editable.</p>}
-                                     <FormMessage />
-                                  </FormItem>
-                               )}
-                            />
-
-                            <FormField
-                               control={control}
-                               name="grossWeight"
-                               render={({ field }) => (
-                               <FormItem>
-                                  <FormLabel>Gross Weight *</FormLabel>
-                                  <FormControl>
-                                     <Input
-                                        type="number"
-                                        step="0.001"
-                                        placeholder="Enter gross weight"
-                                        {...field}
-                                        onChange={(e) => {
-                                          const val = e.target.value.replace(',', '.'); // Handle comma input
-                                          field.onChange(val === "" ? "" : parseFloat(val) || 0);
-                                        }}
-                                        disabled={isSaving}
-                                     />
-                                  </FormControl>
-                                  <FormMessage />
-                               </FormItem>
-                               )}
-                            />
-                             <FormField
-                               control={control}
-                               name="dispatchNumber"
-                               render={({ field }) => (
-                               <FormItem>
-                                  <FormLabel>Dispatch Number *</FormLabel>
-                                  <FormControl>
-                                     <Input
-                                        type="text"
-                                        pattern="[0-9]*"
-                                        inputMode="numeric"
-                                        placeholder="Enter dispatch number (digits only)"
-                                        {...field}
-                                        value={field.value || ''} 
-                                        disabled={isSaving}
+                           <FormField
+                              control={control}
+                              name="grossWeight"
+                              render={({ field }) => (
+                              <FormItem>
+                                 <FormLabel>Gross Weight *</FormLabel>
+                                 <FormControl>
+                                    <Input
+                                       type="number"
+                                       step="0.001"
+                                       placeholder="Enter gross weight"
+                                       {...field}
+                                       onChange={(e) => {
+                                         const val = e.target.value.replace(',', '.');
+                                         field.onChange(val === "" ? "" : parseFloat(val) || 0);
+                                       }}
+                                       disabled={isSaving}
                                     />
-                                  </FormControl>
-                                  <FormMessage />
+                                 </FormControl>
+                                 <FormMessage />
+                              </FormItem>
+                              )}
+                           />
+                            <FormField
+                              control={control}
+                              name="dispatchNumber"
+                              render={({ field }) => (
+                              <FormItem>
+                                 <FormLabel>Dispatch Number *</FormLabel>
+                                 <FormControl>
+                                    <Input
+                                       type="text"
+                                       pattern="[0-9]*"
+                                       inputMode="numeric"
+                                       placeholder="Enter dispatch number (digits only)"
+                                       {...field}
+                                       value={field.value || ''} 
+                                       disabled={isSaving}
+                                   />
+                                 </FormControl>
+                                 <FormMessage />
+                              </FormItem>
+                              )}
+                           />
+                           <FormField
+                               control={control}
+                               name="doeId"
+                               render={({ field }) => (
+                               <FormItem className="space-y-3">
+                                   <FormLabel>DOE</FormLabel>
+                                   <FormControl>
+                                       <RadioGroup
+                                       onValueChange={(value) => {
+                                           field.onChange(value);
+                                       }}
+                                       value={field.value || ""} 
+                                       className="flex flex-wrap gap-2"
+                                       disabled={isSaving || isLoadingDoes}
+                                       >
+                                       {isLoadingDoes && <Skeleton className="h-10 w-24" />}
+                                       {!isLoadingDoes && validDoeOptions.length === 0 && <p className="text-sm text-muted-foreground">No DOE options available.</p>}
+                                       {validDoeOptions.map((option) => (
+                                           <FormItem key={option.id} className="flex items-center space-x-0 space-y-0">
+                                               <FormControl>
+                                                   <RadioGroupItem value={option.value} id={`doe-${option.id}-${option.value}`} className="peer sr-only" />
+                                               </FormControl>
+                                               <ShadcnLabel htmlFor={`doe-${option.id}-${option.value}`} className={radioButtonStyle(field.value === option.value)}>
+                                                   {option.label}
+                                               </ShadcnLabel>
+                                           </FormItem>
+                                       ))}
+                                       </RadioGroup>
+                                   </FormControl>
+                                   {errorDoes && <p className="text-xs text-destructive">Error loading DOE options.</p>}
+                                   <FormMessage />
                                </FormItem>
                                )}
-                            />
-                            <FormField
-                                control={control}
-                                name="doeId"
-                                render={({ field }) => (
-                                <FormItem className="space-y-3">
-                                    <FormLabel>DOE</FormLabel>
-                                    <FormControl>
-                                        <RadioGroup
-                                        onValueChange={(value) => {
-                                            field.onChange(value);
-                                        }}
-                                        value={field.value || ""} 
-                                        className="flex flex-wrap gap-2"
-                                        disabled={isSaving || isLoadingDoes}
-                                        >
-                                        {isLoadingDoes && <Skeleton className="h-10 w-24" />}
-                                        {!isLoadingDoes && validDoeOptions.length === 0 && <p className="text-sm text-muted-foreground">No DOE options available.</p>}
-                                        {validDoeOptions.map((option) => (
-                                            <FormItem key={option.id} className="flex items-center space-x-0 space-y-0">
-                                                <FormControl>
-                                                    <RadioGroupItem value={option.value} id={`doe-${option.id}-${option.value}`} className="peer sr-only" />
-                                                </FormControl>
-                                                <ShadcnLabel htmlFor={`doe-${option.id}-${option.value}`} className={radioButtonStyle(field.value === option.value)}>
-                                                    {option.label}
-                                                </ShadcnLabel>
-                                            </FormItem>
-                                        ))}
-                                        </RadioGroup>
-                                    </FormControl>
-                                    {errorDoes && <p className="text-xs text-destructive">Error loading DOE options.</p>}
-                                    <FormMessage />
-                                </FormItem>
-                               )}
-                            />
-                        </div>
-                    </div>
+                           />
+                       </div>
+                   </div>
 
-                      <DialogFooter className="p-6 border-t mt-0 sticky bottom-0 bg-card z-10">
-                         <DialogClose asChild>
-                            <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
-                         </DialogClose>
-                         <Button type="submit" disabled={isSaving || dropdownsLoading}>
-                            {isSaving ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
-                                </>
-                               ) : (detail ? 'Update Item' : 'Add Item')
-                            }
-                         </Button>
-                     </DialogFooter>
-                 </form>
-             </Form>
-          )}
-      </DialogContent>
-      <BarcodeScannerDialog
-        isOpen={isScannerOpen}
-        onClose={() => setIsScannerOpen(false)}
-        onScan={(barcode) => {
-          setValue('barcode', barcode, { shouldValidate: true });
-          const barcodeData = parseBarcode(barcode);
-          if (barcodeData) {
-            setValue('doeId', barcodeData.doe, { shouldValidate: true });
-            setValue('dispatchNumber', barcodeData.dispatchNumber, { shouldValidate: true });
-            setValue('grossWeight', barcodeData.grossWeight, { shouldValidate: true });
-          }
-        }}
-      />
-    </Dialog>
+                     <DialogFooter className="p-6 border-t mt-0 sticky bottom-0 bg-card z-10">
+                        <DialogClose asChild>
+                           <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
+                        </DialogClose>
+                        <Button type="submit" disabled={isSaving || dropdownsLoading}>
+                           {isSaving ? (
+                               <>
+                                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
+                               </>
+                              ) : (detail ? 'Update Item' : 'Add Item')
+                           }
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </Form>
+         )}
+     </DialogContent>
+     <BarcodeScannerDialog
+       isOpen={isScannerOpen}
+       onClose={() => setIsScannerOpen(false)}
+       onScan={(barcode) => {
+         setValue('barcode', barcode, { shouldValidate: true });
+         const barcodeData = parseBarcode(barcode);
+         if (barcodeData) {
+           setValue('doeId', barcodeData.doe, { shouldValidate: true });
+           setValue('dispatchNumber', barcodeData.dispatchNumber, { shouldValidate: true });
+           setValue('grossWeight', barcodeData.grossWeight, { shouldValidate: true });
+         }
+       }}
+     />
+   </Dialog>
   );
 }
-
-    
