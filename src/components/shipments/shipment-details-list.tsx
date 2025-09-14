@@ -154,18 +154,26 @@ export default function ShipmentDetailsList({ shipmentId, parentStatus }: Shipme
     setIsFormOpen(true);
   };
 
-  const handleSaveDetail = async (data: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated'>) => {
+  const handleSaveDetail = async (data: Omit<ShipmentDetail, 'id' | 'shipmentId' | 'createdAt' | 'lastUpdated' | 'netWeight'>) => {
     if (isParentCompleted) {
         toast({ variant: "destructive", title: "Cannot Save", description: "Shipment is already completed." });
         setIsFormOpen(false);
         return;
     }
+
+    const gross = data.grossWeight || 0;
+    const tare = data.tareWeight || 0;
+    const dataWithNetWeight = {
+        ...data,
+        netWeight: gross - tare,
+    };
+
     try {
         let action: Promise<any>;
         if (editingDetail) {
-            action = updateShipmentDetail(shipmentId, editingDetail.id, data);
+            action = updateShipmentDetail(shipmentId, editingDetail.id, dataWithNetWeight);
         } else {
-            action = addShipmentDetail(shipmentId, data);
+            action = addShipmentDetail(shipmentId, dataWithNetWeight);
         }
          await action;
          toast({ title: editingDetail ? "Detail Updated" : "Detail Added", description: "Shipment item saved successfully." });

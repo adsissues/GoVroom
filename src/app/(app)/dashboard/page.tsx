@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -173,7 +172,7 @@ export default function DashboardPage() {
         {itemsToShow.length === 0 && shipments.length === 0 ? ( 
             <p className="text-muted-foreground text-center py-4">No {status.toLowerCase()} shipments found.</p>
         ) : itemsToShow.length === 0 && shipments.length > 0 ? ( 
-             <p className="text-muted-foreground text-center py-4">Click "View All" to see shipments.</p>
+             <p className="text-muted-foreground text-center py-4">Click &quot;View All&quot; to see shipments.</p>
         ) : (
           <ul className="space-y-3">
             {itemsToShow.map((shipment) => {
@@ -289,4 +288,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

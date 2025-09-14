@@ -34,6 +34,7 @@ import { PlusCircle, Edit, Trash2, Loader2, AlertTriangle, ArrowUp, ArrowDown } 
 import { useToast } from '@/hooks/use-toast';
 import DropdownFormDialog from './dropdown-form-dialog';
 import { Skeleton } from '../ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface DropdownTableProps {
   collectionId: string;
@@ -191,7 +192,7 @@ export default function DropdownTable({ collectionId, collectionName }: Dropdown
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete Selected Items?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Are you sure you want to delete {selectedItemIds.length} selected items from the '{collectionName}' list? This action cannot be undone.
+                    Are you sure you want to delete {selectedItemIds.length} selected items from the &apos;{collectionName}&apos; list? This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

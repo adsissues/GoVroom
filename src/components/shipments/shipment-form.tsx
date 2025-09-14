@@ -167,10 +167,6 @@ export default function ShipmentForm({
             senderAddress: senderAddr, // Use determined senderAddr
             consigneeAddress: consigneeAddr, // Use determined consigneeAddr
             descriptionOfGoods: initialData.descriptionOfGoods ?? '', // Populate from initialData
-
-            // ✅ NEW: populate from initialData when editing
-            // NOTE: This was duplicated; keeping one clear entry
-            descriptionOfGoods: initialData.descriptionOfGoods ?? '',
        });
      } else if (!isLoadingAppSettings) { // For new forms, only reset after app settings are loaded (or failed to load)
         formHook.reset({
@@ -186,21 +182,17 @@ export default function ShipmentForm({
             senderAddress: senderAddr, // Use determined senderAddr
             consigneeAddress: consigneeAddr, // Use determined consigneeAddr
             descriptionOfGoods: '', // Default for new shipments
-
-            // ✅ NEW: default for new shipments
-            // NOTE: This was duplicated; keeping one clear entry
-            descriptionOfGoods: '',
         });
      }
  formHook.clearErrors(); // Clear any lingering errors after reset
      console.log("[ShipmentForm] useEffect for reset completed. Current form values:", formHook.getValues());
      console.log(`[ShipmentForm] Form reset complete. descriptionOfGoods value after reset: ${formHook.getValues('descriptionOfGoods')}`);
-   }, [initialData, formHook.reset, appSettings, isLoadingAppSettings]);
+   }, [initialData, formHook.reset, appSettings, isLoadingAppSettings, formHook]);
     console.log("[ShipmentForm] initialData prop received:", initialData ? JSON.parse(JSON.stringify(initialData)) : null);
 
   useEffect(() => {
     console.log(`[ShipmentForm] Current form state descriptionOfGoods: ${formHook.getValues('descriptionOfGoods')}`);
-  }, [formHook.formState.isSubmitted, initialData, formHook.getValues]); // Add formHook.getValues to dependencies
+  }, [formHook.formState.isSubmitted, initialData, formHook.getValues, formHook]); // Add formHook.getValues to dependencies
   const handleFormSubmit = async (data: ShipmentFormValues) => {
     setIsSubmitting(true);
     // Note: Item details (pallet/bag numbers) are handled in a separate section/component
@@ -317,7 +309,7 @@ export default function ShipmentForm({
                 <FormLabel>Driver Name</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder="Enter driver's name"
+                    placeholder="Enter driver&apos;s name"
                     {...field}
                     value={field.value || ''}
                     onChange={(e) => {
@@ -546,7 +538,7 @@ export default function ShipmentForm({
 
          {!isEffectivelyEditing && !formDisabled && (
              <p className="text-sm text-muted-foreground text-center pt-4 italic">
-                 Click the 'Edit' button to make changes to the main shipment details.
+                 Click the &apos;Edit&apos; button to make changes to the main shipment details.
              </p>
          )}
       </form>

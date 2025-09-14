@@ -1,6 +1,6 @@
 "use client";
 import type { ReactNode } from 'react';
-import { createContext, useState, useEffect, useContext, useMemo } from 'react';
+import { createContext, useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import { onAuthStateChangedListener, signOutUser as firebaseSignOut } from '@/lib/firebase/authService';
 import type { User } from '@/lib/types';
 import { useRouter, usePathname } from 'next/navigation'; // Use next/navigation for App Router
@@ -41,7 +41,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     console.log(`[AuthContext] AuthProvider: currentUser state updated in context. CurrentUser:`, currentUser ? JSON.parse(JSON.stringify(currentUser)) : null, `Loading: ${loading}`);
   }, [currentUser, loading]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     console.log("[AuthContext] AuthProvider: Signing out user...");
     try {
         await firebaseSignOut();
@@ -51,7 +51,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
         console.error("[AuthContext] AuthProvider: Error signing out:", error);
     }
-  };
+  }, [router]);
 
   const value = useMemo(() => ({
     currentUser,

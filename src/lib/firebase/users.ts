@@ -1,6 +1,7 @@
 
 import { db } from './config';
 import { doc, getDoc, setDoc, serverTimestamp, Timestamp, collection, getDocs, deleteDoc, query, orderBy } from 'firebase/firestore';
+import type { User as FirebaseUser } from 'firebase/auth';
 import type { User, UserRole } from '@/lib/types';
 
 /**
@@ -188,4 +189,54 @@ export const adminCreateAuthUser = async (email: string, password?: string): Pro
  */
 export const adminDeleteAuthUser = async (uid: string): Promise<void> => {
   console.warn(`[users.ts] adminDeleteAuthUser(${uid}) is a placeholder. Actual Firebase Auth user deletion requires Admin SDK / Cloud Function.`);
+};
+
+/**
+ * Creates or updates a user document in Firestore upon login.
+ * Determines the user's role and sets creation/last login timestamps.
+ * @param firebaseUser The user object from Firebase Authentication.
+ * @returns The resolved user object from Firestore.
+ */
+export const upsertUserOnLogin = async (firebaseUser: FirebaseUser): Promise<User | null> => {
+  if (!firebaseUser.uid) {
+    console.error("[users.ts] upsertUserOnLogin called with no UID.");
+    return null;
+  }
+  const userDocRef = doc(db, 'users', firebaseUser.uid);
+  console.log(`[users.ts] upsertUserOnLogin: Upserting user document for UID: ${firebaseUser.uid}`);
+  try {
+    const userDocSnap = await getDoc(userDocRef);
+    const now = serverTimestamp();
+
+    if (userDocSnap.exists()) {
+      // Document exists, just update lastLogin
+      console.log(`[users.ts] upsertUserOnLogin: Document found for UID: ${firebaseUser.uid}. Updating lastLogin.`);
+      await setDoc(userDocRef, { lastLogin: now }, { merge: true });
+    } else {
+      // Document does not exist, create it
+      console.log(`[users.ts] upsertUserOnLogin: Document NOT found for UID: ${firebaseUser.uid}. Creating new document.`);
+      const isAdmin = firebaseUser.email?.toLowerCase() === 'admin@exemple.com';
+      const role: UserRole = isAdmin ? 'admin' : 'user';
+      console.log(`[users.ts] upsertUserOnLogin: Assigning role: "${role}" for email: ${firebaseUser.email}`);
+      
+      const newUser: Omit<User, 'createdAt' | 'lastLogin'> & { createdAt: any; lastLogin: any } = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        role: role,
+        displayName: firebaseUser.displayName,
+        createdAt: now,
+        lastLogin: now,
+      };
+
+      await setDoc(userDocRef, newUser);
+      console.log(`[users.ts] upsertUserOnLogin: Successfully created new user document for UID: ${firebaseUser.uid}`);
+    }
+    
+    // Return the latest user document from Firestore
+    return await getUserDocument(firebaseUser.uid);
+
+  } catch (error) {
+    console.error(`[users.ts] upsertUserOnLogin: Error upserting user document for UID ${firebaseUser.uid}:`, error);
+    return null;
+  }
 };

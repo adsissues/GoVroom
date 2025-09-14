@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -25,14 +25,29 @@ interface SearchFilterBarProps {
 const fetchCarriers = () => getDropdownOptions('carriers');
 const fetchCustomers = () => getDropdownOptions('customers');
 
+// Debounce mechanism
+// Debounce mechanism
+const debounce = <F extends (...args: any[]) => any>(func: F, waitFor: number) => {
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+
+    const debounced = (...args: Parameters<F>) => {
+        if (timeout !== null) {
+            clearTimeout(timeout);
+            timeout = null;
+        }
+        timeout = setTimeout(() => func(...args), waitFor);
+    };
+
+    return debounced as (...args: Parameters<F>) => ReturnType<F>;
+};
 
 export default function SearchFilterBar({ onFilterChange }: SearchFilterBarProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [status, setStatus] = useState<ShipmentStatus | ''>('');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [carrierId, setCarrierId] = useState<string>('');
-  const [customerId, setCustomerId] = useState<string>(''); // Placeholder - requires details fetch
+  const [carrierId, setCarrierId] = useState('');
+  const [customerId, setCustomerId] = useState(''); // Placeholder - requires details fetch
 
   // Use TanStack Query to fetch and cache dropdown options
     const { data: carrierOptions, isLoading: isLoadingCarriers, error: errorCarriers } = useQuery({
@@ -51,23 +66,8 @@ export default function SearchFilterBar({ onFilterChange }: SearchFilterBarProps
    // });
 
 
-  // Debounce mechanism
-  const debounce = <F extends (...args: any[]) => any>(func: F, waitFor: number) => {
-      let timeout: ReturnType<typeof setTimeout> | null = null;
-
-      const debounced = (...args: Parameters<F>) => {
-          if (timeout !== null) {
-              clearTimeout(timeout);
-              timeout = null;
-          }
-          timeout = setTimeout(() => func(...args), waitFor);
-      };
-
-      return debounced as (...args: Parameters<F>) => ReturnType<F>;
-  };
-
   // Memoize the debounced filter function
-  const debouncedOnFilterChange = useCallback(debounce(onFilterChange, 300), [onFilterChange]);
+  const debouncedOnFilterChange = useMemo(() => debounce(onFilterChange, 300), [onFilterChange]);
 
   // Trigger filter change when any state changes
   useEffect(() => {

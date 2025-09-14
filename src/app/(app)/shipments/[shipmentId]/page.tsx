@@ -59,7 +59,7 @@ export default function ShipmentDetailPage() {
 
     try {
       const fetchedShipmentData = await getShipmentById(shipmentId);
-      console.log(`[ShipmentDetailPage] State updated with fetched data. descriptionOfGoods: ${fetchedShipmentData.descriptionOfGoods}`);
+      console.log(`[ShipmentDetailPage] State updated with fetched data. descriptionOfGoods: ${fetchedShipmentData?.descriptionOfGoods}`);
       console.log(`[ShipmentDetailPage] Fetched shipment data descriptionOfGoods: ${fetchedShipmentData?.descriptionOfGoods}`);
       if (fetchedShipmentData) {
         console.log("[ShipmentDetailPage] fetchShipment: Successfully fetched shipment data:", JSON.stringify(fetchedShipmentData).substring(0, 300) + "...");

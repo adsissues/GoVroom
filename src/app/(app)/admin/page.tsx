@@ -18,7 +18,7 @@ export default function AdminRootPage() {
         </CardHeader>
         <CardContent>
           <p>
-            Select an option like "Dropdowns", "Settings", or "User Management" from the "Admin" section of the main navigation menu to manage administrative tasks.
+            Select an option like &quot;Dropdowns&quot;, &quot;Settings&quot;, or &quot;User Management&quot; from the &quot;Admin&quot; section of the main navigation menu to manage administrative tasks.
           </p>
           {/* Add links or quick actions here later if needed */}
           {/* Example:

@@ -1,0 +1,7 @@
+# Ignore duplicated project structure inside src/lib
+src/lib/src
+src/lib/src_deleteme
+src/lib/functions
+src/lib/docs
+src/lib/test-results
+src/lib/.vscode

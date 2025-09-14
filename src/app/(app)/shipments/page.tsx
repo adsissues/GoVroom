@@ -253,7 +253,7 @@ export default function ShipmentsPage() {
                                             <AlertDialogHeader>
                                                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                                 <AlertDialogDescription>
-                                                    This action cannot be undone. This will permanently delete the shipment referred to as '{shipment.driverName} - {shipment.carrierId}'.
+                                                    This action cannot be undone. This will permanently delete the shipment referred to as &apos;{shipment.driverName} - {shipment.carrierId}&apos;.
                                                     {(shipment.status === 'Completed' && !isAdmin) && " Regular users cannot delete completed shipments."}
                                                     {(shipment.status === 'Completed' && isAdmin) && " This is a completed shipment."}
                                                 </AlertDialogDescription>

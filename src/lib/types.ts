@@ -91,8 +91,11 @@ export interface User {
 // Application Settings document (stored in /app_settings/global)
 export interface AppSettings {
   id?: 'global'; // Fixed ID for the global settings document
-  defaultSenderAddress: string;
-  defaultConsigneeAddress: string;
+  defaultSenderAddress?: string;
+  defaultConsigneeAddress?: string;
+  recipients?: string[];
+  emailSubjectTemplate?: string;
+  emailBodyTemplate?: string;
   logoutAfterMinutes?: number; // Duration in minutes for auto-logout
   // Add other global settings as needed
   lastUpdated?: Timestamp;

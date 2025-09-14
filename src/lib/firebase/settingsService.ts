@@ -1,16 +1,8 @@
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "./config";
+import type { AppSettings } from "../types";
 
 const settingsDocRef = doc(db, "settings", "app");
-
-export interface AppSettings {
-    recipients?: string[];
-    logoutAfterMinutes?: number;
-    defaultSenderAddress?: string;
-    defaultConsigneeAddress?: string;
-    emailSubjectTemplate?: string;
-    emailBodyTemplate?: string;
-  }
   
 export const getAppSettings = async (): Promise<AppSettings | null> => {
     try {

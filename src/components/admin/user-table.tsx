@@ -33,6 +33,7 @@ import { Skeleton } from '../ui/skeleton';
 import { Badge } from '../ui/badge';
 import { format } from 'date-fns';
 import type { Timestamp } from 'firebase/firestore';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const formatDate = (timestamp: Timestamp | undefined): string => {
     if (!timestamp) return 'N/A';
@@ -195,7 +196,7 @@ export default function UserTable() {
                           <AlertDialogHeader>
                             <AlertDialogTitle>Delete User: {user.email}?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              This action will remove the user's document from Firestore.
+                              This action will remove the user&apos;s document from Firestore.
                               <br />
                               <strong className="text-destructive">Note:</strong> Deleting the actual Firebase Authentication user requires backend implementation (Admin SDK / Cloud Function) and is currently a placeholder action. This step only removes the Firestore record.
                               <br />
