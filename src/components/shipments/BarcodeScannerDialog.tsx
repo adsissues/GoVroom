@@ -98,7 +98,7 @@ export const BarcodeScannerDialog: React.FC<BarcodeScannerDialogProps> = ({ isOp
         qrbox: { width: 250, height: 250 },
       };
 
-      let cameraIdentifier: string | { facingMode: "environment" | "user" } | undefined = undefined;
+      let cameraIdentifier: string | { facingMode: "environment" | "user" | true } | undefined = undefined;
 
       if (cameraId) {
         cameraIdentifier = cameraId;
@@ -107,8 +107,8 @@ export const BarcodeScannerDialog: React.FC<BarcodeScannerDialogProps> = ({ isOp
         const rearCamera = availableCameras.find(cam => cam.label.toLowerCase().includes("back") || cam.label.toLowerCase().includes("environment"));
         cameraIdentifier = rearCamera ? rearCamera.id : availableCameras[0].id;
       } else {
-        // Fallback to environment facing mode if no specific camera selected or availableCameras is empty
-        cameraIdentifier = { facingMode: "environment" };
+        // Fallback to generic camera access if no specific camera selected or availableCameras is empty
+        cameraIdentifier = true; // Try any available camera
       }
 
       console.log("Camera identifier for start:", cameraIdentifier);
@@ -188,6 +188,9 @@ export const BarcodeScannerDialog: React.FC<BarcodeScannerDialogProps> = ({ isOp
     console.log("BarcodeScannerDialog main useEffect triggered. isOpen:", isOpen, "selectedCameraId:", selectedCameraId);
     if (isOpen && selectedCameraId) {
       initializeAndStartScanner(selectedCameraId);
+    } else if (isOpen && availableCameras.length === 0 && !cameraError) {
+      // If dialog is open, no cameras found yet, and no error, try to start with generic facingMode
+      initializeAndStartScanner(undefined); // Will trigger generic facingMode: true fallback
     } else if (!isOpen) {
       stopScanner();
     }
@@ -196,17 +199,18 @@ export const BarcodeScannerDialog: React.FC<BarcodeScannerDialogProps> = ({ isOp
       console.log("BarcodeScannerDialog cleanup.");
       stopScanner();
     };
-  }, [isOpen, selectedCameraId, initializeAndStartScanner, stopScanner]);
+  }, [isOpen, selectedCameraId, availableCameras, cameraError, initializeAndStartScanner, stopScanner]);
 
   const handleRetry = () => {
+    setCameraError(null);
+    setHasCameraPermission(null);
     if (selectedCameraId) {
       initializeAndStartScanner(selectedCameraId);
     } else if (availableCameras.length > 0) {
-      // If no specific camera was selected, try the default logic again
       const rearCamera = availableCameras.find(cam => cam.label.toLowerCase().includes("back") || cam.label.toLowerCase().includes("environment"));
       initializeAndStartScanner(rearCamera ? rearCamera.id : availableCameras[0].id);
     } else {
-      // Re-enumerate cameras if none were found initially
+      // Re-enumerate cameras if none were found initially or after previous attempts
       const enumerateCamerasAndStart = async () => {
         try {
           const cameras = await Html5Qrcode.getCameras();
@@ -283,7 +287,7 @@ export const BarcodeScannerDialog: React.FC<BarcodeScannerDialogProps> = ({ isOp
             </div>
           )}
 
-          {availableCameras.length > 1 && !isScanning && !cameraError && (
+          {availableCameras.length > 0 && !isScanning && !cameraError && (
             <div className="mt-4 w-full max-w-[250px]">
               <Select onValueChange={setSelectedCameraId} value={selectedCameraId}>
                 <SelectTrigger>

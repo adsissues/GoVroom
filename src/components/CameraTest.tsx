@@ -27,13 +27,13 @@ const CameraTest: React.FC = () => {
           return;
         }
 
-        // 2. Try to open the rear camera (facingMode: "environment")
-        console.log("Attempting to open rear camera...");
+        // 2. Try to open any available camera (facingMode: true)
+        console.log("Attempting to open any available camera (facingMode: true)...");
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" }
+          video: true // Try any available camera
         });
 
-        alert("Camera access successful! Rear camera opened.");
+        alert("Camera access successful! Any available camera opened.");
         console.log("Camera access successful! Stream:", stream);
 
       } catch (err: any) {
@@ -41,13 +41,17 @@ const CameraTest: React.FC = () => {
         if (err.name === "NotAllowedError") {
           errorMessage = "Camera access denied. Please grant permission in your browser settings.";
         } else if (err.name === "NotFoundError") {
-          errorMessage = "No camera found matching the requested constraints (e.g., rear camera).";
+          errorMessage = "No camera found matching the requested constraints.";
         } else if (err.name === "NotReadableError") {
           errorMessage = "Camera is already in use or not accessible.";
         } else if (err.name === "OverconstrainedError") {
-          errorMessage = "Camera constraints not supported by device (e.g., specific resolution or facingMode).";
+          errorMessage = "Camera constraints not supported by device.";
         } else if (err.name === "SecurityError") {
           errorMessage = "Camera access blocked by security policy (e.g., not on HTTPS).";
+        } else if (err.name === "AbortError") {
+          errorMessage = "Camera access request was aborted.";
+        } else if (err.name === "TypeError") {
+          errorMessage = "Invalid constraints specified for camera access.";
         }
         alert(`Camera access failed: ${errorMessage}`);
         console.error(`Camera access failed: ${errorMessage}`, err);
@@ -66,12 +70,8 @@ const CameraTest: React.FC = () => {
 
     testCameraAccess();
 
-    // Cleanup function to ensure stream is stopped if component unmounts early
     return () => {
-      // This part is mostly for safety, as the stream should be stopped in finally block
-      // but good practice for useEffect cleanup.
-      // However, since testCameraAccess is async, stream might not be available here if it failed early.
-      // The finally block in testCameraAccess is more reliable for stopping the stream.
+      // Cleanup is handled in the finally block of testCameraAccess
     };
   }, []);
 
