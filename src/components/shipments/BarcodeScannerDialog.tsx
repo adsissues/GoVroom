@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from "html5-qrcode";
+import { Html5QrcodeScanner, Html5QrcodeSupportedFormats, Html5QrcodeScanType } from "html5-qrcode";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Scan, XCircle } from 'lucide-react';
+import { Loader2, Scan, XCircle, CameraOff } from 'lucide-react';
 
 interface BarcodeScannerDialogProps {
   isOpen: boolean;
@@ -27,60 +27,34 @@ export const BarcodeScannerDialog: React.FC<BarcodeScannerDialogProps> = ({ isOp
   const { toast } = useToast();
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [hasCamera, setHasCamera] = useState(false);
-  const [cameraPermissionGranted, setCameraPermissionGranted] = useState<boolean | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
 
-  const checkCameraAvailability = useCallback(async () => {
-    if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(device => device.kind === 'videoinput');
-        setHasCamera(videoDevices.length > 0);
-      } catch (error) {
-        console.error("Error enumerating media devices:", error);
-        setHasCamera(false);
-      }
-    } else {
-      setHasCamera(false);
+  const onScanSuccess = useCallback((decodedText: string) => {
+    if (scannerRef.current) {
+      scannerRef.current.stop().catch(error => {
+        console.error("Failed to stop html5QrcodeScanner", error);
+      }).finally(() => {
+        setIsScanning(false);
+        onScan(decodedText);
+        onClose();
+      });
     }
+  }, [onScan, onClose]);
+
+  const onScanError = useCallback((errorMessage: string) => {
+    // This can be noisy, only log for debugging or specific critical errors
+    // console.warn(`Barcode scanning error: ${errorMessage}`);
   }, []);
 
-  useEffect(() => {
-    checkCameraAvailability();
-  }, [checkCameraAvailability]);
-
   const startScanner = useCallback(async () => {
-    if (!hasCamera) {
-      toast({
-        variant: "destructive",
-        title: "No Camera Found",
-        description: "It seems your device does not have a camera or it's not accessible.",
-      });
-      return;
-    }
-
+    setCameraError(null);
+    setHasCameraPermission(null);
     setIsScanning(true);
-    setCameraPermissionGranted(null); // Reset permission status
-
-    // Request camera permission
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      stream.getTracks().forEach(track => track.stop()); // Stop tracks immediately after checking
-      setCameraPermissionGranted(true);
-    } catch (err) {
-      console.error("Camera permission denied:", err);
-      setCameraPermissionGranted(false);
-      setIsScanning(false);
-      toast({
-        variant: "destructive",
-        title: "Camera Permission Denied",
-        description: "Please grant camera access in your browser settings to use the scanner.",
-      });
-      return;
-    }
 
     if (scannerRef.current) {
-      scannerRef.current.clear(); // Clear any previous scanner instance
+      await scannerRef.current.stop().catch(e => console.warn("Error stopping existing scanner:", e));
+      scannerRef.current = null;
     }
 
     scannerRef.current = new Html5QrcodeScanner(
@@ -96,43 +70,58 @@ export const BarcodeScannerDialog: React.FC<BarcodeScannerDialogProps> = ({ isOp
           Html5QrcodeSupportedFormats.ITF,
           Html5QrcodeSupportedFormats.UPC_A,
           Html5QrcodeSupportedFormats.UPC_E,
-          Html5QrcodeSupportedFormats.QR_CODE, // Include QR code for broader compatibility
+          Html5QrcodeSupportedFormats.QR_CODE,
         ],
         rememberLastUsedCamera: true,
-        supportedScanTypes: [
-          Html5QrcodeScanType.SCAN_TYPE_CAMERA,
-          Html5QrcodeScanType.SCAN_TYPE_FILE // Allow file upload as fallback
-        ]
+        supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
       },
       false // verbose
     );
 
-    const onScanSuccess = (decodedText: string) => {
-      if (scannerRef.current) {
-        scannerRef.current.clear().catch(error => {
-          console.error("Failed to clear html5QrcodeScanner", error);
-        });
-      }
+    try {
+      await scannerRef.current.start(
+        { facingMode: "environment" }, // Prefer rear camera
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        onScanSuccess,
+        onScanError
+      );
+      setHasCameraPermission(true);
+    } catch (err: any) {
       setIsScanning(false);
-      onScan(decodedText);
+      setHasCameraPermission(false);
+      console.error("Camera start error:", err);
+      let errorMessage = "Failed to start camera.";
+      if (err.name === "NotAllowedError") {
+        errorMessage = "Camera access denied. Please grant permission in your browser settings.";
+      } else if (err.name === "NotFoundError") {
+        errorMessage = "No camera found on this device.";
+      } else if (err.name === "NotReadableError") {
+        errorMessage = "Camera is already in use or not accessible.";
+      } else if (err.name === "OverconstrainedError") {
+        errorMessage = "Camera constraints not supported by device.";
+      }
+      setCameraError(errorMessage);
+      toast({
+        variant: "destructive",
+        title: "Camera Error",
+        description: errorMessage,
+      });
+      // Automatically close dialog if camera cannot be started
       onClose();
-    };
+    }
+  }, [onScanSuccess, onScanError, toast, onClose]);
 
-    const onScanError = (errorMessage: string) => {
-      // console.warn(`Barcode scanning error: ${errorMessage}`);
-      // This can be noisy, only show toast for critical errors or if scanning fails to start
-    };
-
-    scannerRef.current.render(onScanSuccess, onScanError);
-  }, [hasCamera, onScan, onClose, toast]);
-
-  const stopScanner = useCallback(() => {
+  const stopScanner = useCallback(async () => {
     if (scannerRef.current && isScanning) {
-      scannerRef.current.clear().catch(error => {
-        console.error("Failed to clear html5QrcodeScanner", error);
+      await scannerRef.current.stop().catch(error => {
+        console.error("Failed to stop html5QrcodeScanner", error);
       }).finally(() => {
         setIsScanning(false);
       });
+    }
+    if (scannerRef.current) {
+      scannerRef.current.clear(); // Ensure all resources are released
+      scannerRef.current = null;
     }
   }, [isScanning]);
 
@@ -162,30 +151,43 @@ export const BarcodeScannerDialog: React.FC<BarcodeScannerDialogProps> = ({ isOp
             Position the barcode within the scanning area.
           </DialogDescription>
         </DialogHeader>
-        <div className="p-4 flex flex-col items-center justify-center">
-          {!hasCamera && (
-            <div className="text-center text-red-500">
-              <XCircle className="h-10 w-10 mx-auto mb-2" />
-              <p>No camera detected or accessible.</p>
-              <p>Barcode scanning is not available on this device.</p>
+        <div className="p-4 flex flex-col items-center justify-center min-h-[300px]">
+          {cameraError && (
+            <div className="text-center text-red-500 p-4">
+              <CameraOff className="h-12 w-12 mx-auto mb-3" />
+              <p className="font-semibold text-lg">{cameraError}</p>
+              {cameraError.includes("permission") && (
+                <p className="text-sm mt-2">Please check your browser/device settings to enable camera access for this site.</p>
+              )}
             </div>
           )}
-          {hasCamera && cameraPermissionGranted === false && (
-            <div className="text-center text-red-500">
-              <XCircle className="h-10 w-10 mx-auto mb-2" />
-              <p>Camera access denied.</p>
-              <p>Please enable camera permissions in your browser settings.</p>
+          {!cameraError && hasCameraPermission === false && (
+            <div className="text-center text-red-500 p-4">
+              <XCircle className="h-12 w-12 mx-auto mb-3" />
+              <p className="font-semibold text-lg">Camera access denied.</p>
+              <p className="text-sm mt-2">Please enable camera permissions in your browser settings to use the scanner.</p>
             </div>
           )}
-          {hasCamera && cameraPermissionGranted === true && isScanning && (
-            <div id={qrcodeRegionId} className="w-full h-[300px] bg-gray-200 flex items-center justify-center text-gray-500">
-              <Loader2 className="h-8 w-8 animate-spin mr-2" /> Loading camera...
+          {!cameraError && isScanning && (
+            <div id={qrcodeRegionId} className="w-full h-[300px] bg-gray-100 flex items-center justify-center text-gray-500 rounded-md overflow-hidden">
+              {!hasCameraPermission && hasCameraPermission !== false ? (
+                <div className="flex flex-col items-center">
+                  <Loader2 className="h-8 w-8 animate-spin mb-2" />
+                  <p>Requesting camera permission...</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <Scan className="h-8 w-8 animate-pulse mb-2" />
+                  <p>Scanning for barcode...</p>
+                </div>
+              )}
             </div>
           )}
-          {hasCamera && cameraPermissionGranted === true && !isScanning && (
-            <div className="text-center text-gray-500">
-              <Scan className="h-10 w-10 mx-auto mb-2" />
-              <p>Scanner ready. Waiting for barcode...</p>
+          {!cameraError && !isScanning && hasCameraPermission === true && (
+             <div className="text-center text-gray-500 p-4">
+              <Scan className="h-12 w-12 mx-auto mb-3" />
+              <p className="font-semibold text-lg">Scanner ready.</p>
+              <p className="text-sm mt-2">Waiting for barcode to be positioned.</p>
             </div>
           )}
         </div>

@@ -24,11 +24,10 @@ import {
     DEFAULT_DOE_ID
 } from '@/lib/constants';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Loader2, RotateCcw, Scan } from 'lucide-react';
+import { AlertCircle, Loader2, RotateCcw } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { cn, parseBarcode, type BarcodeData } from '@/lib/utils';
 import { BarcodeScannerDialog } from './BarcodeScannerDialog';
-import { isMobile } from 'react-device-detect';
 
 
 // Zod schema
@@ -89,8 +88,27 @@ export default function ShipmentDetailForm({
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [hasCamera, setHasCamera] = useState(false);
   const [currentServiceId, setCurrentServiceId] = useState<string>(DEFAULT_PRIOR_SERVICE_ID);
   const [showPalletInputMode, setShowPalletInputMode] = useState(true);
+
+  useEffect(() => {
+    const checkCamera = async () => {
+      if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoDevices = devices.filter(device => device.kind === 'videoinput');
+          setHasCamera(videoDevices.length > 0);
+        } catch (error) {
+          console.error("Error enumerating media devices:", error);
+          setHasCamera(false);
+        }
+      } else {
+        setHasCamera(false);
+      }
+    };
+    checkCamera();
+  }, []);
 
   const { data: customerOptions = [], isLoading: isLoadingCustomers, error: errorCustomers } = useQuery<DropdownItem[]>({
       queryKey: ['customers'], queryFn: fetchCustomers, staleTime: 5 * 60 * 1000, gcTime: 10 * 60 * 1000 });
@@ -361,7 +379,7 @@ export default function ShipmentDetailForm({
                                             disabled={isSaving}
                                         />
                                     </FormControl>
-                                    {isMobile && (
+                                    {hasCamera && (
                                         <Button
                                             type="button"
                                             variant="outline"
