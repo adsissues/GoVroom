@@ -21,11 +21,10 @@ interface BarcodeScannerDialogProps {
   onScan: (barcode: string) => void;
 }
 
-const qrcodeRegionId = "qrcode-reader";
-
 export const BarcodeScannerDialog: React.FC<BarcodeScannerDialogProps> = ({ isOpen, onClose, onScan }) => {
   const { toast } = useToast();
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  const qrcodeRegionRef = useRef<HTMLDivElement>(null); // Ref for the scanner div
   const [isScanning, setIsScanning] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
@@ -47,7 +46,26 @@ export const BarcodeScannerDialog: React.FC<BarcodeScannerDialogProps> = ({ isOp
     // console.warn(`Barcode scanning error: ${errorMessage}`);
   }, []);
 
+  const stopScanner = useCallback(async () => {
+    if (scannerRef.current && isScanning) {
+      await scannerRef.current.stop().catch(error => {
+        console.error("Failed to stop html5QrcodeScanner", error);
+      }).finally(() => {
+        setIsScanning(false);
+      });
+    }
+    if (scannerRef.current) {
+      scannerRef.current.clear(); // Ensure all resources are released
+      scannerRef.current = null;
+    }
+  }, [isScanning]);
+
   const startScanner = useCallback(async () => {
+    if (!qrcodeRegionRef.current) {
+      console.warn("Scanner div not mounted yet.");
+      return;
+    }
+
     setCameraError(null);
     setHasCameraPermission(null);
     setIsScanning(true);
@@ -57,8 +75,9 @@ export const BarcodeScannerDialog: React.FC<BarcodeScannerDialogProps> = ({ isOp
       scannerRef.current = null;
     }
 
+    // Instantiate Html5QrcodeScanner with the HTMLElement directly
     scannerRef.current = new Html5QrcodeScanner(
-      qrcodeRegionId,
+      qrcodeRegionRef.current.id, // Pass the ID of the ref'd element
       {
         fps: 10,
         qrbox: { width: 250, height: 250 },
@@ -99,6 +118,8 @@ export const BarcodeScannerDialog: React.FC<BarcodeScannerDialogProps> = ({ isOp
         errorMessage = "Camera is already in use or not accessible.";
       } else if (err.name === "OverconstrainedError") {
         errorMessage = "Camera constraints not supported by device.";
+      } else if (err.name === "NotSupportedError") {
+        errorMessage = "Camera API not supported by this browser.";
       }
       setCameraError(errorMessage);
       toast({
@@ -111,23 +132,14 @@ export const BarcodeScannerDialog: React.FC<BarcodeScannerDialogProps> = ({ isOp
     }
   }, [onScanSuccess, onScanError, toast, onClose]);
 
-  const stopScanner = useCallback(async () => {
-    if (scannerRef.current && isScanning) {
-      await scannerRef.current.stop().catch(error => {
-        console.error("Failed to stop html5QrcodeScanner", error);
-      }).finally(() => {
-        setIsScanning(false);
-      });
-    }
-    if (scannerRef.current) {
-      scannerRef.current.clear(); // Ensure all resources are released
-      scannerRef.current = null;
-    }
-  }, [isScanning]);
-
   useEffect(() => {
     if (isOpen) {
-      startScanner();
+      // Delay starting the scanner slightly to ensure the DOM element is rendered
+      const timer = setTimeout(() => {
+        startScanner();
+      }, 100); // A small delay, adjust if necessary
+
+      return () => clearTimeout(timer);
     } else {
       stopScanner();
     }
@@ -169,7 +181,7 @@ export const BarcodeScannerDialog: React.FC<BarcodeScannerDialogProps> = ({ isOp
             </div>
           )}
           {!cameraError && isScanning && (
-            <div id={qrcodeRegionId} className="w-full h-[300px] bg-gray-100 flex items-center justify-center text-gray-500 rounded-md overflow-hidden">
+            <div id="qrcode-reader" ref={qrcodeRegionRef} className="w-full h-[300px] bg-gray-100 flex items-center justify-center text-gray-500 rounded-md overflow-hidden">
               {!hasCameraPermission && hasCameraPermission !== false ? (
                 <div className="flex flex-col items-center">
                   <Loader2 className="h-8 w-8 animate-spin mb-2" />
