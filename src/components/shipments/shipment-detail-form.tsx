@@ -24,9 +24,11 @@ import {
     DEFAULT_DOE_ID
 } from '@/lib/constants';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Loader2, RotateCcw } from 'lucide-react';
+import { AlertCircle, Loader2, RotateCcw, Scan } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { cn, parseBarcode, type BarcodeData } from '@/lib/utils';
+import { BarcodeScannerDialog } from './BarcodeScannerDialog';
+import { isMobile } from 'react-device-detect';
 
 
 // Zod schema
@@ -86,6 +88,7 @@ export default function ShipmentDetailForm({
 }: ShipmentDetailFormProps) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [currentServiceId, setCurrentServiceId] = useState<string>(DEFAULT_PRIOR_SERVICE_ID);
   const [showPalletInputMode, setShowPalletInputMode] = useState(true);
 
@@ -340,23 +343,37 @@ export default function ShipmentDetailForm({
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Barcode</FormLabel>
-                                <FormControl>
-                                    <Input
-                                        type="text"
-                                        placeholder="Scan or enter barcode"
-                                        {...field}
-                                        onChange={(e) => {
-                                            field.onChange(e.target.value);
-                                            const barcodeData = parseBarcode(e.target.value);
-                                            if (barcodeData) {
-                                                setValue('doeId', barcodeData.doe, { shouldValidate: true });
-                                                setValue('dispatchNumber', barcodeData.dispatchNumber, { shouldValidate: true });
-                                                setValue('grossWeight', barcodeData.grossWeight, { shouldValidate: true });
-                                            }
-                                        }}
-                                        disabled={isSaving}
-                                    />
-                                </FormControl>
+                                <div className="flex space-x-2">
+                                    <FormControl>
+                                        <Input
+                                            type="text"
+                                            placeholder="Scan or enter barcode"
+                                            {...field}
+                                            onChange={(e) => {
+                                                field.onChange(e.target.value);
+                                                const barcodeData = parseBarcode(e.target.value);
+                                                if (barcodeData) {
+                                                    setValue('doeId', barcodeData.doe, { shouldValidate: true });
+                                                    setValue('dispatchNumber', barcodeData.dispatchNumber, { shouldValidate: true });
+                                                    setValue('grossWeight', barcodeData.grossWeight, { shouldValidate: true });
+                                                }
+                                            }}
+                                            disabled={isSaving}
+                                        />
+                                    </FormControl>
+                                    {isMobile && (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => setIsScannerOpen(true)}
+                                            disabled={isSaving}
+                                            aria-label="Scan Barcode"
+                                        >
+                                            <Scan className="h-4 w-4" />
+                                        </Button>
+                                    )}
+                                </div>
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -659,6 +676,19 @@ export default function ShipmentDetailForm({
              </Form>
           )}
       </DialogContent>
+      <BarcodeScannerDialog
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScan={(barcode) => {
+          setValue('barcode', barcode, { shouldValidate: true });
+          const barcodeData = parseBarcode(barcode);
+          if (barcodeData) {
+            setValue('doeId', barcodeData.doe, { shouldValidate: true });
+            setValue('dispatchNumber', barcodeData.dispatchNumber, { shouldValidate: true });
+            setValue('grossWeight', barcodeData.grossWeight, { shouldValidate: true });
+          }
+        }}
+      />
     </Dialog>
   );
 }
